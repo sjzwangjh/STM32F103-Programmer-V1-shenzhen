@@ -1,0 +1,38 @@
+# Keil MDK Build Artifacts
+OBJ/
+*.o
+*.d
+*.lst
+*.crf
+*.txt
+*.axf
+*.hex
+*.map
+*.htm
+*.lnp
+*.dep
+*.iex
+*.orig
+*.bak
+
+# Keil MDK User Settings
+*.uvguix.*
+*.uvoptx
+
+# Build Logs
+*.log
+
+# IDE
+.vscode/
+
+# Backup Archives
+*.zip
+*.rar
+*.7z
+
+# Codewhale Session State
+.codewhale/state/
+
+# Python
+__pycache__/
+*.pyc

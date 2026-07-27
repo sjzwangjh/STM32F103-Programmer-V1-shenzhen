@@ -1,0 +1,139 @@
+#include "sys.h"
+#include "usart.h"
+#include "delay.h"
+#include "led.h"
+#include "beep.h"
+#include "key.h"
+#include "exti.h"
+#include "wdg.h"
+#include "timer.h"
+#include "rtc.h"
+#include "wkup.h"
+#include "adc.h"
+#include "dac.h"
+#include "dma.h"
+#include "flash.h"
+#include "eeprom.h"
+#include "sdcard.h"
+
+#include "usb_lib.h"
+#include "hw_USB_config.h"
+#include "usb_pwr.h"
+#include "Lcd12864Bmp.h"
+#include "Lcd12864.h"
+#include "power.h"
+#include "dutBus.h"
+#include "usb_hid_user.h"
+#include "usb_cdc_user.h"
+#include "stk500Protocol.h"
+#include "handler.h"
+#include "offLinePgmer.h"
+#include "debugBin.h"
+
+/// USB 口对应的MCU引脚定义
+#define HW_USB_DP_PORT  A,12
+
+/// @brief 设置USB“使能”状态
+/// @param enable = 0：关闭；1：使能
+void usb_port_set(u8 enable)
+{
+    RCC->APB2ENR|=1<<2;
+    if(enable){
+        _SetCNTR(_GetCNTR() & (~(1<<1)));
+    }else{
+        _SetCNTR(_GetCNTR() | (1<<1));
+        PORT_SET_DIR_PP(HW_USB_DP_PORT);
+        PORT_OUT(HW_USB_DP_PORT)=0;
+    }
+}
+
+/// @brief MCU主函数入口
+/// @param  
+/// @return 
+int main(void)
+{
+    u16 i=0; u8 key=0;
+    u8 handlerKey = 0;
+
+    Stm32_Clock_Init(6);
+    delay_init(72);
+    uart_init(72,HW_DEBUG_BAUDRATE);
+
+    LED_Init(); KEY_Init(); BEEP_Init();
+
+    BEEP=1; usb_port_set(0); delay_ms(300); usb_port_set(1); BEEP=0;
+
+    USB_Interrupts_Config();
+    Set_USBClock();
+    USB_Init();
+
+    /* 保留 SWD，关闭 JTAG 即可，避免误关 SWD 调试口。 */
+    Disable_JTAG_Keep_SWD();
+    DutBus_Init();
+
+    uint32_t timeout = 500;
+    while(bDeviceState != CONFIGURED && timeout--) delay_ms(1);
+    delay_ms(200);
+    LED_ACTIVE=1;
+
+    powerSoftInit(1200,50);
+    delay_ms(100);
+
+    LCD_GPIO_Init();
+    LCD_Init();
+    LCD_DisplayString58(1,12,"DIF Micro");
+    LCD_DisplayGraphic(1,1,64,64, bmp_defeng_Logo);
+    LCD_DisplayGB2312String(3,9,"Defeng Tech");
+
+    timerInit();
+    Adc_Init();             // ADC + DMA1_Channel1
+
+    /* EEPROM 当前仅提供轮询版 SPI 读写接口，无需 DMA 初始化。 */
+    SPI_EEPROM_Init();
+
+    /* Flash 默认读写接口也是轮询版。
+     * 只有在后续明确调用 SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
+     * 时，才需要打开 SPI_Flash_DMA_Init()。
+     */
+    SPI_Flash_Init();
+    /* SPI_Flash_DMA_Init(); */
+
+    /* FatFs / diskio 当前走的是 SD_ReadSingleBlock()/SD_ReadBlocks()
+     * 这条轮询路径，不会自动使用 SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()。
+     * 因此默认只初始化 SDIO 本体；若后续切换到底层 DMA 接口，
+     * 再在 SD_Init() 成功后补做 SD_DMA_Init()。
+     */
+    if(SD_Init() == SD_OK)
+    {
+        /* SD_DMA_Init(); */
+    }
+		/* 初始化 Handler */
+    Handler_Task_Init();
+	HandlerTask(1,1);   // 初始化发送一个失效信号
+    /* 离线编程器初始化 */
+    offlinePgmer_init();
+    debugBin_Init();
+    while(1)
+    {
+        i++;
+        if(i==100000) 
+        { 
+            i=0; 
+            LED_HALT=!LED_HALT; 
+        }
+        key=KEY_Scan(0);
+        debugBin_Task();
+        if(key!=0)
+        { 
+            BEEP = !BEEP; 
+        }
+        HID_Task();     // USB HID 指令扫描
+        CDC_Task();     // USB CDC 指令扫描
+        /* 机械手信号读取 */
+        handlerKey = HandlerTask(1,0);
+        if(handlerKey>0){
+            offlinePgmer();
+        }
+    }
+}
+

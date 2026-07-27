@@ -1,0 +1,147 @@
+/*
+ * avrOffLinePgm.c — AVR 离线编程模块 (适配压缩后 avrDeviceConst)
+ *
+ * 适配变更: 原 avrOffLinePgm 使用 AVR_DeviceParam (160B/条),
+ * 现改为 AVR_DeviceEntry (28B/条) + 共享表查找。
+ * 对外接口保持不变, 内部通过 avr_get_full_params() 展开完整参数。
+ */
+#include "avrOffLinePgm.h"
+#include <string.h>
+
+/* ── AVR_BackupParam: 展开后的完整参数缓存 (兼容旧接口) ── */
+typedef struct {
+    uint16_t id; uint8_t sig[3];      /* signature (offset 0-2) */
+    uint8_t pad[9];                   /* offset 3-11 */
+    uint8_t stk500_dc, avr910_dc;     /* 12-13 */
+    uint8_t timeout, stabdelay, cmdexe, synch, bytedelay; /* 14-18 */
+    uint8_t pollval, pollidx;         /* 19-20 */
+    uint16_t chip_erase_delay;        /* 21-22 */
+    uint8_t pad2[2]; uint16_t flash_page_size; /* 23-26 */
+    uint32_t flash_size;             /* 27-30 */
+    uint16_t eeprom_size;           /* 31-32 (bytes) */
+    uint8_t pad3[7];                 /* 33-39 */
+    uint8_t fuse_count;              /* 40 */
+    uint8_t pad4[7];                 /* 41-47 */
+    AVR_MemSlot mem[AVR_MEM_MAX];    /* 48-111 */
+    AVR_SPICmd op[AVR_OP_MAX];       /* 112-166 */
+} AVR_ExpandedParam;  /* ~167 bytes */
+
+
+void ofp_init(AvrOfflineCtx* ctx) {
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->state = OFP_IDLE;
+}
+
+int ofp_select_device(AvrOfflineCtx* ctx, uint16_t idx) {
+    const AVR_DeviceEntry* e = avr_get_device_entry(idx);
+    if (!e) return -1;
+    ctx->device_index = idx;
+    ctx->device_entry = e;
+    ctx->state = OFP_CONNECTED;
+    return 0;
+}
+
+int ofp_select_by_signature(AvrOfflineCtx* ctx, const uint8_t sig[3]) {
+    int16_t idx = avr_find_device_by_signature(sig);
+    return idx < 0 ? -1 : ofp_select_device(ctx, (uint16_t)idx);
+}
+
+/**
+ * @brief  从压缩条目展开完整的参数用于旧协议封装
+ *
+ * 展开后的格式与原始 AVR_DeviceParam 内存布局对齐,
+ * 用于生成 STK500 协议数据包。
+ */
+static void avr_expand_entry(const AVR_DeviceEntry* e, AVR_ExpandedParam* out) {
+    if (!e || !out) return;
+    memset(out, 0, sizeof(*out));
+
+    /* signature */
+    out->sig[0] = e->signature[0]; out->sig[1] = e->signature[1];
+    out->sig[2] = e->signature[2];
+
+    out->stk500_dc = e->stk500_devcode;
+    out->avr910_dc = e->avr910_devcode;
+    out->timeout   = e->timeout;
+    out->stabdelay = e->stabdelay;
+    out->cmdexe    = e->cmdexedelay;
+    out->synch     = e->synchloops;
+    out->bytedelay = e->bytedelay;
+    out->pollval   = e->pollvalue;
+    out->pollidx   = e->pollindex;
+
+    out->chip_erase_delay = e->chip_erase_delay;
+    out->flash_page_size  = ((uint16_t)e->flash_page_size_msb << 8) | e->flash_page_size_lsb;
+    out->flash_size       = e->flash_size;
+    out->eeprom_size      = e->eeprom_size;
+    out->fuse_count       = e->fuse_count;
+
+    /* mem slots from shared MEM group */
+    const AVR_MemGroup* mg = avr_get_mem_group(e->mem_group);
+    if (mg) memcpy(out->mem, mg->mem, sizeof(AVR_MemSlot) * AVR_MEM_MAX);
+
+    /* op commands from shared OP group (always index 0) */
+    const AVR_OpGroup* og = avr_get_op_group(0);
+    if (og) memcpy(out->op, og->op, sizeof(AVR_SPICmd) * AVR_OP_MAX);
+}
+
+int ofp_get_param_packet(AvrOfflineCtx* ctx, uint8_t* buf, uint16_t sz) {
+    if (!ctx->device_entry || sz < 100) return -1;
+    AVR_ExpandedParam p;
+    avr_expand_entry(ctx->device_entry, &p);
+
+    uint16_t pos = 0;
+    buf[pos++] = 0x01;
+    for (int i = 0; i < 3; i++) buf[pos++] = p.sig[i];
+    buf[pos++] = p.stk500_dc; buf[pos++] = p.avr910_dc;
+    buf[pos++] = p.timeout; buf[pos++] = p.stabdelay; buf[pos++] = p.cmdexe;
+    buf[pos++] = p.synch; buf[pos++] = p.bytedelay;
+    buf[pos++] = p.pollval; buf[pos++] = p.pollidx;
+    buf[pos++] = p.chip_erase_delay & 0xFF;
+    buf[pos++] = (p.chip_erase_delay >> 8) & 0xFF;
+    buf[pos++] = p.flash_page_size & 0xFF;
+    buf[pos++] = (p.flash_page_size >> 8) & 0xFF;
+    uint32_t fs = p.flash_size;
+    buf[pos++] = fs & 0xFF; buf[pos++] = (fs >> 8) & 0xFF;
+    buf[pos++] = (fs >> 16) & 0xFF; buf[pos++] = (fs >> 24) & 0xFF;
+    buf[pos++] = p.eeprom_size & 0xFF;
+    buf[pos++] = (p.eeprom_size >> 8) & 0xFF;
+    buf[pos++] = p.fuse_count;
+    for (int i = 0; i < AVR_MEM_MAX; i++) {
+        buf[pos++] = p.mem[i].size & 0xFF;
+        buf[pos++] = (p.mem[i].size >> 8) & 0xFF;
+        buf[pos++] = p.mem[i].page_size & 0xFF;
+        buf[pos++] = (p.mem[i].page_size >> 8) & 0xFF;
+        buf[pos++] = p.mem[i].readsize;
+        buf[pos++] = p.mem[i].delay;
+        buf[pos++] = p.mem[i].flags;
+        buf[pos++] = 0;
+    }
+    for (int i = 0; i < AVR_OP_MAX; i++) {
+        for (int j = 0; j < 4; j++) buf[pos++] = p.op[i].cmd[j];
+        buf[pos++] = p.op[i].data_index;
+    }
+    return pos;
+}
+
+int ofp_make_enter_progmode_packet(AvrOfflineCtx* ctx, uint8_t* buf) {
+    if (!ctx->device_entry) return -1;
+    AVR_ExpandedParam p;
+    avr_expand_entry(ctx->device_entry, &p);
+
+    buf[0] = 0x10; buf[1] = p.timeout; buf[2] = p.stabdelay;
+    buf[3] = p.cmdexe; buf[4] = p.synch; buf[5] = p.bytedelay;
+    buf[6] = p.pollval; buf[7] = p.pollidx;
+    for (int i = 0; i < 4; i++) buf[8 + i] = p.op[AVR_OP_PGM_ENABLE].cmd[i];
+    return 12;
+}
+
+int ofp_make_chip_erase_packet(AvrOfflineCtx* ctx, uint8_t* buf) {
+    if (!ctx->device_entry) return -1;
+    AVR_ExpandedParam p;
+    avr_expand_entry(ctx->device_entry, &p);
+
+    buf[0] = 0x12; buf[1] = p.chip_erase_delay / 1000; buf[2] = 0;
+    for (int i = 0; i < 4; i++) buf[3 + i] = p.op[AVR_OP_CHIP_ERASE].cmd[i];
+    return 7;
+}
