@@ -1,5 +1,5 @@
 /*
- * STK500协议头文�?- 协议常量/命令�?函数原型
+ * STK500协�??头文�?- 协�??常量/命令�?函数原型
  */
 
 #ifndef __STK500PROTOCOL_H_INCLUDED__
@@ -25,6 +25,12 @@
 #define BUFFER_SIZE     281 /* results in 275 bytes max body size */
 #define RX_TIMEOUT      200 /* timeout in milliseconds */
 
+#define EEPROM_BOOT_MODE_ADDR       0x0200U
+#define EEPROM_BOOT_MODE_UPDATE     0xFFU
+/* STK_CMD_FIRMWARE_UPGRADE payload magic; must match STM32F103VET6_BootLoader_PC. */
+#define STK_FW_UPGRADE_MAGIC0       0xA5U
+#define STK_FW_UPGRADE_MAGIC1       0x5AU
+
 typedef union{      // 字节/字转换辅助结构体
     uint16_t    word;
     uint8_t     bytes[2];
@@ -35,7 +41,7 @@ typedef union{      // ˫��/�ֽ�ת�������ṹ��
     uint8_t     bytes[4];
 }utilDword_t;
 
-typedef struct{     // STK参数�?字节数组转换辅助构体
+typedef struct{     // STK参数�?字节数组�?换辅助构�?
     uint8_t     bytes[32];
     struct{
         int     buildVersionLow;
@@ -228,7 +234,7 @@ typedef struct stkProgramFusePp{
 /* =================== [ ICSP parameter structs ] =================== */
 
 typedef struct stkEnterProgIcsp{
-    uint8_t   deviceProfile;    /* 兼容旧协�? 0=沿用当前, 1=baseline, 2=mid-range, 3=enhanced */
+    uint8_t   deviceProfile;    /* 兼�?�旧协�?? 0=沿用当前, 1=baseline, 2=mid-range, 3=enhanced */
     uint8_t   enterMode;        /* bit0=prefer LVP, bit7=使用 deviceIndex */
     uint8_t   deviceIndex[2];   /* 新协�? little-endian 器件索引 */
 }stkEnterProgIcsp_t;
@@ -247,7 +253,7 @@ typedef struct stkProgramFlashIcsp{
     uint8_t   numWords[2];
     uint8_t   flags;
     uint8_t   delay;
-    uint8_t   data[1];          /* 实际后面跟随更多数据 */
+    uint8_t   data[1];          /* 实际后面跟随更�?�数�? */
 }stkProgramFlashIcsp_t;
 
 typedef struct stkReadFlashIcsp{
@@ -261,7 +267,7 @@ typedef struct stkProgramEepromIcsp{
     uint8_t   numBytes[2];
     uint8_t   flags;
     uint8_t   delay;
-    uint8_t   data[1];          /* 实际后面跟随更多数据 */
+    uint8_t   data[1];          /* 实际后面跟随更�?�数�? */
 }stkProgramEepromIcsp_t;
 
 typedef struct stkReadEepromIcsp{
@@ -311,6 +317,7 @@ void    stkEvaluateRxMessage(stkDataFrame_t *pDataFrame);
 int     stkGetTxByte(void);
 int     stkGetTxCount(void);
 void    stkPoll(void);              /* must be called from main loop */
+uint8_t stkFwUpgradeRequested(void);
 void    stkIncrementAddress(void);
 
 /* =================== [ STK general command constants ] =================== */
@@ -448,7 +455,7 @@ void    stkIncrementAddress(void);
 #define STK_MCU_PROGRAM_WITH_ICSP       3
 #define STK_MCU_PROGRAM_WITH_JTAG       4
 
-/* 自添加协�?> 器件标识信息结构�?此结构体不可轻易修改 */
+/* �?添加协�??> 器件标识信息结构�?此结构体不可轻易�?�? */
 typedef struct
 {
     uint8_t arch;     // 器件类型�?= AVR, 1 = PIC

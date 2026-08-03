@@ -1,5 +1,6 @@
-#include "sys.h" 
-//系统时钟初始化		   
+#include "sys.h"
+#include "Hardware_Config.h"
+//系统时钟初始化
 
 //设置向量表偏移地址
 //NVIC_VectTab:基址
@@ -72,24 +73,42 @@ void Ex_NVIC_Config(u8 GPIOx,u8 BITx,u8 TRIM)
 } 	  
 //不能在这里执行所有外设复位!否则至少引起串口不工作.		    
 void MYRCC_DeInit(void)
-{	
- 	RCC->APB1RSTR = 0x00000000;//复位结束			 
-	RCC->APB2RSTR = 0x00000000; 
-	  
-  	RCC->AHBENR = 0x00000014;  //睡眠模式闪存和SRAM时钟使能.其他关闭.	  
-  	RCC->APB2ENR = 0x00000000; //外设时钟关闭.			   
-  	RCC->APB1ENR = 0x00000000;   
-	RCC->CR |= 0x00000001;     //使能内部高速时钟HSION	 															 
-	RCC->CFGR &= 0xF8FF0000;   //复位SW[1:0],HPRE[3:0],PPRE1[2:0],PPRE2[2:0],ADCPRE[1:0],MCO[2:0]					 
-	RCC->CR &= 0xFEF6FFFF;     //复位HSEON,CSSON,PLLON
-	RCC->CR &= 0xFFFBFFFF;     //复位HSEBYP	   	  
-	RCC->CFGR &= 0xFF80FFFF;   //复位PLLSRC, PLLXTPRE, PLLMUL[3:0] and USBPRE 
-	RCC->CIR = 0x00000000;     //关闭所有中断		 
-	//配置向量表				  
+{
+    /* Warm start guard:
+     * Keil download may start the core without a full hardware reset.
+     * Stop old interrupts/SysTick first, then rebuild the clock tree.
+     */
+    __disable_irq();
+    SysTick->CTRL = 0;
+    SysTick->LOAD = 0;
+    SysTick->VAL  = 0;
+    NVIC->ICER[0] = 0xFFFFFFFF;
+    NVIC->ICER[1] = 0xFFFFFFFF;
+    NVIC->ICPR[0] = 0xFFFFFFFF;
+    NVIC->ICPR[1] = 0xFFFFFFFF;
+
+    RCC->APB1RSTR = 0x00000000; // 复位结束
+    RCC->APB2RSTR = 0x00000000;
+
+    RCC->AHBENR = 0x00000014;   // 睡眠模式闪存和SRAM时钟使能, 其他关闭
+    RCC->APB2ENR = 0x00000000;  // 外设时钟关闭
+    RCC->APB1ENR = 0x00000000;
+
+    RCC->CR |= RCC_CR_HSION;
+    while((RCC->CR & RCC_CR_HSIRDY) == 0);
+
+    RCC->CFGR &= 0xF8FF0000;    // SW/HPRE/PPRE/ADCPRE/MCO复位
+    while((RCC->CFGR & RCC_CFGR_SWS) != 0);
+
+    RCC->CR &= 0xFEF6FFFF;      // 复位HSEON,CSSON,PLLON
+    RCC->CR &= 0xFFFBFFFF;      // 复位HSEBYP
+    RCC->CFGR &= 0xFF80FFFF;    // 复位PLLSRC, PLLXTPRE, PLLMUL and USBPRE
+    RCC->CIR = 0x00000000;      // 关闭所有RCC中断
+
 #ifdef  VECT_TAB_RAM
-	MY_NVIC_SetVectorTable(0x20000000, 0x0);
-#else   
-	MY_NVIC_SetVectorTable(0x08000000,0x0);
+    MY_NVIC_SetVectorTable(0x20000000, 0x0);
+#else
+    MY_NVIC_SetVectorTable(APP_START_ADDER, 0x0);
 #endif
 }
 //THUMB指令不支持汇编内联
@@ -129,7 +148,18 @@ void Sys_Standby(void)
 //系统软复位   
 void Sys_Soft_Reset(void)
 {   
-	SCB->AIRCR =0X05FA0000|(u32)0x04;	  
+	/*
+	 * 标准 NVIC_SystemReset 流程：
+	 *   1) 先执行数据同步屏障，确保之前所有内存/外设访问完成；
+	 *   2) 写入 SYSRESETREQ 到 AIRCR；
+	 *   3) 再次执行数据同步屏障，确保复位请求送达系统总线；
+	 *   4) 死循环等待复位实际发生。
+	 * 缺少这些步骤可能导致复位请求被未完成的 UART 发送中断等延迟或阻止。
+	 */
+	__DSB();
+	SCB->AIRCR = 0x05FA0000 | (u32)0x04;
+	__DSB();
+	while(1);	  
 }
 
 //JTAG模式设置,用于设置JTAG的模式
@@ -146,25 +176,54 @@ void Disable_JTAG_Keep_SWD(void)
 
 //系统时钟初始化函数
 //pll:选择的倍频数，从2开始，最大值为16		 
-void Stm32_Clock_Init(u8 PLL)
+u8 Stm32_Clock_Init(u8 PLL)
 {
-	unsigned char temp=0;   
-	MYRCC_DeInit();		  //复位并配置向量表
- 	RCC->CR|=0x00010000;  //外部高速时钟使能HSEON
-	while(!(RCC->CR>>17));//等待外部时钟就绪
-	RCC->CFGR=0X00000400; //APB1=DIV2;APB2=DIV1;AHB=DIV1;
-	PLL-=2;//抵消2个单位
-	RCC->CFGR|=PLL<<18;   //设置PLL值 2~16
-	RCC->CFGR|=1<<16;	  //PLLSRC ON 
-	FLASH->ACR|=0x32;	  //FLASH 2个延时周期
+    unsigned char temp = 0;
+    u32 timeout;
 
-	RCC->CR|=0x01000000;  //PLLON
-	while(!(RCC->CR>>25));//等待PLL锁定
-	RCC->CFGR|=0x00000002;//PLL作为系统时钟	 
-	while(temp!=0x02)     //等待PLL作为系统时钟设置成功
-	{   
-		temp=RCC->CFGR>>2;
-		temp&=0x03;
-	}    
+    MYRCC_DeInit();             // 复位并配置向量表
+
+    RCC->CR |= RCC_CR_HSEON;
+    timeout = 0x000FFFFF;
+    while((RCC->CR & RCC_CR_HSERDY) == 0)
+    {
+        if(timeout-- == 0)
+        {
+            __enable_irq();
+            return 8;
+        }
+    }
+
+    RCC->CFGR = 0x00000400;     // APB1=DIV2; APB2=DIV1; AHB=DIV1
+    PLL -= 2;                   // PLLMUL编码比实际倍频小2
+    RCC->CFGR |= PLL << 18;
+    RCC->CFGR |= RCC_CFGR_PLLSRC;
+    FLASH->ACR |= 0x32;         // Flash 2 wait states + prefetch
+
+    RCC->CR |= RCC_CR_PLLON;
+    timeout = 0x000FFFFF;
+    while((RCC->CR & RCC_CR_PLLRDY) == 0)
+    {
+        if(timeout-- == 0)
+        {
+            __enable_irq();
+            return 8;
+        }
+    }
+
+    RCC->CFGR |= RCC_CFGR_SW_PLL;
+    timeout = 0x000FFFFF;
+    while(temp != 0x02)
+    {
+        temp = (u8)((RCC->CFGR >> 2) & 0x03);
+        if(timeout-- == 0)
+        {
+            __enable_irq();
+            return 8;
+        }
+    }
+
+    __enable_irq();
+    return (u8)(12U * (PLL + 2U));
 }
 

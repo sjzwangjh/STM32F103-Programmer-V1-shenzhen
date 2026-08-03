@@ -1,12 +1,12 @@
 /******************** (C) COPYRIGHT 2008 STMicroelectronics ********************
 * File Name          : usb_prop.c
-* Œƒº˛√˚              : usb_prop.c
+* ƒº              : usb_prop.c
 * Author             : MCD Application Team
-* ◊˜’ﬂ               : MCD ”¶”√Õ≈∂”
+*                : MCD ”¶≈∂
 * Version            : V2.2.0
 * Date               : 06/13/2008
 * Description        : All processings related to UsbHidDev Mouse Demo
-* √Ë ˆ                : USB HID …Ë±∏ Ù–‘¥¶¿Ì£®HID  Û±Í—› æ≥Ã–Ú£©
+*                 : USB HID Ë±∏‘¥HID  æ
 ********************************************************************************
 * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
 * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE TIME.
@@ -14,12 +14,12 @@
 * INDIRECT OR CONSEQUENTIAL DAMAGES WITH RESPECT TO ANY CLAIMS ARISING FROM THE
 * CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE CODING
 * INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
-* ±æπÃº˛Ωˆπ©≤Œøº£¨÷º‘⁄Œ™øÕªßÃ·π©∆‰≤˙∆∑µƒ±‡≥Ã–≈œ¢“‘±„Ω⁄ ° ±º‰°£
-* STMicroelectronics ≤ª∂‘“Ú π”√±æπÃº˛∂¯≤˙…˙µƒ»Œ∫Œ÷±Ω”°¢º‰Ω”ªÚ∏Ω¥¯À ß≥–µ£‘»Œ°£
+* ÃºŒø÷ºŒ™Õª·π©∆∑ƒ±œ¢‘± ° ±‰°£
+* STMicroelectronics  π√±ÃºŒ∫÷±”°”ªÚ∏Ω¥ ß–µŒ°
 *******************************************************************************/
 
 /* Includes ------------------------------------------------------------------*/
-/* ∞¸∫¨Õ∑Œƒº˛ */
+/* Õ∑ƒº */
 #include "hw_USB_config.h"
 #include "usb_lib.h"
 #include "usb_conf.h"
@@ -28,20 +28,37 @@
 #include "usb_pwr.h"
 #include "usb_hid_user.h"
 #include "usb_cdc_user.h"
+#include "Hardware_Config.h"
+#include "usart.h"
 
 /* Private typedef -----------------------------------------------------------*/
-/* ÀΩ”–¿‡–Õ∂®“Â */
+/* ÀΩÕ∂ */
 /* Private define ------------------------------------------------------------*/
-/* ÀΩ”–∫Í∂®“Â */
+/* ÀΩ–∫Í∂® */
 /* Private macro -------------------------------------------------------------*/
-/* ÀΩ”–∫Í */
+/* ÀΩ–∫ */
 /* Private variables ---------------------------------------------------------*/
-/* ÀΩ”–±‰¡ø */
-u32 ProtocolValue;  /* –≠“È÷µ */
+/* ÀΩ–± */
+u32 ProtocolValue;  /* –≠÷µ */
+
+#if DEBUG_HARDWARE_CONFIG
+static void UsbDebugWriteHex8(u8 value)
+{
+  static const char hexTable[] = "0123456789ABCDEF";
+  uart1_WriteByte((u8)hexTable[(value >> 4) & 0x0F]);
+  uart1_WriteByte((u8)hexTable[value & 0x0F]);
+}
+
+static void UsbDebugWriteHex16(u16 value)
+{
+  UsbDebugWriteHex8((u8)(value >> 8));
+  UsbDebugWriteHex8((u8)value);
+}
+#endif
 
 /* -------------------------------------------------------------------------- */
 /*  Structures initializations */
-/* Ω·ππÃÂ≥ı ºªØ */
+/* ·ππ º */
 /* -------------------------------------------------------------------------- */
 
 DEVICE Device_Table =
@@ -52,30 +69,30 @@ DEVICE Device_Table =
 
 DEVICE_PROP Device_Property =
   {
-    UsbHidDev_init,                 /* …Ë±∏≥ı ºªØ */
-    UsbHidDev_Reset,                /* …Ë±∏∏¥Œª */
-    UsbHidDev_Status_In,            /* ◊¥Ã¨ ‰»Î */
-    UsbHidDev_Status_Out,           /* ◊¥Ã¨ ‰≥ˆ */
-    UsbHidDev_Data_Setup,           /*  ˝æ›¿‡«Î«Û¥¶¿Ì */
-    UsbHidDev_NoData_Setup,         /* Œﬁ ˝æ›¿‡«Î«Û¥¶¿Ì */
-    UsbHidDev_Get_Interface_Setting,/* ªÒ»°Ω”ø⁄…Ë÷√ */
-    UsbHidDev_GetDeviceDescriptor,  /* ªÒ»°…Ë±∏√Ë ˆ∑˚ */
-    UsbHidDev_GetConfigDescriptor,  /* ªÒ»°≈‰÷√√Ë ˆ∑˚ */
-    UsbHidDev_GetStringDescriptor,  /* ªÒ»°◊÷∑˚¥Æ√Ë ˆ∑˚ */
+    UsbHidDev_init,                 /* Ë±∏ º */
+    UsbHidDev_Reset,                /* Ë±∏Œª */
+    UsbHidDev_Status_In,            /* ◊¥Ã¨ */
+    UsbHidDev_Status_Out,           /* ◊¥Ã¨ */
+    UsbHidDev_Data_Setup,           /*  */
+    UsbHidDev_NoData_Setup,         /*  */
+    UsbHidDev_Get_Interface_Setting,/* »°”ø */
+    UsbHidDev_GetDeviceDescriptor,  /* »°Ë±∏ */
+    UsbHidDev_GetConfigDescriptor,  /* »° */
+    UsbHidDev_GetStringDescriptor,  /* »°÷∑ */
     0,
-    0x40 /*MAX PACKET SIZE*/       /* ◊Ó¥Û∞¸¥Û–° 64 ◊÷Ω⁄ */
+    0x40 /*MAX PACKET SIZE*/       /* –° 64 ÷Ω */
   };
 USER_STANDARD_REQUESTS User_Standard_Requests =
   {
-    UsbHidDev_GetConfiguration,     /* ªÒ»°≈‰÷√ */
-    UsbHidDev_SetConfiguration,     /* …Ë÷√≈‰÷√ */
-    UsbHidDev_GetInterface,         /* ªÒ»°Ω”ø⁄ */
-    UsbHidDev_SetInterface,         /* …Ë÷√Ω”ø⁄ */
-    UsbHidDev_GetStatus,            /* ªÒ»°◊¥Ã¨ */
-    UsbHidDev_ClearFeature,         /* «Â≥˝Ãÿ–‘ */
-    UsbHidDev_SetEndPointFeature,   /* …Ë÷√∂Àµ„Ãÿ–‘ */
-    UsbHidDev_SetDeviceFeature,     /* …Ë÷√…Ë±∏Ãÿ–‘ */
-    UsbHidDev_SetDeviceAddress      /* …Ë÷√…Ë±∏µÿ÷∑ */
+    UsbHidDev_GetConfiguration,     /* »° */
+    UsbHidDev_SetConfiguration,     /*  */
+    UsbHidDev_GetInterface,         /* »°”ø */
+    UsbHidDev_SetInterface,         /* √Ω”ø */
+    UsbHidDev_GetStatus,            /* »°◊¥Ã¨ */
+    UsbHidDev_ClearFeature,         /*  */
+    UsbHidDev_SetEndPointFeature,   /* √∂Àµ */
+    UsbHidDev_SetDeviceFeature,     /* Ë±∏ */
+    UsbHidDev_SetDeviceAddress      /* Ë±∏÷∑ */
   };
 
 ONE_DESCRIPTOR Device_Descriptor =
@@ -108,22 +125,22 @@ ONE_DESCRIPTOR String_Descriptor[4] =
     {(u8*)UsbHidDev_StringVendor, USB_HID_DEV_SIZ_STRING_VENDOR},
     {(u8*)UsbHidDev_StringProduct, USB_HID_DEV_SIZ_STRING_PRODUCT},
     {0, 0}                                      /* no serial */
-                                                /* Œﬁ–Ú¡–∫≈ */
+                                                /* –∫ */
   };
 
 /* Extern variables ----------------------------------------------------------*/
-/* Õ‚≤ø±‰¡ø */
+/* ‚≤ø */
 /* Private function prototypes -----------------------------------------------*/
-/* ÀΩ”–∫Ø ˝‘≠–Õ */
+/* ÀΩ–∫‘≠ */
 /* Extern function prototypes ------------------------------------------------*/
-/* Õ‚≤ø∫Ø ˝‘≠–Õ */
+/* ‚≤ø‘≠ */
 /* Private functions ---------------------------------------------------------*/
-/* ÀΩ”–∫Ø ˝ */
+/* ÀΩ–∫ */
 
 /* BUFFERS FOR GET/SET REPORT */
-/* GET/SET REPORT ª∫≥Â«¯ */
-static u8 g_hidReportBuf[128];  /* ±®∏Ê ˝æ›ª∫≥Â«¯ */
-static u8 g_hidReportLen;       /* ±®∏Ê ˝æ›≥§∂» */
+/* GET/SET REPORT  */
+static u8 g_hidReportBuf[128];  /* ›ª */
+static u8 g_hidReportLen;       /* ›≥ */
 static u8 g_hidPendingSetReportId;
 static u8 g_hidPendingSetReport;
 static u8 g_cdcPendingSetLineCoding;
@@ -149,6 +166,17 @@ static u8 *UsbHidDev_SetReportData(u16 Length)
 }
 
 
+static void UsbHidDev_ProcessPendingSetReport(void)
+{
+  if (g_hidPendingSetReport != 0U)
+  {
+    HID_Rx_Store(g_hidPendingSetReportId, g_hidReportBuf, g_hidReportLen);
+    g_hidPendingSetReport = 0U;
+    g_hidPendingSetReportId = 0U;
+    g_hidReportLen = 0U;
+    HID_ResetRequestState();
+  }
+}
 static u8 *CDC_GetLineCodingData(u16 Length)
 {
     if (Length == 0)
@@ -171,66 +199,66 @@ static u8 *CDC_SetLineCodingData(u16 Length)
 }
 /*******************************************************************************
 * Function Name  : UsbHidDev_init.
-* ∫Ø ˝√˚          : UsbHidDev_init
+*           : UsbHidDev_init
 * Description    : UsbHidDev Mouse init routine.
-* √Ë ˆ            : USB HID …Ë±∏≥ı ºªØ¿˝≥Ã
+*             : USB HID Ë±∏ º
 * Input          : None.
-*  ‰»Î            : Œﬁ
+*             : 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : None.
-* ∑µªÿ÷µ          : Œﬁ
+* ÷µ          : 
 *******************************************************************************/
 void UsbHidDev_init(void)
 {
 
   /* Update the serial number string descriptor with the data from the unique
   ID*/
-  /*  π”√Œ®“ª ID ∏¸–¬–Ú¡–∫≈◊÷∑˚¥Æ√Ë ˆ∑˚ */
+  /*  πŒ®“ª ID –∫÷∑ */
   Get_SerialNum();
 
   pInformation->Current_Configuration = 0;
   /* Connect the device */
-  /* ¡¨Ω”…Ë±∏ */
+  /* Ë±∏ */
   PowerOn();
   /* USB interrupts initialization */
-  /* USB ÷–∂œ≥ı ºªØ */
+  /* USB –∂œ≥ º */
   _SetISTR(0);               /* clear pending interrupts */
-                              /* «Â≥˝π“∆µƒ÷–∂œ */
+                              /* –∂ */
   wInterrupt_Mask = IMR_MSK;
   _SetCNTR(wInterrupt_Mask); /* set interrupts mask */
-                              /* …Ë÷√÷–∂œ∆¡±Œ */
+                              /* –∂ */
   bDeviceState = UNCONNECTED;
 }
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_Reset.
-* ∫Ø ˝√˚          : UsbHidDev_Reset
+*           : UsbHidDev_Reset
 * Description    : UsbHidDev Mouse reset routine.
-* √Ë ˆ            : USB HID …Ë±∏∏¥Œª¿˝≥Ã
+*             : USB HID Ë±∏Œª
 * Input          : None.
-*  ‰»Î            : Œﬁ
+*             : 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : None.
-* ∑µªÿ÷µ          : Œﬁ
+* ÷µ          : 
 *******************************************************************************/
 void UsbHidDev_Reset(void)
 {
   /* Set UsbHidDev_DEVICE as not configured */
-  /* Ω´…Ë±∏…Ë÷√Œ™Œ¥≈‰÷√◊¥Ã¨ */
+  /* Ë±∏Œ™Œ¥◊¥Ã¨ */
   pInformation->Current_Configuration = 0;
   pInformation->Current_Interface = 0;/*the default Interface*/
-                                      /* ƒ¨»œΩ”ø⁄ */
+                                      /* ƒ¨œΩ”ø */
 
   /* Current Feature initialization */
-  /* µ±«∞Ãÿ–‘≥ı ºªØ */
+  /* «∞‘≥ º */
   pInformation->Current_Feature = UsbHidDev_ConfigDescriptor[7];
 
   SetBTABLE(BTABLE_ADDRESS);
 
   /* Initialize Endpoint 0 */
-  /* ≥ı ºªØ∂Àµ„ 0 */
+  /*  ºÀµ 0 */
   SetEPType(ENDP0, EP_CONTROL);
   SetEPTxStatus(ENDP0, EP_TX_STALL);
   SetEPRxAddr(ENDP0, ENDP0_RXADDR);
@@ -240,7 +268,7 @@ void UsbHidDev_Reset(void)
   SetEPRxValid(ENDP0);
 
   /* Initialize Endpoint 1 */
-  /* ≥ı ºªØ∂Àµ„ 1 */
+  /*  ºÀµ 1 */
   SetEPType(ENDP1, EP_INTERRUPT);
   SetEPTxAddr(ENDP1, ENDP1_TXADDR);
 #if HW_USB_HID_SPEED_FULL
@@ -270,20 +298,20 @@ void UsbHidDev_Reset(void)
   bDeviceState = ATTACHED;
 
   /* Set this device to response on default address */
-  /* …Ë÷√¥À…Ë±∏œÏ”¶ƒ¨»œµÿ÷∑ 0 */
+  /* √¥Ë±∏”¶ƒ¨œµ÷∑ 0 */
   SetDeviceAddress(0);
 }
 /*******************************************************************************
 * Function Name  : UsbHidDev_SetConfiguration.
-* ∫Ø ˝√˚          : UsbHidDev_SetConfiguration
+*           : UsbHidDev_SetConfiguration
 * Description    : Udpade the device state to configured.
-* √Ë ˆ            : ∏¸–¬…Ë±∏◊¥Ã¨Œ™“—≈‰÷√
+*             : Ë±∏◊¥Ã¨Œ™
 * Input          : None.
-*  ‰»Î            : Œﬁ
+*             : 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : None.
-* ∑µªÿ÷µ          : Œﬁ
+* ÷µ          : 
 *******************************************************************************/
 void UsbHidDev_SetConfiguration(void)
 {
@@ -292,21 +320,21 @@ void UsbHidDev_SetConfiguration(void)
   if (pInfo->Current_Configuration != 0)
   {
     /* Device configured */
-    /* …Ë±∏“—≈‰÷√ */
+    /* Ë±∏ */
     bDeviceState = CONFIGURED;
   }
 }
 /*******************************************************************************
 * Function Name  : UsbHidDev_SetDeviceAddress
-* ∫Ø ˝√˚          : UsbHidDev_SetDeviceAddress
+*           : UsbHidDev_SetDeviceAddress
 * Description    : Udpade the device state to addressed.
-* √Ë ˆ            : ∏¸–¬…Ë±∏◊¥Ã¨Œ™“—±‡÷∑
+*             : Ë±∏◊¥Ã¨Œ™—±÷∑
 * Input          : None.
-*  ‰»Î            : Œﬁ
+*             : 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : None.
-* ∑µªÿ÷µ          : Œﬁ
+* ÷µ          : 
 *******************************************************************************/
 void UsbHidDev_SetDeviceAddress (void)
 {
@@ -314,36 +342,24 @@ void UsbHidDev_SetDeviceAddress (void)
 }
 /*******************************************************************************
 * Function Name  : UsbHidDev_Status_In.
-* ∫Ø ˝√˚          : UsbHidDev_Status_In
+*           : UsbHidDev_Status_In
 * Description    : UsbHidDev status IN routine.
-* √Ë ˆ            : USB HID …Ë±∏◊¥Ã¨ ‰»Î¿˝≥Ã
+*             : USB HID Ë±∏◊¥Ã¨
 * Input          : None.
-*  ‰»Î            : Œﬁ
+*             : 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : None.
-* ∑µªÿ÷µ          : Œﬁ
+* ÷µ          : 
 *******************************************************************************/
 void UsbHidDev_Status_In(void)
 {
   /*
-   * SET_REPORT is a Control Write transaction: host sends data in Data Stage,
-   * device replies with zero-length Status IN.
-   * The data was copied into g_hidReportBuf by the CopyRoutine callback earlier
-   * (UsbHidDev_SetReportData). Now is the right time to deliver it to the
-   * STK500 protocol parser.
-   *
-   * SET_REPORT  «øÿ÷∆–¥ ¬ŒÒ£∫÷˜ª˙‘⁄ ˝æ›Ω◊∂Œ∑¢ÀÕ ˝æ›£¨…Ë±∏ªÿ∏¥¡„≥§∂»◊¥Ã¨IN°£
-   *  ˝æ›“—‘⁄ CopyRoutine ªÿµ˜÷–∏¥÷∆µΩ g_hidReportBuf£¨œ÷‘⁄Ωª∏∂∏¯ STK Ω‚Œˆ∆˜°£
+   * HID SET_REPORT —æ g_hidReportBuf
+   *  Status IN ◊∂ STK500 ∆∂Àµ◊¥Ã¨◊∂ ±
+   * –≠È¥¶Õµ‘¥”°’º√π√£≈µ GET_REPORT ≈º ß‹°
+   *  µ Ω”∫ GET_REPORT «∞÷¥–°
    */
-  if (g_hidPendingSetReport != 0U)
-  {
-    HID_Rx_Store(g_hidPendingSetReportId, g_hidReportBuf, g_hidReportLen);
-    g_hidPendingSetReport = 0U;
-    g_hidPendingSetReportId = 0U;
-    g_hidReportLen = 0U;
-    HID_ResetRequestState();
-  }
 
   if (g_cdcPendingSetLineCoding != 0U)
   {
@@ -354,15 +370,15 @@ void UsbHidDev_Status_In(void)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_Status_Out
-* ∫Ø ˝√˚          : UsbHidDev_Status_Out
+*           : UsbHidDev_Status_Out
 * Description    : UsbHidDev status OUT routine.
-* √Ë ˆ            : USB HID …Ë±∏◊¥Ã¨ ‰≥ˆ¿˝≥Ã
+*             : USB HID Ë±∏◊¥Ã¨
 * Input          : None.
-*  ‰»Î            : Œﬁ
+*             : 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : None.
-* ∑µªÿ÷µ          : Œﬁ
+* ÷µ          : 
 *******************************************************************************/
 void UsbHidDev_Status_Out (void)
 {
@@ -370,20 +386,35 @@ void UsbHidDev_Status_Out (void)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_Data_Setup
-* ∫Ø ˝√˚          : UsbHidDev_Data_Setup
+*           : UsbHidDev_Data_Setup
 * Description    : Handle the data class specific requests.
-* √Ë ˆ            : ¥¶¿Ì ˝æ›¿‡Ãÿ∂®«Î«Û£®GET_DESCRIPTOR°¢GET_REPORT µ»£©
+*             : ÿ∂GET_DESCRIPTORGET_REPORT »£
 * Input          : Request Nb.
-*  ‰»Î            : RequestNo = «Î«Û∫≈
+*             : RequestNo = 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : USB_UNSUPPORT or USB_SUCCESS.
-* ∑µªÿ÷µ          : USB_UNSUPPORT£®≤ª÷ß≥÷£©ªÚ USB_SUCCESS£®≥…π¶£©
+* ÷µ          : USB_UNSUPPORT÷ß÷£ USB_SUCCESS…π
 *******************************************************************************/
 RESULT UsbHidDev_Data_Setup(u8 RequestNo)
 {
   u8 *(*CopyRoutine)(u16);
 
+#if DEBUG_HARDWARE_CONFIG
+  uart1_WriteString("USB_DATA_SETUP req=");
+  UsbDebugWriteHex8(RequestNo);
+  uart1_WriteString(" type=");
+  UsbDebugWriteHex8(Type_Recipient);
+  uart1_WriteString(" val=");
+  UsbDebugWriteHex8(pInformation->USBwValue1);
+  UsbDebugWriteHex8(pInformation->USBwValue0);
+  uart1_WriteString(" idx=");
+  UsbDebugWriteHex8(pInformation->USBwIndex1);
+  UsbDebugWriteHex8(pInformation->USBwIndex0);
+  uart1_WriteString(" len=");
+  UsbDebugWriteHex16(pInformation->USBwLength);
+  uart1_WriteString("\r\n");
+#endif
   CopyRoutine = NULL;
   if ((RequestNo == GET_DESCRIPTOR)
       && (Type_Recipient == (STANDARD_REQUEST | INTERFACE_RECIPIENT))
@@ -400,10 +431,10 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
     }
 
   } /* End of GET_DESCRIPTOR */
-    /* GET_DESCRIPTOR Ω· ¯ */
+    /* GET_DESCRIPTOR  */
 
   /*** GET_PROTOCOL ***/
-  /*** ªÒ»°–≠“È ***/
+  /*** »°–≠ ***/
   else if ((Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT))
            && RequestNo == GET_PROTOCOL)
   {
@@ -411,13 +442,14 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
   }
 
   /*** GET_REPORT: Host reads data from device ***/
-  /*** ªÒ»°±®∏Ê£∫÷˜ª˙¥”…Ë±∏∂¡»° ˝æ› ***/
+  /*** »°Ê£∫Ë±∏»° ***/
   else if ((Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT))
            && RequestNo == GET_REPORT)
   {
     u16 outLen;
     u8 *buf;
     HID_BeginReportRequest((u8)pInformation->USBwValue0, REQUEST_TYPE_HID_FIRST);
+    UsbHidDev_ProcessPendingSetReport();
     buf = HID_GetReport_Buffer((u8)pInformation->USBwValue0,
                                pInformation->USBwLength,
                                &outLen);
@@ -436,7 +468,7 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
     }
   }
   /*** SET_REPORT: Host writes data to device ***/
-  /*** …Ë÷√±®∏Ê£∫÷˜ª˙œÚ…Ë±∏–¥»Î ˝æ› ***/
+  /*** √±Ê£∫Ë±∏–¥ ***/
   /*** CDC GET_LINE_CODING: Host reads UART format ***/
   else if ((Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT))
            && RequestNo == CDC_GET_LINE_CODING
@@ -490,15 +522,15 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_NoData_Setup
-* ∫Ø ˝√˚          : UsbHidDev_NoData_Setup
+*           : UsbHidDev_NoData_Setup
 * Description    : handle the no data class specific requests
-* √Ë ˆ            : ¥¶¿ÌŒﬁ ˝æ›¿‡Ãÿ∂®«Î«Û£®SET_PROTOCOL µ»£©
+*             : ÿ∂SET_PROTOCOL »£
 * Input          : Request Nb.
-*  ‰»Î            : RequestNo = «Î«Û∫≈
+*             : RequestNo = 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : USB_UNSUPPORT or USB_SUCCESS.
-* ∑µªÿ÷µ          : USB_UNSUPPORT£®≤ª÷ß≥÷£©ªÚ USB_SUCCESS£®≥…π¶£©
+* ÷µ          : USB_UNSUPPORT÷ß÷£ USB_SUCCESS…π
 *******************************************************************************/
 RESULT UsbHidDev_NoData_Setup(u8 RequestNo)
 {
@@ -525,15 +557,15 @@ RESULT UsbHidDev_NoData_Setup(u8 RequestNo)
 }
 /*******************************************************************************
 * Function Name  : UsbHidDev_GetDeviceDescriptor.
-* ∫Ø ˝√˚          : UsbHidDev_GetDeviceDescriptor
+*           : UsbHidDev_GetDeviceDescriptor
 * Description    : Gets the device descriptor.
-* √Ë ˆ            : ªÒ»°…Ë±∏√Ë ˆ∑˚
+*             : »°Ë±∏
 * Input          : Length
-*  ‰»Î            : Length = «Î«Û≥§∂»
+*             : Length = Û≥§∂
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : The address of the device descriptor.
-* ∑µªÿ÷µ          : …Ë±∏√Ë ˆ∑˚ª∫≥Â«¯µÿ÷∑
+* ÷µ          : Ë±∏÷∑
 *******************************************************************************/
 u8 *UsbHidDev_GetDeviceDescriptor(u16 Length)
 {
@@ -542,15 +574,15 @@ u8 *UsbHidDev_GetDeviceDescriptor(u16 Length)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_GetConfigDescriptor.
-* ∫Ø ˝√˚          : UsbHidDev_GetConfigDescriptor
+*           : UsbHidDev_GetConfigDescriptor
 * Description    : Gets the configuration descriptor.
-* √Ë ˆ            : ªÒ»°≈‰÷√√Ë ˆ∑˚
+*             : »°
 * Input          : Length
-*  ‰»Î            : Length = «Î«Û≥§∂»
+*             : Length = Û≥§∂
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : The address of the configuration descriptor.
-* ∑µªÿ÷µ          : ≈‰÷√√Ë ˆ∑˚ª∫≥Â«¯µÿ÷∑
+* ÷µ          : ÷∑
 *******************************************************************************/
 u8 *UsbHidDev_GetConfigDescriptor(u16 Length)
 {
@@ -559,15 +591,15 @@ u8 *UsbHidDev_GetConfigDescriptor(u16 Length)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_GetStringDescriptor
-* ∫Ø ˝√˚          : UsbHidDev_GetStringDescriptor
+*           : UsbHidDev_GetStringDescriptor
 * Description    : Gets the string descriptors according to the needed index
-* √Ë ˆ            : ∏˘æ›À˜“˝ªÒ»°◊÷∑˚¥Æ√Ë ˆ∑˚
+*             : »°÷∑
 * Input          : Length
-*  ‰»Î            : Length = «Î«Û≥§∂»
+*             : Length = Û≥§∂
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : The address of the string descriptors.
-* ∑µªÿ÷µ          : ◊÷∑˚¥Æ√Ë ˆ∑˚ª∫≥Â«¯µÿ÷∑
+* ÷µ          : ÷∑÷∑
 *******************************************************************************/
 u8 *UsbHidDev_GetStringDescriptor(u16 Length)
 {
@@ -584,15 +616,15 @@ u8 *UsbHidDev_GetStringDescriptor(u16 Length)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_GetReportDescriptor.
-* ∫Ø ˝√˚          : UsbHidDev_GetReportDescriptor
+*           : UsbHidDev_GetReportDescriptor
 * Description    : Gets the HID report descriptor.
-* √Ë ˆ            : ªÒ»° HID ±®∏Ê√Ë ˆ∑˚
+*             : »° HID 
 * Input          : Length
-*  ‰»Î            : Length = «Î«Û≥§∂»
+*             : Length = Û≥§∂
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : The address of the configuration descriptor.
-* ∑µªÿ÷µ          : HID ±®∏Ê√Ë ˆ∑˚ª∫≥Â«¯µÿ÷∑
+* ÷µ          : HID ÷∑
 *******************************************************************************/
 u8 *UsbHidDev_GetReportDescriptor(u16 Length)
 {
@@ -601,15 +633,15 @@ u8 *UsbHidDev_GetReportDescriptor(u16 Length)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_GetHIDDescriptor.
-* ∫Ø ˝√˚          : UsbHidDev_GetHIDDescriptor
+*           : UsbHidDev_GetHIDDescriptor
 * Description    : Gets the HID descriptor.
-* √Ë ˆ            : ªÒ»° HID √Ë ˆ∑˚
+*             : »° HID 
 * Input          : Length
-*  ‰»Î            : Length = «Î«Û≥§∂»
+*             : Length = Û≥§∂
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : The address of the configuration descriptor.
-* ∑µªÿ÷µ          : HID √Ë ˆ∑˚ª∫≥Â«¯µÿ÷∑
+* ÷µ          : HID ÷∑
 *******************************************************************************/
 u8 *UsbHidDev_GetHIDDescriptor(u16 Length)
 {
@@ -618,17 +650,17 @@ u8 *UsbHidDev_GetHIDDescriptor(u16 Length)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_Get_Interface_Setting.
-* ∫Ø ˝√˚          : UsbHidDev_Get_Interface_Setting
+*           : UsbHidDev_Get_Interface_Setting
 * Description    : tests the interface and the alternate setting according to the
 *                  supported one.
-* √Ë ˆ            : ≤‚ ‘Ω”ø⁄∫Õ±∏”√…Ë÷√ «∑Ò”Î÷ß≥÷µƒ∆•≈‰
+*             : ‘Ω”ø⁄∫Õ±«∑÷ß÷µ∆•
 * Input          : - Interface : interface number.
 *                  - AlternateSetting : Alternate Setting number.
-*  ‰»Î            : Interface = Ω”ø⁄∫≈£¨AlternateSetting = ±∏”√…Ë÷√∫≈
+*             : Interface = ”ø⁄∫≈£AlternateSetting = √∫
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : USB_SUCCESS or USB_UNSUPPORT.
-* ∑µªÿ÷µ          : USB_SUCCESS£®≥…π¶£©ªÚ USB_UNSUPPORT£®≤ª÷ß≥÷£©
+* ÷µ          : USB_SUCCESS…π USB_UNSUPPORT÷ß÷£
 *******************************************************************************/
 RESULT UsbHidDev_Get_Interface_Setting(u8 Interface, u8 AlternateSetting)
 {
@@ -645,15 +677,15 @@ RESULT UsbHidDev_Get_Interface_Setting(u8 Interface, u8 AlternateSetting)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_SetProtocol
-* ∫Ø ˝√˚          : UsbHidDev_SetProtocol
+*           : UsbHidDev_SetProtocol
 * Description    : UsbHidDev Set Protocol request routine.
-* √Ë ˆ            : USB HID …Ë÷√–≠“È«Î«Û¿˝≥Ã
+*             : USB HID –≠
 * Input          : None.
-*  ‰»Î            : Œﬁ
+*             : 
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : USB SUCCESS.
-* ∑µªÿ÷µ          : USB_SUCCESS£®≥…π¶£©
+* ÷µ          : USB_SUCCESS…π
 *******************************************************************************/
 RESULT UsbHidDev_SetProtocol(void)
 {
@@ -664,15 +696,15 @@ RESULT UsbHidDev_SetProtocol(void)
 
 /*******************************************************************************
 * Function Name  : UsbHidDev_GetProtocolValue
-* ∫Ø ˝√˚          : UsbHidDev_GetProtocolValue
+*           : UsbHidDev_GetProtocolValue
 * Description    : get the protocol value
-* √Ë ˆ            : ªÒ»°–≠“È÷µ
+*             : »°–≠÷µ
 * Input          : Length.
-*  ‰»Î            : Length = «Î«Û≥§∂»
+*             : Length = Û≥§∂
 * Output         : None.
-*  ‰≥ˆ            : Œﬁ
+*             : 
 * Return         : address of the protcol value.
-* ∑µªÿ÷µ          : –≠“È÷µµƒµÿ÷∑
+* ÷µ          : –≠÷µƒµ÷∑
 *******************************************************************************/
 u8 *UsbHidDev_GetProtocolValue(u16 Length)
 {

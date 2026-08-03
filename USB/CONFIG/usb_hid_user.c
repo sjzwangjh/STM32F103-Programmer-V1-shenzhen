@@ -9,6 +9,8 @@
 
 #include "usb_hid_user.h"
 #include "Stk500Protocol.h"
+#include "Hardware_Config.h"
+#include "usart.h"
 
 uint8_t  g_HidReportId = 0;
 RequestType_t g_RequestType = REQUEST_TYPE_IDLE;
@@ -46,41 +48,40 @@ void HID_Rx_Store(uint8_t reportId, const uint8_t *data, uint8_t len)
     /*
      * AVR-Doper hid_send_feature_report() 发送格式:
      *   byte 0  = Report ID (0x01-0x04)
-     *   byte 1  = remaining bytes count (STK message length + overhead)
+     *   byte 1  = 本 report 内的有效 STK 字节数
      *   byte 2..= STK message bytes
      *
-     * STK 消息第 0 字节总是 STK_STX (0x1B)。直接搜索即可。
+     * hidapi 会按完整 Feature Report 长度发送，尾部可能是填充字节。
+     * 这里必须严格按 byte1 取有效数据，不能把填充字节送进 STK 状态机。
      */
-    stkPayloadStart = 0;
-    stkLen = len;
-
-    /* 跳过 Report ID 和长度字节，找到 STK_STX */
-    for (i = 0; i < len; i++)
+    if (len >= 2U &&
+        data[0] == reportId &&
+        reportId >= 1U && reportId <= 4U)
     {
-        if (data[i] == STK_STX)
+        stkPayloadStart = 2U;
+        stkLen = data[1];
+        if (stkLen > (uint8_t)(len - stkPayloadStart))
         {
-            stkPayloadStart = i;
-            stkLen = len - i;
-            break;
+            stkLen = (uint8_t)(len - stkPayloadStart);
+        }
+    }
+    else
+    {
+        /* 兼容旧调试数据: 找到 STK_STX 后，只送入后续实际存在的字节。 */
+        stkPayloadStart = len;
+        stkLen = 0U;
+        for (i = 0; i < len; i++)
+        {
+            if (data[i] == STK_STX)
+            {
+                stkPayloadStart = i;
+                stkLen = (uint8_t)(len - i);
+                break;
+            }
         }
     }
 
-    if (stkLen == 0 || stkPayloadStart >= len)
-    {
-        /* 没有找到 STK 帧，回退到兼容模式 */
-        stkPayloadStart = 2;
-        if (len >= 2U)
-        {
-            stkLen = data[1];
-            if (stkLen > len - 2U) { stkLen = len - 2U; }
-        }
-        else
-        {
-            stkLen = 0;
-        }
-    }
-
-    for (i = stkPayloadStart; i < stkPayloadStart + stkLen && i < len; i++)
+    for (i = stkPayloadStart; i < (uint8_t)(stkPayloadStart + stkLen) && i < len; i++)
     {
         stkSetRxChar(data[i]);
     }
@@ -88,7 +89,6 @@ void HID_Rx_Store(uint8_t reportId, const uint8_t *data, uint8_t len)
     stkPoll();
     HID_ResetRequestState();
 }
-
 void HID_Task(void)
 {
     stkPoll();
@@ -139,6 +139,25 @@ uint8_t *HID_GetReport_Buffer(uint8_t reportId, uint16_t requestedLen, uint16_t 
         reportBuf[idx++] = (uint8_t)c;
     }
 
+#if DEBUG_HARDWARE_CONFIG
+    {
+        static const char hexTable[] = "0123456789ABCDEF";
+        uint16_t n;
+        uart1_WriteString("HID_GET_REPORT id=");
+        uart1_WriteByte((uint8_t)('0' + reportId));
+        uart1_WriteString(" len=");
+        uart1_WriteByte((uint8_t)hexTable[(reportLen >> 4) & 0x0F]);
+        uart1_WriteByte((uint8_t)hexTable[reportLen & 0x0F]);
+        uart1_WriteString(" data:");
+        for (n = 0; n < reportLen; n++)
+        {
+            uart1_WriteByte((uint8_t)hexTable[(reportBuf[n] >> 4) & 0x0F]);
+            uart1_WriteByte((uint8_t)hexTable[reportBuf[n] & 0x0F]);
+            uart1_WriteByte(' ');
+        }
+        uart1_WriteString("\r\n");
+    }
+#endif
     *pOutLen = reportLen;
     return reportBuf;
 }

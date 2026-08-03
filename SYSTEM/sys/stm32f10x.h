@@ -487,7 +487,10 @@ typedef enum IRQn
   * @{
   */  
 
-/*!< STM32F10x Standard Peripheral Library old types (maintained for legacy purpose) */
+/*!< STM32F10x Standard Peripheral Library old types (maintained for legacy purpose)
+     USB库的 usb_type.h 也会定义 s32/u32/FunctionalState 等旧类型。
+     当 usb_type.h 先被包含时，这里需要跳过旧类型定义，避免 Keil 报重复定义。 */
+#ifndef __USB_TYPE_H
 typedef int32_t  s32;
 typedef int16_t s16;
 typedef int8_t  s8;
@@ -526,6 +529,7 @@ typedef enum {DISABLE = 0, ENABLE = !DISABLE} FunctionalState;
 #define IS_FUNCTIONAL_STATE(STATE) (((STATE) == DISABLE) || ((STATE) == ENABLE))
 
 typedef enum {ERROR = 0, SUCCESS = !ERROR} ErrorStatus;
+#endif /* __USB_TYPE_H */
 
 /*!< STM32F10x Standard Peripheral Library old definitions (maintained for legacy purpose) */
 #define HSEStartUp_TimeOut   HSE_STARTUP_TIMEOUT

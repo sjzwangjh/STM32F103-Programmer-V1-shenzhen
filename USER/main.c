@@ -54,10 +54,17 @@ int main(void)
 {
     u16 i=0; u8 key=0;
     u8 handlerKey = 0;
+    u8 sysClockMHz;
 
-    Stm32_Clock_Init(6);
-    delay_init(72);
-    uart_init(72,HW_DEBUG_BAUDRATE);
+    sysClockMHz = Stm32_Clock_Init(6);
+    delay_init(sysClockMHz);
+    uart_init(sysClockMHz,HW_DEBUG_BAUDRATE);
+    if(sysClockMHz != 72U)
+    {
+        uart1_WriteString("[BOOT] clock init failed, running on HSI 8MHz\r\n");
+    }else{
+        uart1_WriteString("[BOOT] clock init success, running on HSI 72MHz\r\n");
+		}
 
     LED_Init(); KEY_Init(); BEEP_Init();
 
@@ -133,6 +140,16 @@ int main(void)
         handlerKey = HandlerTask(1,0);
         if(handlerKey>0){
             offlinePgmer();
+        }
+        if(stkFwUpgradeRequested())
+        {
+            /* Wait for the HID reply to be fetched, then give the CDC IN endpoint
+             * time to finish, so STK_STATUS_CMD_OK is delivered before the reset. */
+            if(stkGetTxCount() == 0)
+            {
+                delay_ms(100);
+                Sys_Soft_Reset();
+            }
         }
     }
 }

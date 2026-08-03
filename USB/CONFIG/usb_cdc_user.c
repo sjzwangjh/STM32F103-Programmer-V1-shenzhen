@@ -17,22 +17,11 @@
 #include "usb_conf.h"
 #include "usb_regs.h"
 #include "usb_cdc_user.h"
+#include "Stk500Protocol.h"
 #include <string.h>
 
-#define STK_STX                         27U
-#define STK_TOKEN                       14U
-#define STK_DATA_SOURCE_USB_CDC         1U
-
-typedef struct stkDataFrame{
-    const uint8_t *frame;
-    uint16_t frameLen;
-    uint8_t *txFrame;
-    uint16_t txFrameSize;
-    uint16_t txFrameLen;
-    uint8_t  source;
-} stkDataFrame_t;
-
-void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame);
+#define CDC_STK_STX                     STK_STX
+#define CDC_STK_TOKEN                   STK_TOKEN
 
 static uint8_t cdcRxPacket[CDC_RX_PACKET_SIZE];
 static uint8_t cdcTxPacket[CDC_TX_PACKET_SIZE];
@@ -310,4 +299,3 @@ static void CDC_StartNextTxPacket(void)
     (void)CDC_SendData(&cdcTxFrame[cdcTxFramePos], chunk);
     cdcTxFramePos = (uint16_t)(cdcTxFramePos + chunk);
 }
-

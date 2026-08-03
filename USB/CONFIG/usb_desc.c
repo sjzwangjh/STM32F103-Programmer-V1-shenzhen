@@ -2,7 +2,7 @@
 #include "usb_desc.h"
 
 /* USB Standard Device Descriptor
- * VID/PID继续保持AVR-Doper HID兼容; 设备类改为复合设备(IAD)。
+ * VID/PIDAVR-Doper HID; 璞肝备(IAD)
  */
 const u8 UsbHidDev_DeviceDescriptor[USB_HID_DEV_SIZ_DEVICE_DESC] =
 {
@@ -18,11 +18,11 @@ const u8 UsbHidDev_DeviceDescriptor[USB_HID_DEV_SIZ_DEVICE_DESC] =
     0x01,                       /* Interface Association Descriptor */
     0x40,
     0xC0, 0x16,                 /* idVendor = 0x16C0 */
-    0xDF, 0x05,                 /* idProduct = 0x05DF */
+    0xE0, 0x05,                 /* idProduct = 0x05E0 */
     0x00, 0x01,
     1,
     2,
-    0,
+    3,
     0x01
 };
 
@@ -155,7 +155,7 @@ const u8 UsbHidDev_ConfigDescriptor[USB_HID_DEV_SIZ_CONFIG_DESC] =
     0x00
 };
 
-/* HID Report Descriptor: 保持AVR-Doper Feature Report格式 */
+/* HID Report Descriptor: AVR-Doper Feature Report式 */
 const u8 UsbHidDev_ReportDescriptor[USB_HID_DEV_SIZ_REPORT_DESC] =
 {
     0x06, 0x00, 0xff,
@@ -206,6 +206,12 @@ const u8 UsbHidDev_StringProduct[USB_HID_DEV_SIZ_STRING_PRODUCT] =
 {
     USB_HID_DEV_SIZ_STRING_PRODUCT,
     USB_STRING_DESCRIPTOR_TYPE,
-    'D',0,'F',0,'M',0,' ',0,'H',0,'I',0,'D',0,'+',0,'C',0,'D',0,'C',0,' ',0,
-    'P',0,'r',0,'o',0,'g',0,'r',0,'a',0,'m',0,'m',0,'e',0,'r',0
+    'D',0,'F',0,'M',0,' ',0,'P',0,'r',0,'o',0,'g',0,'r',0,'a',0,'m',0,'m',0,'e',0,'r',0
+};
+
+const u8 UsbHidDev_StringSerial[USB_HID_DEV_SIZ_STRING_SERIAL] =
+{
+    USB_HID_DEV_SIZ_STRING_SERIAL,
+    USB_STRING_DESCRIPTOR_TYPE,
+    'd',0,'f',0,'m',0,'I',0,'n',0,'L',0,'i',0,'n',0,'e',0,'P',0,'r',0,'o',0,'g',0,'r',0,'a',0,'m',0,'m',0,'e',0,'r',0
 };

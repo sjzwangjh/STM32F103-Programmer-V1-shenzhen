@@ -16,6 +16,8 @@
 #include "hvproc.h"
 #include "icsp.h"
 #include "offLineRecorder.h"
+#include "eeprom.h"
+#include "usart.h"
 
 /* 上报给上位机的 STK500 版本号。 */
 #define STK_VERSION_HW      1
@@ -67,6 +69,14 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
 
 /* 离线模式下的记录状态: 0=空闲(IDLE), 1=记录中 */
 uint8_t g_stkProgrammerState = STK500_PROGRAM_IDLE;
+
+/* Firmware-upgrade request flag: set after the EEPROM boot-mode flag is written and read back OK. */
+static volatile uint8_t g_stkFwUpgradePending;
+
+uint8_t stkFwUpgradeRequested(void)
+{
+    return g_stkFwUpgradePending;
+}
 
 /* 从小端字节流中读取 16 位数据。 */
 static uint16_t stkGetLe16(const uint8_t *bytes)
@@ -359,6 +369,24 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     if (pDataFrame->frameLen < (uint16_t)(payloadLen + 6U))
         return;
 
+#if DEBUG_HARDWARE_CONFIG
+    /* 调试: 将收到的数据包内容转换成十六进制字符串通过 UART1 发送 */
+    if (pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
+        pDataFrame->source == STK_DATA_SOURCE_USB_CDC)
+    {
+        static const char hexTable[] = "0123456789ABCDEF";
+        uint16_t i;
+        uart1_WriteString("Rece:");
+        for (i = 0; i < pDataFrame->frameLen; i++)
+        {
+            uart1_WriteByte((uint8_t)hexTable[(pRx[i] >> 4) & 0x0F]);
+            uart1_WriteByte((uint8_t)hexTable[pRx[i] & 0x0F]);
+            uart1_WriteByte(' ');
+        }
+        uart1_WriteString((const char*)"\r\n");
+    }
+#endif
+
     cmd = pRx[STK_TXMSG_START];
     pTx[STK_TXMSG_START] = cmd;
     pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
@@ -368,6 +396,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
          pDataFrame->source == STK_DATA_SOURCE_USB_CDC) &&
         stkIsRecordMode() &&
         g_stkProgrammerState == STK500_PROGRAM_RECORDING &&
+        cmd != STK_CMD_FIRMWARE_UPGRADE &&
         cmd != STK_CMD_SET_PROG_STATE &&
         cmd != STK_CMD_GET_OFFLINE_INFO &&
         cmd != STK_CMD_GET_OFFLINE_PACKAGE &&
@@ -375,7 +404,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     {
         (void)offlinePgmerRawAppendRxPacket(pRx, pDataFrame->frameLen);
     }
-
+    
     SWITCH_START
     SWITCH_CASE(STK_CMD_SIGN_ON)
         /* 获取烧录器标识。 */
@@ -497,6 +526,34 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     SWITCH_CASE(STK_CMD_LOAD_ADDRESS)
         for(i = 0; i < 4; i++){
             stkAddress.bytes[3 - i] = pRx[STK_TXMSG_START + 1 + i];
+        }
+    SWITCH_CASE(STK_CMD_FIRMWARE_UPGRADE)   /* 该命令由上位机在升级固件前发送, 以便烧录器进入升级模式。 */
+        {
+            /* Payload must carry the magic bytes: cmd + 0xA5 0x5A. */
+            if (payloadLen >= 3U &&
+                pRx[STK_TXMSG_START + 1] == STK_FW_UPGRADE_MAGIC0 &&
+                pRx[STK_TXMSG_START + 2] == STK_FW_UPGRADE_MAGIC1)
+            {
+                /* Only act for online USB sources; flash replay only replies, no side effects. */
+                if (pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
+                    pDataFrame->source == STK_DATA_SOURCE_USB_CDC)
+                {
+                    SPI_EEPROM_WriteByte(EEPROM_BOOT_MODE_ADDR, EEPROM_BOOT_MODE_UPDATE);
+                    if (SPI_EEPROM_ReadByte(EEPROM_BOOT_MODE_ADDR) == EEPROM_BOOT_MODE_UPDATE)
+                    {
+                        pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+                        g_stkFwUpgradePending = 1U;
+                    }
+                    else
+                    {
+                        pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+                    }
+                }
+            }
+            else
+            {
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+            }
         }
     SWITCH_CASE(STK_CMD_SET_CONTROL_STACK)
         /* AVR Studio 探测能力时会发送该命令, 这里保持 AVR-Doper 的兼容行为。 */
@@ -847,12 +904,32 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
     SWITCH_END
 
+
     pDataFrame->txFrameLen = stkSetTxMessage(pTx, pDataFrame->txFrameSize, len.word, pRx[1]);
     if (pDataFrame->source == STK_DATA_SOURCE_USB_HID)
     {
         txPos = 0U;
         txLen = pDataFrame->txFrameLen;
     }
+
+#if DEBUG_HARDWARE_CONFIG
+    /* 调试: 必须在 stkSetTxMessage() 之后打印，此时长度和 XOR 校验和才完整。 */
+    if ((pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
+         pDataFrame->source == STK_DATA_SOURCE_USB_CDC) &&
+        pDataFrame->txFrameLen != 0U)
+    {
+        static const char hexTable[] = "0123456789ABCDEF";
+        uint16_t i;
+        uart1_WriteString("Send:");
+        for (i = 0; i < pDataFrame->txFrameLen; i++)
+        {
+            uart1_WriteByte((uint8_t)hexTable[(pTx[i] >> 4) & 0x0F]);
+            uart1_WriteByte((uint8_t)hexTable[pTx[i] & 0x0F]);
+            uart1_WriteByte(' ');
+        }
+        uart1_WriteString("\r\n");
+    }
+#endif
 }
 
 /* USB HID 在线入口: 逐字节组装 STK500 帧并校验 XOR 校验和。 */

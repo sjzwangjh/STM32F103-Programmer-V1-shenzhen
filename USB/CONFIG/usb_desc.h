@@ -1,5 +1,5 @@
 /*
- * USB描述符头文件 - HID + CDC复合设备
+ * USB?????? - HID + CDC????
  */
 
 #ifndef __USB_DESC_H
@@ -25,8 +25,8 @@
 
 #define USB_HID_DEV_SIZ_STRING_LANGID              4
 #define USB_HID_DEV_SIZ_STRING_VENDOR              18
-#define USB_HID_DEV_SIZ_STRING_PRODUCT             46
-#define USB_HID_DEV_SIZ_STRING_SERIAL              0
+#define USB_HID_DEV_SIZ_STRING_PRODUCT             30
+#define USB_HID_DEV_SIZ_STRING_SERIAL              40
 
 #define STANDARD_ENDPOINT_DESC_SIZE             0x09
 
@@ -36,5 +36,6 @@ extern const u8 UsbHidDev_ReportDescriptor[USB_HID_DEV_SIZ_REPORT_DESC];
 extern const u8 UsbHidDev_StringLangID[USB_HID_DEV_SIZ_STRING_LANGID];
 extern const u8 UsbHidDev_StringVendor[USB_HID_DEV_SIZ_STRING_VENDOR];
 extern const u8 UsbHidDev_StringProduct[USB_HID_DEV_SIZ_STRING_PRODUCT];
+extern const u8 UsbHidDev_StringSerial[USB_HID_DEV_SIZ_STRING_SERIAL];
 
 #endif

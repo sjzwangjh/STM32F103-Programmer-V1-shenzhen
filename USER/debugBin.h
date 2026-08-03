@@ -39,6 +39,7 @@
 #define DEBUG_BIN_CMD_PING              0x0001U
 #define DEBUG_BIN_CMD_GET_INFO          0x0002U
 #define DEBUG_BIN_CMD_GET_CAPABILITIES  0x0003U
+#define DEBUG_BIN_CMD_SOFT_RESET        0x0004U
 #define DEBUG_BIN_CMD_USB_REENUMERATE   0x0010U
 
 /* Board control commands: 0x0100 - 0x01FF. */

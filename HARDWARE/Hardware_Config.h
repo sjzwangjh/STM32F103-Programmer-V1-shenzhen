@@ -7,6 +7,8 @@
 #ifndef __HARDWARE_CONFIG_H__
 #define __HARDWARE_CONFIG_H__
 
+#define  APP_START_ADDER            0x0800C000      // 应用程序起始地址
+
 #define  DEBUG_HARDWARE_CONFIG      1       // 硬件调试标志
 
 #define  HW_USB_HID_SPEED_FULL      1       // USB HID 全速模式（1=全速，0=USB1.1兼容模式）

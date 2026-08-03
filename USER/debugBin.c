@@ -320,6 +320,17 @@ static void debugBin_Dispatch(void)
         }
         break;
 
+    case DEBUG_BIN_CMD_SOFT_RESET:
+        if (p->payloadLength != 0U) status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        else
+        {
+            /* 先发送 OK 响应，确保上位机收到应答后再执行复位 */
+            debugBin_SendResponse(p->sequence, p->command, DEBUG_BIN_STATUS_OK, 0, 0U);
+            delay_ms(10U);
+            Sys_Soft_Reset();
+        }
+        return;
+
     case DEBUG_BIN_CMD_LED_SET:
         if (p->payloadLength != 2U) status = DEBUG_BIN_STATUS_BAD_LENGTH;
         else if ((p->payload[0] > 2U) || (p->payload[1] > 2U)) status = DEBUG_BIN_STATUS_BAD_PARAM;

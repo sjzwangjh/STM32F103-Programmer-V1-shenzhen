@@ -1,34 +1,34 @@
 #ifndef __SYS_H
 #define __SYS_H	  
 #include <stm32f10x.h>   
-//系统时钟初始�?	   
+//ϵͳʱ�ӳ�ʼ��	   
 
-//-------- 以下为宏展开辅助，无需修改 --------
-// �?"B,5" 中提取端口和引脚
-// GET_PORT_FROM(HARDWARE_LED0)  �?B
-// GET_PIN_FROM(HARDWARE_LED0)   �?5
+//-------- ����Ϊ��չ���������壬�����޸� --------
+// �� "B,5" ����ȡ�˿ں�����
+// GET_PORT_FROM(HARDWARE_LED0)  => B
+// GET_PIN_FROM(HARDWARE_LED0)   => 5
 #define GET_PORT_FROM(...)       GET_PORT_FROM_(__VA_ARGS__)
 #define GET_PORT_FROM_(x, ...) x
 #define GET_PIN_FROM(...)        GET_PIN_FROM_(__VA_ARGS__)
 #define GET_PIN_FROM_(x, y, ...) y
 
-// 拼接�?PBout、PEout 等位带操作函数名
+// ƴ�ӳ� PBout��PEout ��λ������������
 #define ARM_PORT_OUT(port)      ARM_PORT_OUT_(port)
 #define ARM_PORT_OUT_(port)     P##port##out
 
-// 读取端口输入值：ARM_PORT_IN(B) �?PBin
+// ��ȡ�˿�����ֵ��ARM_PORT_IN(B) => PBin
 #define ARM_PORT_IN(port)       ARM_PORT_IN_(port)
 #define ARM_PORT_IN_(port)      P##port##in
 
-// 端口结构体指针：ARM_PORT_GPIO(B) �?GPIOB
+// �˿ڽṹ��ָ�룺ARM_PORT_GPIO(B) => GPIOB
 #define ARM_PORT_GPIO(port)     ARM_PORT_GPIO_(port)
 #define ARM_PORT_GPIO_(port)    GPIO##port
 
-// CRL/CRH 寄存器：ARM_PORT_CRL(B) �?GPIOB->CRL, ARM_PORT_CRH(B) �?GPIOB->CRH
+// CRL/CRH �Ĵ�����ARM_PORT_CRL(B) => GPIOB->CRL, ARM_PORT_CRH(B) => GPIOB->CRH
 #define ARM_PORT_CRL(port)      (ARM_PORT_GPIO(port)->CRL)
 #define ARM_PORT_CRH(port)      (ARM_PORT_GPIO(port)->CRH)
 
-// RCC 时钟使能：ARM_PORT_RCC_CLK(B) 使能 GPIOB 时钟
+// RCC ʱ��ʹ�ܣ�ARM_PORT_RCC_CLK(B) ʹ�� GPIOB ʱ��
 #define ARM_PORT_RCC_CLK(port)  (RCC->APB2ENR |= (1 << (ARM_PORT_RCC_BIT(port))))
 #define ARM_PORT_RCC_BIT(port)  ARM_PORT_RCC_BIT_(port)
 #define ARM_PORT_RCC_BIT_(port) ARM_PORT_RCC_BIT_##port
@@ -39,19 +39,19 @@
 #define ARM_PORT_RCC_BIT_E      6
 #define ARM_PORT_RCC_BIT_F      7
 #define ARM_PORT_RCC_BIT_G      8
-// 最终打开端口时钟使用的宏定义
+// ���մ򿪶˿�ʱ��ʹ�õĺ궨��
 #define PORT_RCC_CLK(...)        ARM_PORT_RCC_CLK(GET_PORT_FROM(__VA_ARGS__))
 
-// GPIO 方向/模式设置辅助宏：
-// cfg4bit �?STM32F103 CRL/CRH 中对应引脚的 4bit 配置�?
-// 例如�?
-//   0x3 = 50MHz 通用推挽输出
-//   0x7 = 50MHz 通用开漏输�?
-//   0xB = 50MHz 复用推挽输出
-//   0xF = 50MHz 复用开漏输�?
-//   0x4 = 浮空输入
-//   0x8 = 上拉/下拉输入
-//   0x0 = 模拟输入
+// GPIO ����/ģʽ���ø����꣺
+// cfg4bit Ϊ STM32F103 CRL/CRH �ж�Ӧ���ŵ� 4bit ����ֵ
+// ���磺
+//   0x3 = 50MHz ͨ���������
+//   0x7 = 50MHz ͨ�ÿ�©���
+//   0xB = 50MHz �����������
+//   0xF = 50MHz ���ÿ�©���
+//   0x4 = ��������
+//   0x8 = ����/��������
+//   0x0 = ģ������
 #define ARM_PORT_SET_CFG_(port, pin, cfg4bit) \
     do { \
         if ((pin) < 8U) \
@@ -60,49 +60,49 @@
             ARM_PORT_CRH(port) = (ARM_PORT_CRH(port) & ~((u32)0x0FU << (((pin) & 0x07U) << 2))) | ((u32)(cfg4bit) << (((pin) & 0x07U) << 2)); \
     } while (0)
 
-// 50MHz 通用推挽输出：CNF=00 MODE=11 => 0x3
+// 50MHz ͨ�����������CNF=00 MODE=11 => 0x3
 #define PORT_SET_DIR_PP(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x03U)
 
-// 50MHz 通用开漏输出：CNF=01 MODE=11 => 0x7
+// 50MHz ͨ�ÿ�©�����CNF=01 MODE=11 => 0x7
 #define PORT_SET_DIR_OUT_OC(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x07U)
 
-// 50MHz 复用推挽输出：CNF=10 MODE=11 => 0xB
+// 50MHz �������������CNF=10 MODE=11 => 0xB
 #define PORT_SET_DIR_OUT_MUX_PP(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x0BU)
 
-// 50MHz 复用开漏输出：CNF=11 MODE=11 => 0xF
+// 50MHz ���ÿ�©�����CNF=11 MODE=11 => 0xF
 #define PORT_SET_DIR_OUT_MUX_OC(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x0FU)
 
-// 浮空输入：CNF=01 MODE=00 => 0x4
+// �������룺CNF=01 MODE=00 => 0x4
 #define PORT_SET_DIR_IN_FLOAT(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x04U)
 
-// 模拟输入：CNF=00 MODE=00 => 0x0
+// ģ�����룺CNF=00 MODE=00 => 0x0
 #define PORT_SET_DIR_AIN(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x00U)
 
-// 上拉输入：CNF=10 MODE=00 => 0x8，且 ODR 对应位写 1
+// �������룺CNF=10 MODE=00 => 0x8���� ODR ��Ӧλд 1
 #define PORT_SET_DIR_IN_PU(...) \
     do { \
         ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x08U); \
         PORT_OUT(__VA_ARGS__) = 1; \
     } while (0)
 
-// 下拉输入：CNF=10 MODE=00 => 0x8，且 ODR 对应位写 0
+// �������룺CNF=10 MODE=00 => 0x8���� ODR ��Ӧλд 0
 #define PORT_SET_DIR_IN_PD(...) \
     do { \
         ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x08U); \
         PORT_OUT(__VA_ARGS__) = 0; \
     } while (0)
 
-// 兼容旧名�?
+// ���ݾ�����
 #define PORT_SET_DIR_IN_UPLOAD(...) PORT_SET_DIR_IN_PU(__VA_ARGS__)
 
 
-//-------- 统一的端�?引脚访问�?--------
+//-------- ͳһ�Ķ˿�/���ŷ��ʺ� --------
 #define PORT_OUT(...)            ARM_PORT_OUT(GET_PORT_FROM(__VA_ARGS__))(GET_PIN_FROM(__VA_ARGS__))
 #define PORT_IN(...)             ARM_PORT_IN(GET_PORT_FROM(__VA_ARGS__))(GET_PIN_FROM(__VA_ARGS__))
 #define PIN_MASK(...)            (1U << GET_PIN_FROM(__VA_ARGS__))
@@ -199,12 +199,12 @@ STM_IO_DEF_CRH(15)
 
 #define SYSTEM_SUPPORT_UCOS		0
 
-//位带操作,实现51类似的GPIO控制功能
+//λ��������ʵ������ 51 ��Ƭ���� GPIO ���ƹ���
 #define BITBAND(addr, bitnum) ((addr & 0xF0000000)+0x2000000+((addr &0xFFFFF)<<5)+(bitnum<<2)) 
 #define MEM_ADDR(addr)  *((volatile unsigned long  *)(addr)) 
 #define BIT_ADDR(addr, bitnum)   MEM_ADDR(BITBAND(addr, bitnum)) 
 
-//IO口地址映射
+//IO �ڵ�ַӳ��
 #define GPIOA_ODR_Addr    (GPIOA_BASE+12)
 #define GPIOB_ODR_Addr    (GPIOB_BASE+12)
 #define GPIOC_ODR_Addr    (GPIOC_BASE+12)
@@ -221,7 +221,7 @@ STM_IO_DEF_CRH(15)
 #define GPIOF_IDR_Addr    (GPIOF_BASE+8)
 #define GPIOG_IDR_Addr    (GPIOG_BASE+8)
 
-//IO口操�?只对单一的IO�?
+//IO �ڲ�����ֻ�Ե�һ IO ��
 #define PAout(n)   BIT_ADDR(GPIOA_ODR_Addr,n)
 #define PAin(n)    BIT_ADDR(GPIOA_IDR_Addr,n)
 #define PBout(n)   BIT_ADDR(GPIOB_ODR_Addr,n)
@@ -237,7 +237,7 @@ STM_IO_DEF_CRH(15)
 #define PGout(n)   BIT_ADDR(GPIOG_ODR_Addr,n)
 #define PGin(n)    BIT_ADDR(GPIOG_IDR_Addr,n)
 
-//Ex_NVIC_Config专用定义
+//Ex_NVIC_Config ר�ö���
 #define GPIO_A 0
 #define GPIO_B 1
 #define GPIO_C 2
@@ -248,7 +248,7 @@ STM_IO_DEF_CRH(15)
 #define FTIR   1
 #define RTIR   2
 
-void Stm32_Clock_Init(u8 PLL);
+u8 Stm32_Clock_Init(u8 PLL);
 void Sys_Soft_Reset(void);
 void Sys_Standby(void);
 void MY_NVIC_SetVectorTable(u32 NVIC_VectTab, u32 Offset);
@@ -260,7 +260,7 @@ void WFI_SET(void);
 void INTX_DISABLE(void);
 void INTX_ENABLE(void);
 void MSR_MSP(u32 addr);
-/* NULL 指针定义 */
+/* NULL ָ�붨�� */
 #ifndef NULL
 #define NULL ((void *)0)
 #endif
