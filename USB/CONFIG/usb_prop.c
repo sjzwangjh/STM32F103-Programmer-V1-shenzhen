@@ -111,19 +111,41 @@ ONE_DESCRIPTOR String_Descriptor[4] =
   {(u8*)UsbHidDev_StringSerial, USB_HID_DEV_SIZ_STRING_SERIAL}
 };
 
+static u8 g_hidReportBuf[128];
+static u8 g_hidReportLen;
+static u8 g_hidPendingSetReportId;
+static u8 g_hidPendingSetReport;
 static u8 g_cdcPendingSetLineCoding;
 
+static u8 *GetReport_CopyRoutine(u16 Length)
 {
   if (Length == 0)
   {
+    pInformation->Ctrl_Info.Usb_wLength = g_hidReportLen;
     return NULL;
   }
   return g_hidReportBuf + pInformation->Ctrl_Info.Usb_wOffset;
 }
 
-
+static u8 *UsbHidDev_SetReportData(u16 Length)
 {
+  if (Length == 0)
   {
+    pInformation->Ctrl_Info.Usb_rLength = pInformation->USBwLength;
+    return NULL;
+  }
+  return g_hidReportBuf + pInformation->Ctrl_Info.Usb_rOffset;
+}
+
+static void UsbHidDev_ProcessPendingSetReport(void)
+{
+  if (g_hidPendingSetReport != 0U)
+  {
+    HID_Rx_Store(g_hidPendingSetReportId, g_hidReportBuf, g_hidReportLen);
+    g_hidPendingSetReport = 0U;
+    g_hidPendingSetReportId = 0U;
+    g_hidReportLen = 0U;
+    HID_ResetRequestState();
   }
 }
 
@@ -336,6 +358,30 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
     CopyRoutine = UsbHidDev_GetProtocolValue;
   }
   else if ((Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT))
+           && RequestNo == GET_REPORT)
+  {
+    u16 outLen;
+    u8 *buf;
+    HID_BeginReportRequest((u8)pInformation->USBwValue0, REQUEST_TYPE_HID_FIRST);
+    UsbHidDev_ProcessPendingSetReport();
+    buf = HID_GetReport_Buffer((u8)pInformation->USBwValue0,
+                               pInformation->USBwLength,
+                               &outLen);
+    if (buf && outLen)
+    {
+      g_hidReportLen = outLen;
+      {
+        u8 i;
+        for (i = 0; i < outLen; i++) g_hidReportBuf[i] = buf[i];
+      }
+      CopyRoutine = GetReport_CopyRoutine;
+    }
+    else
+    {
+      g_hidReportLen = 0;
+      CopyRoutine = GetReport_CopyRoutine;
+    }
+  }
   else if ((Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT))
            && RequestNo == CDC_GET_LINE_CODING
            && pInformation->USBwIndex0 == 1U)
@@ -357,6 +403,26 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
     return USB_SUCCESS;
   }
   else if ((Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT))
+           && RequestNo == SET_REPORT)
+  {
+    if (g_hidPendingSetReport != 0U)
+    {
+      UsbHidDev_ProcessPendingSetReport();
+    }
+    if (pInformation->USBwLength == 0U || pInformation->USBwLength > sizeof(g_hidReportBuf))
+    {
+      return USB_UNSUPPORT;
+    }
+
+    HID_BeginReportRequest((u8)pInformation->USBwValue0, REQUEST_TYPE_HID_FIRST);
+    g_hidPendingSetReport = 1U;
+    g_hidPendingSetReportId = (u8)pInformation->USBwValue0;
+    g_hidReportLen = (u8)pInformation->USBwLength;
+    pInformation->Ctrl_Info.Usb_rOffset = 0;
+    pInformation->Ctrl_Info.Usb_rLength = pInformation->USBwLength;
+    pInformation->Ctrl_Info.CopyData = UsbHidDev_SetReportData;
+    return USB_SUCCESS;
+  }
 
   if (CopyRoutine == NULL)
   {

@@ -1,9 +1,12 @@
 /*
- * USB HID User Header - Interrupt Endpoint Transport (CMSIS-DAP Model)
+ * USB HID User Header - Dual API (old EP0 Feature Report + new EP1 Interrupt)
  *
- * HID data flows through EP1 interrupt IN/OUT endpoints, NOT EP0 feature reports.
- * USB ISR only copies data between PMA and ring buffers; all STK command
- * processing happens in the main loop via HID_Task().
+ * OLD API (from bootloader): GET_REPORT/SET_REPORT support (dead code, kept for
+ *   compatibility with bootloader's usb_prop.c. Windows won't call these since
+ *   the HID descriptor now uses Input/Output reports.)
+ *
+ * NEW API (EP1 Interrupt endpoints): HID_EP1_IN_Callback, HID_EP1_OUT_Callback,
+ *   HID_Task, HID_Tx_Flush - actual HID data transport.
  */
 
 #ifndef __USB_HID_USER_H__
@@ -12,23 +15,29 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* Max report buffer size (matches 32-byte EP1 wMaxPacketSize) */
+/* ---- NEW API: EP1 Interrupt endpoint transport ---- */
 #define HID_REPORT_MAX_LOAD   32
 #define HID_EP_BUF_SIZE       32
-
-/* EP1 OUT ring buffer: stores bytes from host for main-loop processing */
 #define HID_RX_RING_SIZE      1024U
 
-/* ---- Called from USB ISR (EP1 CTR callbacks) ---- */
 void HID_EP1_IN_Callback(void);
 void HID_EP1_OUT_Callback(void);
-
-/* ---- Called from main loop ---- */
-
-/* Drain RX ring buffer, feed STK parser, call stkPoll() */
 void HID_Task(void);
-
-/* Push STK txBuffer data to host via EP1 IN */
 void HID_Tx_Flush(void);
+
+/* ---- OLD API: EP0 Feature Report transport (for bootloader compatibility) ---- */
+#define HID_REPORT_BUF_SIZE   128
+
+typedef enum {
+    REQUEST_TYPE_IDLE           = 0,
+    REQUEST_TYPE_HID_FIRST      = 1,
+    REQUEST_TYPE_HID_SUBSEQUENT = 2,
+    REQUEST_TYPE_HID_DEBUGDATA  = 3
+} RequestType_t;
+
+void HID_BeginReportRequest(uint8_t reportId, RequestType_t requestType);
+void HID_Rx_Store(uint8_t reportId, const uint8_t *data, uint8_t len);
+uint8_t *HID_GetReport_Buffer(uint8_t reportId, uint16_t requestedLen, uint16_t *pOutLen);
+void HID_ResetRequestState(void);
 
 #endif
