@@ -148,8 +148,6 @@ ONE_DESCRIPTOR String_Descriptor[4] =
 /* GET/SET REPORT  */
 static u8 g_hidReportBuf[128];  /* ? */
 static u8 g_hidReportLen;       /* ? */
-static u8 g_hidPendingSetReportId;
-static u8 g_hidPendingSetReport;
 static u8 g_cdcPendingSetLineCoding;
 
 static u8 *GetReport_CopyRoutine(u16 Length)
