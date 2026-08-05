@@ -1,14 +1,14 @@
-# 1. è‡ªåŠ¨æŸ¥è¯¢å™¨ä»¶å‹å·
+# 1. ×Ô¶¯²éÑ¯Æ÷¼şĞÍºÅ
 .\avrdude.exe -C "E:\wangjunhua\Project\AvrProgrammer\avrdude\out\build\x64-Release\src\avrdude.conf" -c stk500v2 -P avrdoper -p m8
-# 2. ç¼–ç¨‹æ–‡ä»¶ E:\wangjunhua\Project\C32U4\Makey_Readed.hex
+# 2. ±à³ÌÎÄ¼ş E:\wangjunhua\Project\C32U4\Makey_Readed.hex
 .\avrdude.exe -C "E:\wangjunhua\Project\AvrProgrammer\avrdude\out\build\x64-Release\src\avrdude.conf" -c stk500v2 -p m32u4 -P avrdoper -U flash:w:"E:\wangjunhua\Project\C32U4\Makey_Readed.hex":a 
-# 3. è¯»å–ç†”ä¸ä½
+# 3. ¶ÁÈ¡ÈÛË¿Î»
 .\avrdude.exe -C "E:\wangjunhua\Project\AvrProgrammer\avrdude\out\build\x64-Release\src\avrdude.conf" -c stk500v2 -p m32u4 -P avrdoper -U hfuse:r:-:h -U lfuse:r:-:h -U efuse:r:-:h 
-# 4. ç¼–ç¨‹ç†”ä¸ä½ E1 D9 (ä½-é«˜)
+# 4. ±à³ÌÈÛË¿Î» E1 D9 (µÍ-¸ß)
 .\avrdude.exe -C "E:\wangjunhua\Project\AvrProgrammer\avrdude\out\build\x64-Release\src\avrdude.conf" -c stk500v2 -p m32u4 -P avrdoper -U lfuse:w:0xE1:m -U hfuse:w:0xD9:m 
-# 5. ç¼–ç¨‹æ‰©å±•ç†”ä¸ä½ FF
+# 5. ±à³ÌÀ©Õ¹ÈÛË¿Î» FF
 .\avrdude.exe -C "E:\wangjunhua\Project\AvrProgrammer\avrdude\out\build\x64-Release\src\avrdude.conf" -c stk500v2 -p m32u4 -P avrdoper -U lock:w:0xFF:m 
-# 6. è¯»å–æ‰©å±•ç†”ä¸ä½
+# 6. ¶ÁÈ¡À©Õ¹ÈÛË¿Î»
 .\avrdude.exe -C "E:\wangjunhua\Project\AvrProgrammer\avrdude\out\build\x64-Release\src\avrdude.conf" -c stk500v2 -p m32u4 -P avrdoper -U lock:r:-:h 
-# 7. è¯»å–Flashä¿å­˜åˆ° â€œE:\wangjunhua\Project\C32U4\Makey_Readed_Avrdude.hexâ€æ–‡ä»¶å†…
+# 7. ¶ÁÈ¡Flash±£´æµ½ ¡°E:\wangjunhua\Project\C32U4\Makey_Readed_Avrdude.hex¡±ÎÄ¼şÄÚ
 .\avrdude.exe -C "E:\wangjunhua\Project\AvrProgrammer\avrdude\out\build\x64-Release\src\avrdude.conf" -c stk500v2 -p m32u4 -P avrdoper -U flash:r:"E:\wangjunhua\Project\C32U4\Makey_Readed_Avrdude.hex":i 

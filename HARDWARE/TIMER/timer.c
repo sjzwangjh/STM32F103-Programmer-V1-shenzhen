@@ -1,5 +1,5 @@
 /*
- * ¶¨Ê±Æ÷Çý¶¯ÊµÏÖ - ¶¨Ê±Æ÷³õÊ¼»¯/PWMÉú³É/¼ÆÊ±¹¦ÄÜ
+ * å®šæ—¶å™¨é©±åŠ¨å®žçŽ° - å®šæ—¶å™¨åˆå§‹åŒ–/PWMç”Ÿæˆ/è®¡æ—¶åŠŸèƒ½
  */
 
 /*
@@ -15,6 +15,7 @@
  */
 
 #include "timer.h"
+#include "delay.h"
 
 volatile uint8_t  timerTimeoutCnt;
 volatile uint8_t  timerLongTimeoutCnt;
@@ -68,35 +69,21 @@ void timerSetupTimeout(uint8_t msDuration)
 
 /*
  * timerTicksDelay(ticks) - blocking delay in "ticks".
- * In AVR-Doper firmware: one tick = 64/F_CPU seconds (~5.333us @12MHz).
- * On STM32 (TIM6 @1MHz), one tick = 5us.
- * AVR impl uses "cli(); reset TCNT0 prescaler; until = TCNT0 + ticks; sei(); poll TCNT0".
- * STM32 impl uses busy-loop reading TIM6->CNT.
+ *
+ * TIM6 is also the 1ms timeout base used by timerTimeoutOccurred().
+ * Resetting TIM6->CNT for each ISP bit-bang gap can indefinitely delay the
+ * update interrupt during heavy page programming, which then breaks the
+ * ready/busy timeout path in ispProgramMemory().
+ *
+ * Keep TIM6 dedicated to timeout bookkeeping and use SysTick-based delay_us()
+ * for the fine-grained ISP clock spacing.
  */
 void timerTicksDelay(uint8_t ticks)
 {
-    uint16_t start, end;
+    if (ticks == 0U)
+        return;
 
-    /* Disable interrupts to prevent timing disturbance (same as AVR cli()) */
-    __disable_irq();
-
-    /* Reset TIM6 counter to get a clean reference */
-    TIM6->CNT = 0;
-    start = 0;
-    end = start + (uint16_t)ticks;
-    /* Handle 16-bit wrap: if end > 65535, we need to wait for wrap */
-    if (end < start)
-        end = 65535;  /* wait until near-wrap, then handle remainder */
-
-    __enable_irq();
-
-    /* Busy-wait until TIM6->CNT reaches 'end'.
-     * TIM6 CNT runs at 1MHz, but TIMER_TICK_US=5 means we multiply ticks by 5.
-     * So actual wait = ticks * 5 microseconds. */
-    {
-        uint32_t goal = (uint32_t)ticks * TIMER_TICK_US;
-        while ((uint32_t)TIM6->CNT < goal);
-    }
+    delay_us((u32)ticks * (u32)TIMER_TICK_US);
 }
 
 

@@ -196,12 +196,19 @@ void uart1_WriteByte(u8 data)
     else
     {
         /* »·ĞÎ»º³åÇøÂú£ºÍË»¯µ½ÂÖÑ¯Ó²¼ş·¢ËÍ£¨ÓÀ²»×èÈû£© */
+        u32 pollTimeout = 0x0000FFFFU;
         __enable_irq();
         while ((USART1->SR & 0x40) == 0)
         {
-            /* µÈ´ı·¢ËÍ¼Ä´æÆ÷¿Õ */
+            if (pollTimeout-- == 0U)
+            {
+                break;   /* drop the byte instead of hanging forever */
+            }
         }
-        USART1->DR = (u8)data;
+        if (pollTimeout != 0U)
+        {
+            USART1->DR = (u8)data;
+        }
     }
 }
 

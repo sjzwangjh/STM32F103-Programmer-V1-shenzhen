@@ -1,5 +1,5 @@
 /*
- * USB CDC用户层接口 - CDC ACM虚拟串口收发
+ * USB CDC�û���ӿ� - CDC ACM���⴮���շ�
  */
 
 #ifndef __USB_CDC_USER_H__

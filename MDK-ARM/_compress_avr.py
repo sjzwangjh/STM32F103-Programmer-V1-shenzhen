@@ -1,3 +1,4 @@
+# -*- coding: gbk -*-
 """Compress avrDeviceConst.c: extract shared tables, generate compressed C"""
 import re, json, os
 
@@ -147,7 +148,7 @@ lines.append(f'#define AVR_DEVICE_COUNT {len(entries)}')
 lines.append('')
 
 # API functions
-lines.append('/* â”€â”€ API â”€â”€ */')
+lines.append('/* ©¤©¤ API ©¤©¤ */')
 lines.append('const AVR_OpGroup* avr_get_op_group(uint8_t idx) {')
 lines.append('    (void)idx; return &g_avrOpGroups[0]; }')
 lines.append('')
@@ -177,7 +178,7 @@ lines.append('        const char* n=avr_get_device_name(i);')
 lines.append('        if(n&&strcasecmp(n,name)==0) return (int16_t)i; } return -1; }')
 lines.append('')
 lines.append('void avr_get_full_params(const AVR_DeviceEntry* e, void* out, uint16_t sz) {')
-lines.append('    /* å°†å‹ç¼©æ¡ç›®å±•å¼€ä¸ºå®Œæ•´ç»“æ„ä½“, ç”¨äºå…¼å®¹æ—§ä»£ç  */')
+lines.append('    /* ½«Ñ¹ËõÌõÄ¿Õ¹¿ªÎªÍêÕû½á¹¹Ìå, ÓÃÓÚ¼æÈİ¾É´úÂë */')
 lines.append('    if(!e||!out||sz<160) return;')
 lines.append('    memset(out,0,sz);')
 lines.append('    uint8_t* buf=(uint8_t*)out;')

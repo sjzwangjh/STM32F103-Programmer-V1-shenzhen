@@ -1,12 +1,12 @@
 /* Auto-generated avrDeviceConst.c from avrdude-avr-init.xml */
-/* AVR å™¨ä»¶å‚æ•°å¸¸é‡è¡¨ â€” å­˜å‚¨ 392 ä¸ª AVR å™¨ä»¶çš„ ISP ç¼–ç¨‹å‚æ•° */
+/* AVR Æ÷¼ş²ÎÊı³£Á¿±í ¡ª ´æ´¢ 392 ¸ö AVR Æ÷¼şµÄ ISP ±à³Ì²ÎÊı */
 #include "avrDeviceConst.h"
 #include <string.h>
 #include <stdio.h>
 #include "usart.h"
 
-/* â”€â”€ AVR å™¨ä»¶è¡¨æ ¼ (392 ä¸ªæ¡ç›®) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* æ¯è¡Œæ ¼å¼: { "å™¨ä»¶åç§°", {ç­¾å3å­—èŠ‚}, mem_group, flash_page_msb,
+/* ©¤©¤ AVR Æ÷¼ş±í¸ñ (392 ¸öÌõÄ¿) ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
+/* Ã¿ĞĞ¸ñÊ½: { "Æ÷¼şÃû³Æ", {Ç©Ãû3×Ö½Ú}, mem_group, flash_page_msb,
    flash_size, eeprom_size, chip_erase_delay, fuse_count,
    timeout, stabdelay, cmdexedelay, synchloops, pollvalue, pollindex,
    flash_page_lsb, stk500_devcode, avr910_devcode, bytedelay, runtime_group } */
@@ -405,8 +405,8 @@ static const AVR_DeviceEntry g_avrDeviceTable[] = {
     {"ATxmega8E5",{0x1E,0x93,0x41},0,0,10240UL,512,0,0,200,100,25,32,83,3,128,0,0,0},
 };
 
-/* â”€â”€ å…±äº« SPI å‘½ä»¤ç»„ (é€šç”¨æ—¶åº) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* æ‰€æœ‰ AVR ISP å™¨ä»¶å…±ç”¨åŒä¸€å¥— SPI å‘½ä»¤åºåˆ—:
+/* ©¤©¤ ¹²Ïí SPI ÃüÁî×é (Í¨ÓÃÊ±Ğò) ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
+/* ËùÓĞ AVR ISP Æ÷¼ş¹²ÓÃÍ¬Ò»Ì× SPI ÃüÁîĞòÁĞ:
    PGM_ENABLE, CHIP_ERASE, READ, READ_LO, READ_HI,
    WRITE, WRITE_LO, WRITE_HI, LOADPAGE_LO, LOADPAGE_HI, LOAD_EXT_ADDR */
 static const AVR_OpGroup g_avrOpGroups[] = {
@@ -425,8 +425,8 @@ static const AVR_OpGroup g_avrOpGroups[] = {
     }}
 };
 
-/* â”€â”€ å…±äº«å­˜å‚¨å™¨å‚æ•°ç»„ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
-/* æè¿° flash/eeprom/fuse/lock/signature/calibration çš„è¯»å†™å‚æ•° */
+/* ©¤©¤ ¹²Ïí´æ´¢Æ÷²ÎÊı×é ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
+/* ÃèÊö flash/eeprom/fuse/lock/signature/calibration µÄ¶ÁĞ´²ÎÊı */
 static const AVR_MemGroup g_avrMemGroups[] = {
     {{
         {0,0,0,10,0,0x41,{0xFF,0xFF}},   /* flash */
@@ -442,41 +442,41 @@ static const AVR_MemGroup g_avrMemGroups[] = {
 
 #define AVR_DEVICE_COUNT 392
 
-/* â”€â”€ API å‡½æ•° â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ©¤©¤ API º¯Êı ©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤©¤ */
 
-/** @brief è·å– SPI å‘½ä»¤ç»„ (æ‰€æœ‰å™¨ä»¶å…±ç”¨ index=0) */
+/** @brief »ñÈ¡ SPI ÃüÁî×é (ËùÓĞÆ÷¼ş¹²ÓÃ index=0) */
 const AVR_OpGroup* avr_get_op_group(uint8_t idx)
 {
     (void)idx;
     return &g_avrOpGroups[0];
 }
 
-/** @brief è·å–å­˜å‚¨å™¨å‚æ•°ç»„ (æŒ‰å™¨ä»¶ mem_group ç´¢å¼•) */
+/** @brief »ñÈ¡´æ´¢Æ÷²ÎÊı×é (°´Æ÷¼ş mem_group Ë÷Òı) */
 const AVR_MemGroup* avr_get_mem_group(uint8_t idx)
 {
     return (idx < AVR_MEM_SHARED_COUNT) ? &g_avrMemGroups[idx] : &g_avrMemGroups[0];
 }
 
-/** @brief è·å–ç¬¬ index ä¸ªå™¨ä»¶çš„å‹ç¼©æ¡ç›® */
+/** @brief »ñÈ¡µÚ index ¸öÆ÷¼şµÄÑ¹ËõÌõÄ¿ */
 const AVR_DeviceEntry* avr_get_device_entry(uint16_t i)
 {
     return (i < AVR_DEVICE_COUNT) ? &g_avrDeviceTable[i] : 0;
 }
 
-/** @brief è·å–ç¬¬ index ä¸ªå™¨ä»¶çš„åç§°å­—ç¬¦ä¸² */
+/** @brief »ñÈ¡µÚ index ¸öÆ÷¼şµÄÃû³Æ×Ö·û´® */
 const char* avr_get_device_name(uint16_t i)
 {
     if (i >= AVR_DEVICE_COUNT) return 0;
     return g_avrDeviceTable[i].avrName;
 }
 
-/** @brief è·å–æ”¯æŒçš„å™¨ä»¶æ€»æ•° */
+/** @brief »ñÈ¡Ö§³ÖµÄÆ÷¼ş×ÜÊı */
 uint16_t avr_get_device_count(void)
 {
     return AVR_DEVICE_COUNT;
 }
 
-/** @brief æ ¹æ® 3 å­—èŠ‚ç­¾åæŸ¥æ‰¾å™¨ä»¶ */
+/** @brief ¸ù¾İ 3 ×Ö½ÚÇ©Ãû²éÕÒÆ÷¼ş */
 int16_t avr_find_device_by_signature(const uint8_t s[3])
 {
     uint16_t i;
@@ -490,7 +490,7 @@ int16_t avr_find_device_by_signature(const uint8_t s[3])
     return -1;
 }
 
-/** @brief æ ¹æ®å™¨ä»¶åç§°æŸ¥æ‰¾ç´¢å¼• (å¤§å°å†™ä¸æ•æ„Ÿ) */
+/** @brief ¸ù¾İÆ÷¼şÃû³Æ²éÕÒË÷Òı (´óĞ¡Ğ´²»Ãô¸Ğ) */
 int16_t avr_find_device_by_name(const char* n)
 {
     uint16_t i;
@@ -504,7 +504,7 @@ int16_t avr_find_device_by_name(const char* n)
     return -1;
 }
 
-/** @brief å°†å‹ç¼©æ¡ç›®å±•å¼€ä¸ºå®Œæ•´ AVRPART ç»“æ„ä½“ */
+/** @brief ½«Ñ¹ËõÌõÄ¿Õ¹¿ªÎªÍêÕû AVRPART ½á¹¹Ìå */
 int avrAggregateParams(const AVR_DeviceEntry* e, AVRPART* out)
 {
     const AVR_MemGroup* mg;
@@ -515,33 +515,33 @@ int avrAggregateParams(const AVR_DeviceEntry* e, AVRPART* out)
     if (!e || !out) return -1;
     memset(out, 0, sizeof(*out));
 
-    /* å¡«å……å™¨ä»¶åŸºæœ¬ä¿¡æ¯ */
-    strcpy(out->device_name,e->avrName);    /* å™¨ä»¶å */
+    /* Ìî³äÆ÷¼ş»ù±¾ĞÅÏ¢ */
+    strcpy(out->device_name,e->avrName);    /* Æ÷¼şÃû */
     out->signature[0] = e->signature[0];
     out->signature[1] = e->signature[1];
     out->signature[2] = e->signature[2];
     out->stk500_devcode = e->stk500_devcode;
     out->avr910_devcode = e->avr910_devcode;
 
-    /* å¡«å……æ—¶åºå‚æ•° */
+    /* Ìî³äÊ±Ğò²ÎÊı */
     out->timeout    = e->timeout;
     out->stabdelay  = e->stabdelay;
     out->cmdexedelay = e->cmdexedelay;
     out->synchloops = e->synchloops;
     out->bytedelay  = e->bytedelay;
 
-    /* å¡«å……è½®è¯¢å‚æ•° */
+    /* Ìî³äÂÖÑ¯²ÎÊı */
     out->pollvalue = e->pollvalue;
     out->pollindex = e->pollindex;
     out->chip_erase_delay = e->chip_erase_delay;
 
-    /* å¡«å…… Flash/EEPROM å®¹é‡ */
+    /* Ìî³ä Flash/EEPROM ÈİÁ¿ */
     out->flash_page_size = ((uint16_t)e->flash_page_size_msb << 8) | e->flash_page_size_lsb;
     out->flash_size   = e->flash_size;
     out->eeprom_size  = e->eeprom_size;
     out->fuse_count   = e->fuse_count;
 
-    /* å¡«å……å­˜å‚¨å™¨å‚æ•° */
+    /* Ìî³ä´æ´¢Æ÷²ÎÊı */
     mg = avr_get_mem_group(e->mem_group);
     og = avr_get_op_group(0);
     if (mg)
@@ -561,19 +561,19 @@ int avrAggregateParams(const AVR_DeviceEntry* e, AVRPART* out)
             out->mem[i].paged = (mg->mem[i].page_size > 1) ? 1 : 0;
             if (og) memcpy(out->mem[i].op, og->op, sizeof(out->mem[i].op));
         }
-        /* è¦†ç›– flash/eeprom çš„å®é™…å®¹é‡ */
+        /* ¸²¸Ç flash/eeprom µÄÊµ¼ÊÈİÁ¿ */
         out->mem[0].size      = out->flash_size;
         out->mem[0].page_size = out->flash_page_size;
         out->mem[0].paged     = (out->flash_page_size > 1) ? 1 : 0;
         out->mem[1].size      = out->eeprom_size;
     }
 
-    /* å¡«å…… SPI å‘½ä»¤ */
+    /* Ìî³ä SPI ÃüÁî */
     if (og) memcpy(out->op, og->op, sizeof(out->op));
     return 0;
 }
 
-/** @brief æ ¹æ®å™¨ä»¶åç§°æŸ¥æ‰¾å¹¶å¡«å……å‚æ•° */
+/** @brief ¸ù¾İÆ÷¼şÃû³Æ²éÕÒ²¢Ìî³ä²ÎÊı */
 int avrFindDeviceByName(const char* n, avr_prog_params_t* out)
 {
     int16_t idx;
@@ -583,14 +583,14 @@ int avrFindDeviceByName(const char* n, avr_prog_params_t* out)
     return avrAggregateParams(&g_avrDeviceTable[idx], out);
 }
 
-/** @brief æ ¹æ®ç´¢å¼•æŸ¥æ‰¾å¹¶å¡«å……å‚æ•° */
+/** @brief ¸ù¾İË÷Òı²éÕÒ²¢Ìî³ä²ÎÊı */
 int avrFindDeviceByIndex(uint16_t idx, avr_prog_params_t* out)
 {
     if (out == NULL || idx >= AVR_DEVICE_COUNT) return -1;
     return avrAggregateParams(&g_avrDeviceTable[idx], out);
 }
 
-/* æ‰“å° avr_prog_params_t ç»“æ„ä½“æ•°æ®ï¼Œå¹¶å‘é€åˆ°â€œä¸²å£1â€ */
+/* ´òÓ¡ avr_prog_params_t ½á¹¹ÌåÊı¾İ£¬²¢·¢ËÍµ½¡°´®¿Ú1¡± */
 void avrDeviceParamPrint(avr_prog_params_t* dev)
 {
     char buf[256];
@@ -600,45 +600,45 @@ void avrDeviceParamPrint(avr_prog_params_t* dev)
 
     uart1_WriteString("\r\n===== AVR Device Parameters =====\r\n");
 
-    /* å™¨ä»¶åç§° */
+    /* Æ÷¼şÃû³Æ */
     sprintf(buf, "id:   %s\r\n", dev->device_name);  uart1_WriteString(buf);
 
-    /* ç­¾å */
+    /* Ç©Ãû */
     for (i = 0; i < 3; i++)
     {
         sprintf(buf, "signature[%u]: 0x%02X\r\n", i, dev->signature[i]);
         uart1_WriteString(buf);
     }
 
-    /* å™¨ä»¶ä»£å· */
+    /* Æ÷¼ş´úºÅ */
     sprintf(buf, "stk500_devcode: %u\r\n", dev->stk500_devcode);  uart1_WriteString(buf);
     sprintf(buf, "avr910_devcode: %u\r\n", dev->avr910_devcode);  uart1_WriteString(buf);
 
-    /* æ—¶åºå‚æ•° */
+    /* Ê±Ğò²ÎÊı */
     sprintf(buf, "timeout:    %u\r\n", dev->timeout);     uart1_WriteString(buf);
     sprintf(buf, "stabdelay:  %u\r\n", dev->stabdelay);   uart1_WriteString(buf);
     sprintf(buf, "cmdexedelay: %u\r\n", dev->cmdexedelay); uart1_WriteString(buf);
     sprintf(buf, "synchloops: %u\r\n", dev->synchloops);  uart1_WriteString(buf);
     sprintf(buf, "bytedelay:  %u\r\n", dev->bytedelay);   uart1_WriteString(buf);
 
-    /* è½®è¯¢å‚æ•° */
+    /* ÂÖÑ¯²ÎÊı */
     sprintf(buf, "pollvalue: 0x%02X\r\n", dev->pollvalue);   uart1_WriteString(buf);
     sprintf(buf, "pollindex: %u\r\n", dev->pollindex);       uart1_WriteString(buf);
     sprintf(buf, "predelay:  %u\r\n", dev->predelay);        uart1_WriteString(buf);
     sprintf(buf, "postdelay: %u\r\n", dev->postdelay);       uart1_WriteString(buf);
     sprintf(buf, "pollmethod: %u\r\n", dev->pollmethod);     uart1_WriteString(buf);
 
-    /* æ“¦é™¤å»¶æ—¶ */
+    /* ²Á³ıÑÓÊ± */
     sprintf(buf, "chip_erase_delay: %lu\r\n", (unsigned long)dev->chip_erase_delay);
     uart1_WriteString(buf);
 
-    /* Flash/EEPROM å®¹é‡ */
+    /* Flash/EEPROM ÈİÁ¿ */
     sprintf(buf, "flash_page_size: %u\r\n", dev->flash_page_size);  uart1_WriteString(buf);
     sprintf(buf, "flash_size:  %lu\r\n", (unsigned long)dev->flash_size);  uart1_WriteString(buf);
     sprintf(buf, "eeprom_size: %u\r\n", dev->eeprom_size);         uart1_WriteString(buf);
     sprintf(buf, "fuse_count:  %u\r\n", dev->fuse_count);          uart1_WriteString(buf);
 
-    /* HV å‚æ•° */
+    /* HV ²ÎÊı */
     sprintf(buf, "hventerstabdelay: %u\r\n", dev->hventerstabdelay);  uart1_WriteString(buf);
     sprintf(buf, "progmodedelay: %u\r\n", dev->progmodedelay);        uart1_WriteString(buf);
     sprintf(buf, "latchcycles: %u\r\n", dev->latchcycles);            uart1_WriteString(buf);
@@ -658,7 +658,7 @@ void avrDeviceParamPrint(avr_prog_params_t* dev)
     sprintf(buf, "synchcycles: %u\r\n", dev->synchcycles);         uart1_WriteString(buf);
     sprintf(buf, "hvspcmdexedelay: %u\r\n", dev->hvspcmdexedelay); uart1_WriteString(buf);
 
-    /* SPI å‘½ä»¤ç»„ */
+    /* SPI ÃüÁî×é */
     for (i = 0; i < AVR_OP_MAX; i++)
     {
         sprintf(buf, "op[%u]: {%02X,%02X,%02X,%02X} idx=%u\r\n",
@@ -669,7 +669,7 @@ void avrDeviceParamPrint(avr_prog_params_t* dev)
         uart1_WriteString(buf);
     }
 
-    /* å­˜å‚¨å™¨å‚æ•° */
+    /* ´æ´¢Æ÷²ÎÊı */
     for (i = 0; i < AVR_MEM_MAX; i++)
     {
         sprintf(buf, "mem[%u] %s: size=%u page=%u readsize=%u delay=%u flags=0x%02X mode=0x%02X readback={%02X,%02X} paged=%u\r\n",

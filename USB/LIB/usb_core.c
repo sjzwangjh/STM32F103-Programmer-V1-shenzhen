@@ -1,7 +1,3 @@
-/*
- * USB核心驱动实现 - USB协议引擎/令牌处理/传输管理
- */
-
 /******************** (C) COPYRIGHT 2008 STMicroelectronics ********************
 * File Name          : usb_core.c
 * Author             : MCD Application Team
@@ -520,7 +516,25 @@ void DataStageIn(void)
     Length = save_wLength;
   }
 
+  /* FIX11: protect EP0 descriptor multi-packet transfer.
+   * Some custom descriptors (Configuration/BOS/MS OS 2.0) are larger than
+   * one EP0 packet. Keep the offset/length state valid between IN stages.
+   */
+  if ((pEPinfo->CopyData == NULL) || (Length == 0))
+  {
+    pInformation->ControlState = STALLED;
+    vSetEPTxStatus(EP_TX_STALL);
+    return;
+  }
+
   DataBuffer = (*pEPinfo->CopyData)(Length);
+
+  if (DataBuffer == NULL)
+  {
+    pInformation->ControlState = STALLED;
+    vSetEPTxStatus(EP_TX_STALL);
+    return;
+  }
 
   UserToPMABufferCopy(DataBuffer, GetEPTxAddr(ENDP0), Length);
 
@@ -697,6 +711,16 @@ void Data_Setup0(void)
       else if (wValue1 == STRING_DESCRIPTOR)
       {
         CopyRoutine = pProperty->GetStringDescriptor;
+      }
+      else if (wValue1 == BOS_DESCRIPTOR_TYPE)
+      {
+        /* USB BOS Descriptor support (MS OS 2.0 / WinUSB)
+         * Keep BOS handling in the standard descriptor path.
+         */
+        if (pProperty->GetBOSDescriptor != NULL)
+        {
+          CopyRoutine = pProperty->GetBOSDescriptor;
+        }
       }  /* End of GET_DESCRIPTOR */
     }
   }
@@ -1015,5 +1039,3 @@ void NOP_Process(void)
 }
 
 /******************* (C) COPYRIGHT 2008 STMicroelectronics *****END OF FILE****/
-
-

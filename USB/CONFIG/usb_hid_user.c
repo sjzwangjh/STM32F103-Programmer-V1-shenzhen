@@ -15,6 +15,14 @@
 uint8_t  g_HidReportId = 0;
 RequestType_t g_RequestType = REQUEST_TYPE_IDLE;
 
+/* HID RX ring: the USB ISR only stores bytes here; HID_Task (main loop)
+ * drains it and feeds the STK frame parser, so no transaction handling
+ * (including flash operations) ever runs inside the interrupt. */
+#define HID_RX_RING_SIZE    1024U
+static uint8_t  g_hidRxBuf[HID_RX_RING_SIZE];
+static uint16_t g_hidRxHead;
+static uint16_t g_hidRxTail;
+
 static uint16_t HID_GetPayloadSize(uint8_t reportId)
 {
     switch (reportId)
@@ -83,14 +91,26 @@ void HID_Rx_Store(uint8_t reportId, const uint8_t *data, uint8_t len)
 
     for (i = stkPayloadStart; i < (uint8_t)(stkPayloadStart + stkLen) && i < len; i++)
     {
-        stkSetRxChar(data[i]);
+        uint16_t next = (uint16_t)((g_hidRxHead + 1U) & (HID_RX_RING_SIZE - 1U));
+        if (next != g_hidRxTail)
+        {
+            g_hidRxBuf[g_hidRxHead] = data[i];
+            g_hidRxHead = next;
+        }
     }
 
-    stkPoll();
     HID_ResetRequestState();
 }
 void HID_Task(void)
 {
+    /* Main loop drains the HID RX ring and feeds the STK parser: no
+     * command processing happens inside the USB interrupt. */
+    while (g_hidRxHead != g_hidRxTail)
+    {
+        uint8_t c = g_hidRxBuf[g_hidRxTail];
+        g_hidRxTail = (uint16_t)((g_hidRxTail + 1U) & (HID_RX_RING_SIZE - 1U));
+        stkSetRxChar(c);
+    }
     stkPoll();
 }
 
@@ -129,9 +149,14 @@ uint8_t *HID_GetReport_Buffer(uint8_t reportId, uint16_t requestedLen, uint16_t 
     for (idx = 0; idx < reportLen; idx++) { reportBuf[idx] = 0; }
 
     reportBuf[0] = reportId;
+      if (stkGetTxSource() != STK_DATA_SOURCE_USB_HID) { *pOutLen = 0; return reportBuf; }
 
     txCount = (uint16_t)stkGetTxCount();
-    reportBuf[1] = (uint8_t)(txCount & 0xFF);
+    /* AVR-Doper GET_REPORT uses byte 1 as the device-side pending byte count.
+     * Clamp values above 255 instead of truncating to the low 8 bits, or the
+     * host avrdoper backend will stop fetching a long STK500 reply early.
+     */
+    reportBuf[1] = (uint8_t)((txCount > 0xFFU) ? 0xFFU : txCount);
 
     idx = 2U;
     while (idx < reportLen && (c = stkGetTxByte()) >= 0)
@@ -139,25 +164,6 @@ uint8_t *HID_GetReport_Buffer(uint8_t reportId, uint16_t requestedLen, uint16_t 
         reportBuf[idx++] = (uint8_t)c;
     }
 
-#if DEBUG_HARDWARE_CONFIG
-    {
-        static const char hexTable[] = "0123456789ABCDEF";
-        uint16_t n;
-        uart1_WriteString("HID_GET_REPORT id=");
-        uart1_WriteByte((uint8_t)('0' + reportId));
-        uart1_WriteString(" len=");
-        uart1_WriteByte((uint8_t)hexTable[(reportLen >> 4) & 0x0F]);
-        uart1_WriteByte((uint8_t)hexTable[reportLen & 0x0F]);
-        uart1_WriteString(" data:");
-        for (n = 0; n < reportLen; n++)
-        {
-            uart1_WriteByte((uint8_t)hexTable[(reportBuf[n] >> 4) & 0x0F]);
-            uart1_WriteByte((uint8_t)hexTable[reportBuf[n] & 0x0F]);
-            uart1_WriteByte(' ');
-        }
-        uart1_WriteString("\r\n");
-    }
-#endif
     *pOutLen = reportLen;
     return reportBuf;
 }

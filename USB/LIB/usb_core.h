@@ -1,7 +1,3 @@
-/*
- * USB核心驱动头文件 - 核心USB协议函数和常量
- */
-
 /******************** (C) COPYRIGHT 2008 STMicroelectronics ********************
 * File Name          : usb_core.h
 * Author             : MCD Application Team
@@ -176,6 +172,7 @@ typedef struct _DEVICE_PROP
   u8* (*GetDeviceDescriptor)(u16 Length);
   u8* (*GetConfigDescriptor)(u16 Length);
   u8* (*GetStringDescriptor)(u16 Length);
+  u8* (*GetBOSDescriptor)(u16 Length);
 
   u8* RxEP_buffer;
   u8 MaxPacketSize;
@@ -245,5 +242,3 @@ extern u16 SaveTState;
 #endif /* __USB_CORE_H */
 
 /******************* (C) COPYRIGHT 2008 STMicroelectronics *****END OF FILE****/
-
-

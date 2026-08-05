@@ -1,6 +1,7 @@
+# -*- coding: gbk -*-
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""æŸ¥æ‰¾æ‰€æœ‰ .c .h æ–‡ä»¶ä¸­å¼€å¤´éƒ¨åˆ†æ²¡æœ‰ä¸­æ–‡æ³¨é‡Šçš„æ–‡ä»¶"""
+"""²éÕÒËùÓĞ .c .h ÎÄ¼şÖĞ¿ªÍ·²¿·ÖÃ»ÓĞÖĞÎÄ×¢ÊÍµÄÎÄ¼ş"""
 import os
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +26,7 @@ for root, dirs, files in os.walk(PROJECT_ROOT):
         
         lines = text.split('\r\n')
         
-        # æ£€æŸ¥å‰5è¡Œæ˜¯å¦æœ‰ä¸­æ–‡
+        # ¼ì²éÇ°5ĞĞÊÇ·ñÓĞÖĞÎÄ
         has_cn = False
         for line in lines[:5]:
             if any(ord(c) > 127 for c in line):
@@ -34,12 +35,12 @@ for root, dirs, files in os.walk(PROJECT_ROOT):
         
         rel = os.path.relpath(fp, PROJECT_ROOT)
         if not has_cn:
-            # æ˜¾ç¤ºæ–‡ä»¶å†…å®¹æ‘˜è¦
+            # ÏÔÊ¾ÎÄ¼şÄÚÈİÕªÒª
             preview_lines = lines[:3]
             no_cn_files.append((rel, preview_lines))
 
 if no_cn_files:
-    print(f"æ‰¾åˆ° {len(no_cn_files)} ä¸ªæ–‡ä»¶å¼€å¤´æ— ä¸­æ–‡æ³¨é‡Šï¼š")
+    print(f"ÕÒµ½ {len(no_cn_files)} ¸öÎÄ¼ş¿ªÍ·ÎŞÖĞÎÄ×¢ÊÍ£º")
     print()
     for rel, preview in no_cn_files:
         print(f"[{rel}]")
@@ -47,4 +48,4 @@ if no_cn_files:
             print(f"  {line}")
         print()
 else:
-    print("æ‰€æœ‰æ–‡ä»¶å¼€å¤´éƒ½æœ‰ä¸­æ–‡æ³¨é‡Šï¼")
+    print("ËùÓĞÎÄ¼ş¿ªÍ·¶¼ÓĞÖĞÎÄ×¢ÊÍ£¡")

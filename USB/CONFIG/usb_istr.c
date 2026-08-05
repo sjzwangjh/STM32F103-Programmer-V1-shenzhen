@@ -23,6 +23,7 @@
 #include "usb_pwr.h"
 #include "usb_istr.h"
 #include "usb_cdc_user.h"
+#include "usb_winusb_user.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/

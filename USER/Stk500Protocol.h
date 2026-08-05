@@ -72,6 +72,7 @@ extern stkParam_t   stkParam;
 #define STK_DATA_SOURCE_USB_HID         0U
 #define STK_DATA_SOURCE_USB_CDC         1U
 #define STK_DATA_SOURCE_FLASH_RECORD    2U
+#define STK_DATA_SOURCE_USB_WINUSB     3U
 
 typedef struct stkDataFrame{
     const uint8_t *frame;       /* RX: 完整 STK500 帧, 来源可以是 USB HID 或 Flash 记录 */
@@ -96,7 +97,7 @@ typedef struct stkEnterProgIsp{ // 杩涘叆ISP
     uint8_t   cmd[4];
 }stkEnterProgIsp_t;
 
-typedef struct stkLeaveProgIsp{ // 閫�鍑篒SP
+typedef struct stkLeaveProgIsp{ // 閫?鍑篒SP
     uint8_t   preDelay;
     uint8_t   postDelay;
 }stkLeaveProgIsp_t;
@@ -313,10 +314,14 @@ typedef struct stkWriteOsccalIcsp{
 
 /* Public functions */
 void    stkSetRxChar(uint8_t c);
+void    stkSetRxCharEx(uint8_t src, uint8_t c);
 void    stkEvaluateRxMessage(stkDataFrame_t *pDataFrame);
 int     stkGetTxByte(void);
 int     stkGetTxCount(void);
 void    stkPoll(void);              /* must be called from main loop */
+uint8_t stkGetTxSource(void);
+void    stkWinUSBTask(void);
+void    stkWinUSBFlush(void);
 uint8_t stkFwUpgradeRequested(void);
 void    stkIncrementAddress(void);
 

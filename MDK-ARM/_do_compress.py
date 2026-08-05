@@ -1,3 +1,4 @@
+# -*- coding: gbk -*-
 #!/usr/bin/env python3
 import re, os
 
@@ -128,7 +129,7 @@ out_lines.append('};')
 out_lines.append(f'#define AVR_NAME_COUNT {len(names_uniq)}')
 out_lines.append('')
 
-# OP group (all identical â€” just 1)
+# OP group (all identical ¡ª just 1)
 op_sample = json.loads(op_keys_sorted[0])
 out_lines.append('/* Shared OP group (all AVR ISP devices share identical commands) */')
 out_lines.append('static const AVR_OpGroup g_avrOpGroups[1] = {')

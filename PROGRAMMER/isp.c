@@ -1,5 +1,5 @@
 /*
- * ISPåœ¨çº¿ç¼–ç¨‹å®ç° - é€šè¿‡SPIæˆ–ICSPåè®®å¯¹MCUç¼–ç¨‹
+ * ISPÔÚÏß±à³ÌÊµÏÖ - Í¨¹ıSPI»òICSPĞ­Òé¶ÔMCU±à³Ì
  */
 
 /*
@@ -133,30 +133,30 @@ static void ispAttachToDevice(uint8_t stk500Delay, uint8_t stabDelay)
         if(ispClockDelay < 10) ispClockDelay = 1;
     #endif
     /* === Hardware initialization (STM32 DUT bus) === */
-    PORT_OUT(HWPIN_LED) = 1;    // LEDæ˜¾ç¤ºå½“å‰çŠ¶æ€
-    ISP_POWER_ON;   /* VDDä¸Šç”µ ä¸è¦æ”¹åŠ¨æ­¤è¯­å¥ */
+    PORT_OUT(HWPIN_LED) = 1;    // LEDÏÔÊ¾µ±Ç°×´Ì¬
+    ISP_POWER_ON;   /* VDDÉÏµç ²»Òª¸Ä¶¯´ËÓï¾ä */
     /* setup initial condition: SCK, MOSI = 0 */
-    DUT_PIN6_SET_OUTPUT;        // RESETè®¾ç½®ä¸ºè¾“å‡ºæ¨¡å¼
-    DUT_PIN7_SET_OUTPUT;        // MOSIè®¾ç½®ä¸ºè¾“å‡ºæ¨¡å¼
-    DUT_PIN5_SET_OUTPUT;        // SCKè®¾ç½®ä¸ºè¾“å‡ºæ¨¡å¼
-    DUT_PIN4_SET_INPUT;         // MISOè®¾ç½®ä¸ºè¾“å…¥æ¨¡å¼
-    /* é’ˆå¯¹ç¡¬ä»¶ï¼Œå°†åˆå§‹å€¼0æ”¹æˆäº†1 */
+    DUT_PIN6_SET_OUTPUT;        // RESETÉèÖÃÎªÊä³öÄ£Ê½
+    DUT_PIN7_SET_OUTPUT;        // MOSIÉèÖÃÎªÊä³öÄ£Ê½
+    DUT_PIN5_SET_OUTPUT;        // SCKÉèÖÃÎªÊä³öÄ£Ê½
+    DUT_PIN4_SET_INPUT;         // MISOÉèÖÃÎªÊäÈëÄ£Ê½
+    /* Õë¶ÔÓ²¼ş£¬½«³õÊ¼Öµ0¸Ä³ÉÁË1 */
     PORT_OUT(HWPIN_ISP_RESET) = 0;  // RESET = 0
-    PORT_OUT(HWPIN_ISP_SCK) = 0;    // ISP SCKè¾“å‡º0
-    PORT_OUT(HWPIN_ISP_MOSI) = 0;   // ISP MOSIè¾“å‡º0
+    PORT_OUT(HWPIN_ISP_SCK) = 0;    // ISP SCKÊä³ö0
+    PORT_OUT(HWPIN_ISP_MOSI) = 0;   // ISP MOSIÊä³ö0
     /* set TIM9_CH1 toggle on compare match mode -> activate clock */
 #if 1
      timerMsDelay(stabDelay);
-#else   // è°ƒè¯•ä»£ç 
+#else   // µ÷ÊÔ´úÂë
     for (u16 i = 0; i < (u16)stabDelay*200; i++)
     {
-        PORT_OUT(HWPIN_ISP_SCK) = kk;    // ISP SCKè¾“å‡º0
-        PORT_OUT(HWPIN_ISP_MOSI) = kk;   // ISP MOSIè¾“å‡º0
+        PORT_OUT(HWPIN_ISP_SCK) = kk;    // ISP SCKÊä³ö0
+        PORT_OUT(HWPIN_ISP_MOSI) = kk;   // ISP MOSIÊä³ö0
         kk^=1;
     }
 #endif
-    PORT_OUT(HWPIN_ISP_SCK) = 0;    // ISP SCKè¾“å‡º0
-    PORT_OUT(HWPIN_ISP_MOSI) = 0;   // ISP MOSIè¾“å‡º0
+    PORT_OUT(HWPIN_ISP_SCK) = 0;    // ISP SCKÊä³ö0
+    PORT_OUT(HWPIN_ISP_MOSI) = 0;   // ISP MOSIÊä³ö0
     timerTicksDelay(ispClockDelay*2);     /* stabDelay may have been 0 */
     /* We now need to give a positive pulse on RESET since we can't guarantee
      * that SCK was low during power up (according to instructions in Atmel's
@@ -198,7 +198,7 @@ static void ispDetachFromDevice(uint8_t removeResetDelay)
 uint8_t ispEnterProgmode(stkEnterProgIsp_t *param)
 {
     uint8_t i, rval;
-    /* è°ƒç”¨è¿›å…¥ISPå‡½æ•° */
+    /* µ÷ÓÃ½øÈëISPº¯Êı */
     ispAttachToDevice(stkParam.s.sckDuration, param->stabDelay);
     timerMsDelay(param->cmdExeDelay);
 

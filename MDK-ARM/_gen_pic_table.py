@@ -1,3 +1,4 @@
+# -*- coding: gbk -*-
 """Generate complete 457-entry g_deviceTable[] from XML and shared tables"""
 import xml.etree.ElementTree as ET
 
@@ -187,7 +188,7 @@ lines.append("")
 
 # API functions
 lines.append("""
-/* â”€â”€ API â”€â”€ */
+/* ©¤©¤ API ©¤©¤ */
 uint16_t pic8GetDeviceList(const char **names, uint16_t maxCount) {
     uint16_t i, count = PIC8_DEVICE_TABLE_SIZE;
     if (names == NULL || maxCount == 0) return count;

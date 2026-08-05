@@ -1,16 +1,16 @@
 /*
- * USB CDCç”¨æˆ·å±‚å®ç° - å°†CDCå­—èŠ‚æµæ¥å…¥STK500åè®®å±‚
+ * USB CDCÓÃ»§²ãÊµÏÖ - ½«CDC×Ö½ÚÁ÷½ÓÈëSTK500Ğ­Òé²ã
  *
- * CDC æ•°æ®æµæ¶æ„ï¼ˆä¸­æ–­+è½®è¯¢æ¨¡å¼ï¼‰:
- *   USBä¸­æ–­ â†’ CDC_DataOut_Callback()
- *             â†’ PMAToUserBufferCopy() å¤åˆ¶æ•°æ®åˆ°ç¯å½¢ç¼“å†²åŒº
- *             â†’ è®¾ç½® cdcRxPending æ ‡å¿—
- *             â†’ é€€å‡ºä¸­æ–­ï¼ˆæå¿«ï¼Œä¸æ‰§è¡Œå‘½ä»¤ï¼‰
+ * CDC Êı¾İÁ÷¼Ü¹¹£¨ÖĞ¶Ï+ÂÖÑ¯Ä£Ê½£©:
+ *   USBÖĞ¶Ï ¡ú CDC_DataOut_Callback()
+ *             ¡ú PMAToUserBufferCopy() ¸´ÖÆÊı¾İµ½»·ĞÎ»º³åÇø
+ *             ¡ú ÉèÖÃ cdcRxPending ±êÖ¾
+ *             ¡ú ÍË³öÖĞ¶Ï£¨¼«¿ì£¬²»Ö´ĞĞÃüÁî£©
  *
- *   ä¸»å¾ªç¯ â†’ CDC_Task()
- *             â†’ ä»ç¯å½¢ç¼“å†²åŒºå–å‡ºå­—èŠ‚ â†’ CDC_ProcessByte() é€å­—èŠ‚ç»„å¸§
- *             â†’ å¸§å®Œæ•´ â†’ CDC_ProcessFrame() â†’ stkEvaluateRxMessage()
- *             â†’ ç»“æœæ”¾å…¥ TX å¸§ç¼“å†² â†’ CDC_StartNextTxPacket() å‘é€å›å¤
+ *   Ö÷Ñ­»· ¡ú CDC_Task()
+ *             ¡ú ´Ó»·ĞÎ»º³åÇøÈ¡³ö×Ö½Ú ¡ú CDC_ProcessByte() Öğ×Ö½Ú×éÖ¡
+ *             ¡ú Ö¡ÍêÕû ¡ú CDC_ProcessFrame() ¡ú stkEvaluateRxMessage()
+ *             ¡ú ½á¹û·ÅÈë TX Ö¡»º³å ¡ú CDC_StartNextTxPacket() ·¢ËÍ»Ø¸´
  */
 
 #include "usb_lib.h"
@@ -27,18 +27,18 @@ static uint8_t cdcRxPacket[CDC_RX_PACKET_SIZE];
 static uint8_t cdcTxPacket[CDC_TX_PACKET_SIZE];
 static uint8_t cdcTxBusy;
 
-/* ç¯å½¢ç¼“å†²åŒºï¼šä¸­æ–­æ¥æ”¶ â†’ ä¸»å¾ªç¯å¤„ç† */
+/* »·ĞÎ»º³åÇø£ºÖĞ¶Ï½ÓÊÕ ¡ú Ö÷Ñ­»·´¦Àí */
 static uint8_t  cdcRingBuf[CDC_RX_RING_SIZE];
 static uint16_t cdcRingHead;
 static uint16_t cdcRingTail;
 static uint8_t  cdcRxPending;
 
-/* STK500 å¸§ç»„è£…ç¼“å†²åŒº */
+/* STK500 Ö¡×é×°»º³åÇø */
 static uint8_t  cdcFrame[CDC_STK_FRAME_SIZE];
 static uint16_t cdcFramePos;
 static uint16_t cdcFrameLen;
 
-/* STK500 TX å¸§ç¼“å†²ï¼ˆstkEvaluateRxMessage çš„å›å¤ä¼šå†™å…¥è¿™é‡Œï¼‰ */
+/* STK500 TX Ö¡»º³å£¨stkEvaluateRxMessage µÄ»Ø¸´»áĞ´ÈëÕâÀï£© */
 static uint8_t  cdcTxFrame[CDC_STK_FRAME_SIZE];
 static uint16_t cdcTxFrameLen;
 static uint16_t cdcTxFramePos;
@@ -52,7 +52,7 @@ static usb_cdc_line_coding_t cdcLineCoding = {
 static uint8_t cdcLineCodingBuf[7];
 static uint16_t cdcControlLineState;
 
-/* ç¯å½¢ç¼“å†²åŒºæ“ä½œ */
+/* »·ĞÎ»º³åÇø²Ù×÷ */
 static void ringBufWrite(const uint8_t *data, uint16_t len);
 static uint8_t ringBufRead(uint8_t *byte);
 
@@ -117,7 +117,7 @@ void CDC_DataOut_Callback(void)
     PMAToUserBufferCopy(cdcRxPacket, ENDP3_RXADDR, rxLen);
     SetEPRxValid(ENDP3);
 
-    /* å°†æ•°æ®æ¨å…¥ç¯å½¢ç¼“å†²åŒºï¼Œç”±ä¸»å¾ªç¯ CDC_Task() å¤„ç† */
+    /* ½«Êı¾İÍÆÈë»·ĞÎ»º³åÇø£¬ÓÉÖ÷Ñ­»· CDC_Task() ´¦Àí */
     ringBufWrite(cdcRxPacket, rxLen);
     cdcRxPending = 1U;
 }
@@ -126,7 +126,7 @@ void CDC_Task(void)
 {
     uint8_t byte;
 
-    /* å¤„ç†æ¥æ”¶æ•°æ®ï¼šä»ç¯å½¢ç¼“å†²åŒºå–å‡ºå­—èŠ‚ï¼Œé€å­—èŠ‚ç»„ STK500 å¸§ */
+    /* ´¦Àí½ÓÊÕÊı¾İ£º´Ó»·ĞÎ»º³åÇøÈ¡³ö×Ö½Ú£¬Öğ×Ö½Ú×é STK500 Ö¡ */
     if (cdcRxPending)
     {
         cdcRxPending = 0U;
@@ -134,7 +134,7 @@ void CDC_Task(void)
             CDC_ProcessByte(byte);
     }
 
-    /* å¤„ç†å‘é€ï¼šTX å¸§ç¼“å†²æœ‰æ•°æ®ä¸”æ— æ­£åœ¨è¿›è¡Œçš„å‘é€ï¼Œåˆ™å¯åŠ¨å‘é€ */
+    /* ´¦Àí·¢ËÍ£ºTX Ö¡»º³åÓĞÊı¾İÇÒÎŞÕıÔÚ½øĞĞµÄ·¢ËÍ£¬ÔòÆô¶¯·¢ËÍ */
     if (cdcTxFrameLen != 0U && !cdcTxBusy)
         CDC_StartNextTxPacket();
 }
@@ -176,7 +176,7 @@ uint16_t CDC_GetControlLineState(void)
     return cdcControlLineState;
 }
 
-/* ========== ç¯å½¢ç¼“å†²åŒºå®ç° ========== */
+/* ========== »·ĞÎ»º³åÇøÊµÏÖ ========== */
 
 static void ringBufWrite(const uint8_t *data, uint16_t len)
 {
@@ -189,21 +189,21 @@ static void ringBufWrite(const uint8_t *data, uint16_t len)
             cdcRingBuf[cdcRingHead] = data[i];
             cdcRingHead = next;
         }
-        /* ç¼“å†²åŒºæ»¡åˆ™ä¸¢å¼ƒåç»­å­—èŠ‚ */
+        /* »º³åÇøÂúÔò¶ªÆúºóĞø×Ö½Ú */
     }
 }
 
 static uint8_t ringBufRead(uint8_t *byte)
 {
     if (cdcRingHead == cdcRingTail)
-        return 0U;  /* ç©º */
+        return 0U;  /* ¿Õ */
 
     *byte = cdcRingBuf[cdcRingTail];
     cdcRingTail = (uint16_t)(cdcRingTail + 1U) % CDC_RX_RING_SIZE;
     return 1U;
 }
 
-/* ========== STK500 å¸§ç»„è£… ========== */
+/* ========== STK500 Ö¡×é×° ========== */
 
 static void CDC_ProcessByte(uint8_t c)
 {

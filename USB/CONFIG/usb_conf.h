@@ -31,7 +31,7 @@
 /* EP_NUM */
 /* defines how many endpoints are used by the device */
 /*-------------------------------------------------------------*/
-#define EP_NUM     (4)
+#define EP_NUM     (5)
 
 /*-------------------------------------------------------------*/
 /* --------------   Buffer Description Table  -----------------*/
@@ -50,11 +50,15 @@
 #define ENDP1_TXADDR        (0xC0)
 
 /* EP2: CDC notification IN */
-#define ENDP2_TXADDR        (0x100)
+#define ENDP2_TXADDR        (0x0F8)
 
 /* EP3: CDC data IN/OUT */
-#define ENDP3_TXADDR        (0x140)
-#define ENDP3_RXADDR        (0x180)
+#define ENDP3_TXADDR        (0x100)
+#define ENDP3_RXADDR        (0x140)
+
+/* EP4: WinUSB Bulk IN/OUT */
+#define ENDP4_TXADDR        (0x180)
+#define ENDP4_RXADDR        (0x1C0)
 
 
 /*-------------------------------------------------------------*/
@@ -71,7 +75,7 @@
 #define  EP1_IN_Callback   NOP_Process
 #define  EP2_IN_Callback   NOP_Process
 #define  EP3_IN_Callback   CDC_DataIn_Callback
-#define  EP4_IN_Callback   NOP_Process
+#define  EP4_IN_Callback   WinUSB_IN_Callback
 #define  EP5_IN_Callback   NOP_Process
 #define  EP6_IN_Callback   NOP_Process
 #define  EP7_IN_Callback   NOP_Process
@@ -79,7 +83,7 @@
 #define  EP1_OUT_Callback   NOP_Process
 #define  EP2_OUT_Callback   NOP_Process
 #define  EP3_OUT_Callback   CDC_DataOut_Callback
-#define  EP4_OUT_Callback   NOP_Process
+#define  EP4_OUT_Callback  WinUSB_OUT_Callback
 #define  EP5_OUT_Callback   NOP_Process
 #define  EP6_OUT_Callback   NOP_Process
 #define  EP7_OUT_Callback   NOP_Process
@@ -87,4 +91,5 @@
 #endif /*__USB_CONF_H*/
 
 /******************* (C) COPYRIGHT 2008 STMicroelectronics *****END OF FILE****/
+
 

@@ -52,6 +52,7 @@ RESULT UsbHidDev_Get_Interface_Setting(u8 Interface, u8 AlternateSetting);
 u8 *UsbHidDev_GetDeviceDescriptor(u16 );
 u8 *UsbHidDev_GetConfigDescriptor(u16);
 u8 *UsbHidDev_GetStringDescriptor(u16);
+u8 *UsbHidDev_GetBOSDescriptor(u16 Length);
 RESULT UsbHidDev_SetProtocol(void);
 u8 *UsbHidDev_GetProtocolValue(u16 Length);
 RESULT UsbHidDev_SetProtocol(void);

@@ -18,6 +18,7 @@
 #include "offLineRecorder.h"
 #include "eeprom.h"
 #include "usart.h"
+#include "usb_winusb_user.h"
 
 /* 上报给上位机的 STK500 版本号。 */
 #define STK_VERSION_HW      1
@@ -906,7 +907,8 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
 
 
     pDataFrame->txFrameLen = stkSetTxMessage(pTx, pDataFrame->txFrameSize, len.word, pRx[1]);
-    if (pDataFrame->source == STK_DATA_SOURCE_USB_HID)
+    if (pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
+        pDataFrame->source == STK_DATA_SOURCE_USB_WINUSB)
     {
         txPos = 0U;
         txLen = pDataFrame->txFrameLen;
@@ -933,7 +935,23 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
 }
 
 /* USB HID 在线入口: 逐字节组装 STK500 帧并校验 XOR 校验和。 */
+static uint8_t g_rxSource = STK_DATA_SOURCE_USB_HID;
+static uint8_t g_txSource = STK_DATA_SOURCE_USB_HID;
+static void stkAssemble(uint8_t c);
+
 void stkSetRxChar(uint8_t c)
+{
+    g_rxSource = STK_DATA_SOURCE_USB_HID;
+    stkAssemble(c);
+}
+
+void stkSetRxCharEx(uint8_t src, uint8_t c)
+{
+    g_rxSource = src;
+    stkAssemble(c);
+}
+
+static void stkAssemble(uint8_t c)
 {
     if(timerLongTimeoutOccurred()){
         rxPos = 0;
@@ -984,6 +1002,52 @@ int stkGetTxCount(void)
     return txLen - txPos;
 }
 
+uint8_t stkGetTxSource(void)
+{
+    return g_txSource;
+}
+
+void stkWinUSBTask(void)
+{
+    uint8_t buf[64];
+    uint16_t n, i;
+
+    while ((n = WinUSB_Bulk_Available()) != 0U)
+    {
+        if (n > sizeof(buf))
+            n = sizeof(buf);
+
+        n = WinUSB_Bulk_Recv(buf, n);
+        for (i = 0U; i < n; i++)
+        {
+            stkSetRxCharEx(STK_DATA_SOURCE_USB_WINUSB, buf[i]);
+        }
+    }
+
+    stkPoll();
+}
+
+void stkWinUSBFlush(void)
+{
+    uint8_t out[64];
+    uint16_t n, i;
+    if (stkGetTxCount() <= 0) return;
+    if (stkGetTxSource() != STK_DATA_SOURCE_USB_WINUSB) return;
+    if (WinUSB_Bulk_TxBusy()) return;
+    n = (uint16_t)stkGetTxCount();
+    if (n > sizeof(out)) n = sizeof(out);
+    for (i = 0U; i < n; i++)
+    {
+        int c = stkGetTxByte();
+        if (c < 0) break;
+        out[i] = (uint8_t)c;
+    }
+    if (i > 0U)
+    {
+        WinUSB_Bulk_Send(out, i);
+    }
+}
+
 int stkGetTxByte(void)
 {
     uint8_t c;
@@ -1010,7 +1074,8 @@ void stkPoll(void)
             frame.txFrame = txBuffer;
             frame.txFrameSize = BUFFER_SIZE;
             frame.txFrameLen = 0U;
-            frame.source = STK_DATA_SOURCE_USB_HID;
+            g_txSource = g_rxSource;
+            frame.source = g_rxSource;
             stkEvaluateRxMessage(&frame);
         }
     }

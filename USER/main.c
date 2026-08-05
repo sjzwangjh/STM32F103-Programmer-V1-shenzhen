@@ -136,6 +136,9 @@ int main(void)
         }
         HID_Task();     // USB HID 指令扫描
         CDC_Task();     // USB CDC 指令扫描
+
+        stkWinUSBTask();
+        stkWinUSBFlush();        
         /* 机械手信号读取 */
         handlerKey = HandlerTask(1,0);
         if(handlerKey>0){

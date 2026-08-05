@@ -50,7 +50,7 @@
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
           <OutputDirectory>..\OBJ\</OutputDirectory>
-          <OutputName>test</OutputName>
+          <OutputName>STM32F103Programmer</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
           <CreateHexFile>1</CreateHexFile>
@@ -644,6 +644,11 @@
               <FileName>usb_cdc_user.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\USB\CONFIG\usb_cdc_user.c</FilePath>
+            </File>
+            <File>
+              <FileName>usb_winusb_user.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USB\CONFIG\usb_winusb_user.c</FilePath>
             </File>
           </Files>
         </Group>
