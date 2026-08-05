@@ -19,11 +19,45 @@
 
 u32 ProtocolValue;
 
+/* ---- Global USB structures required by STM32 USB library ---- */
+DEVICE Device_Table = {
+    EP_NUM,
+    1
+};
+
+DEVICE_PROP Device_Property = {
+    UsbHidDev_init,
+    UsbHidDev_Reset,
+    UsbHidDev_Status_In,
+    UsbHidDev_Status_Out,
+    UsbHidDev_Data_Setup,
+    UsbHidDev_NoData_Setup,
+    UsbHidDev_Get_Interface_Setting,
+    UsbHidDev_GetDeviceDescriptor,
+    UsbHidDev_GetConfigDescriptor,
+    UsbHidDev_GetStringDescriptor,
+    UsbHidDev_GetBOSDescriptor,
+    0,
+    0x40
+};
+
+USER_STANDARD_REQUESTS User_Standard_Requests = {
+    UsbHidDev_GetConfiguration,
+    UsbHidDev_SetConfiguration,
+    UsbHidDev_GetInterface,
+    UsbHidDev_SetInterface,
+    UsbHidDev_GetStatus,
+    UsbHidDev_ClearFeature,
+    UsbHidDev_SetEndPointFeature,
+    UsbHidDev_SetDeviceFeature,
+    UsbHidDev_SetDeviceAddress
+};
+
 /* ---- Custom descriptor helper for MS OS / BOS ---- */
 static ONE_DESCRIPTOR g_customDesc;
 static u8 *GetCustomDescriptor(u16 Length)
 {
-  return Standard_GetDescriptorData(Length, &g_customDesc);
+    return Standard_GetDescriptorData(Length, &g_customDesc);
 }
 
 /* ---- Standard descriptor reference tables ---- */
@@ -60,8 +94,7 @@ static u8 g_cdcPendingSetLineCoding;
 /* ---- CDC helper routines ---- */
 static u8 *CDC_GetLineCodingData(u16 Length)
 {
-    if (Length == 0)
-    {
+    if (Length == 0) {
         CDC_FillLineCodingBuffer();
         pInformation->Ctrl_Info.Usb_wLength = 7;
         return NULL;
@@ -71,12 +104,48 @@ static u8 *CDC_GetLineCodingData(u16 Length)
 
 static u8 *CDC_SetLineCodingData(u16 Length)
 {
-    if (Length == 0)
-    {
+    if (Length == 0) {
         pInformation->Ctrl_Info.Usb_rLength = 7;
         return NULL;
     }
     return CDC_GetLineCodingBuffer() + pInformation->Ctrl_Info.Usb_rOffset;
+}
+
+/* =================================================================
+ * Status handlers (called at end of control transfer status phase)
+ * ================================================================= */
+void UsbHidDev_Status_In(void)
+{
+    if (g_cdcPendingSetLineCoding != 0U) {
+        CDC_SetLineCodingFromBuffer();
+        g_cdcPendingSetLineCoding = 0U;
+    }
+}
+
+void UsbHidDev_Status_Out(void)
+{
+}
+
+void UsbHidDev_SetConfiguration(void)
+{
+    DEVICE_INFO *pInfo = &Device_Info;
+    if (pInfo->Current_Configuration != 0)
+        bDeviceState = CONFIGURED;
+}
+
+void UsbHidDev_SetDeviceAddress(void)
+{
+    bDeviceState = ADDRESSED;
+}
+
+/* =================================================================
+ * BOS Descriptor getter (for WinUSB MS OS 2.0)
+ * ================================================================= */
+u8 *UsbHidDev_GetBOSDescriptor(u16 Length)
+{
+    g_customDesc.Descriptor     = (u8 *)UsbHidDev_BOSDescriptor;
+    g_customDesc.Descriptor_Size = sizeof(UsbHidDev_BOSDescriptor);
+    return GetCustomDescriptor(Length);
 }
 
 /* =================================================================
@@ -116,7 +185,7 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
         return USB_SUCCESS;
     }
 
-    /* ---- MS OS 1.0 Compatible ID (vendor request, wIndex=0x0004) ---- */
+    /* ---- MS OS 1.0 Compatible ID ---- */
     if ((pInformation->USBbmRequestType == 0xC0U)
         && (RequestNo == WINUSB_MS_VENDOR_CODE)
         && (pInformation->USBwIndex == 0x0004U))
@@ -129,12 +198,12 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
         return USB_SUCCESS;
     }
 
-    /* ---- MS OS 1.0 Extended Properties (vendor request, wIndex=0x0005) ---- */
+    /* ---- MS OS 1.0 Extended Properties ---- */
     if ((pInformation->USBbmRequestType == 0xC0U)
         && (RequestNo == WINUSB_MS_VENDOR_CODE)
         && (pInformation->USBwIndex == 0x0005U))
     {
-        if (pInformation->USBwValue0 != 3U)   /* interface 3 (WinUSB) only */
+        if (pInformation->USBwValue0 != 3U)
             return USB_UNSUPPORT;
         g_customDesc.Descriptor     = (u8 *)UsbHidDev_MSOS10ExtPropsDescriptor;
         g_customDesc.Descriptor_Size = sizeof(UsbHidDev_MSOS10ExtPropsDescriptor);
@@ -172,11 +241,6 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
         pInformation->Ctrl_Info.CopyData = CDC_SetLineCodingData;
         return USB_SUCCESS;
     }
-
-    /*
-     * GET_REPORT / SET_REPORT removed.
-     * HID data transport now uses EP1 Interrupt IN/OUT endpoints.
-     */
 
     if (CopyRoutine == NULL)
         return USB_UNSUPPORT;
@@ -231,8 +295,7 @@ u8 *UsbHidDev_GetStringDescriptor(u16 Length)
 {
     u8 wValue0 = pInformation->USBwValue0;
 
-    if (wValue0 == 0xEE)
-    {
+    if (wValue0 == 0xEE) {
         g_customDesc.Descriptor = (u8 *)UsbHidDev_StringMSOS;
         g_customDesc.Descriptor_Size = sizeof(UsbHidDev_StringMSOS);
         return Standard_GetDescriptorData(Length, &g_customDesc);
@@ -271,13 +334,10 @@ RESULT UsbHidDev_SetProtocol(void)
 
 u8 *UsbHidDev_GetProtocolValue(u16 Length)
 {
-    if (Length == 0)
-    {
+    if (Length == 0) {
         pInformation->Ctrl_Info.Usb_wLength = 1;
         return NULL;
-    }
-    else
-    {
+    } else {
         return (u8 *)(&ProtocolValue);
     }
 }
