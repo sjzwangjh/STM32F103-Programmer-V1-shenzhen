@@ -178,3 +178,10 @@ void HID_Tx_Flush(void)
     g_hidTxBusy = 1U;
     SetEPTxStatus(ENDP1, EP_TX_VALID);
 }
+
+
+/* OLD API stubs for bootloader usb_prop.c compatibility */
+void HID_BeginReportRequest(uint8_t reportId, RequestType_t requestType) { (void)reportId; (void)requestType; }
+void HID_Rx_Store(uint8_t reportId, const uint8_t *data, uint8_t len) { (void)reportId; (void)data; (void)len; }
+uint8_t *HID_GetReport_Buffer(uint8_t reportId, uint16_t requestedLen, uint16_t *pOutLen) { (void)reportId; (void)requestedLen; if(pOutLen) *pOutLen=0; return NULL; }
+void HID_ResetRequestState(void) {}
