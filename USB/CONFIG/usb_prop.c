@@ -85,7 +85,7 @@ ONE_DESCRIPTOR String_Descriptor[4] = {
     {(u8 *)UsbHidDev_StringLangID,  USB_HID_DEV_SIZ_STRING_LANGID},
     {(u8 *)UsbHidDev_StringVendor,  USB_HID_DEV_SIZ_STRING_VENDOR},
     {(u8 *)UsbHidDev_StringProduct, USB_HID_DEV_SIZ_STRING_PRODUCT},
-    {(u8 *)UsbHidDev_StringSerial,  USB_HID_DEV_SIZ_STRING_SERIAL}
+    {0, 0}                          /* serial filled by Get_SerialNum() */
 };
 
 /* ---- CDC pending state ---- */
@@ -361,15 +361,12 @@ void UsbHidDev_Reset(void)
     pInformation->Current_Configuration = 0;
     pInformation->Current_Interface = 0;
     _SetBTABLE(BTABLE_ADDRESS);
-    SetEPType(ENDP0, EP_CONTROL);
-    SetEPRxAddr(ENDP0, ENDP0_RXADDR);
-    SetEPTxAddr(ENDP0, ENDP0_TXADDR);
-    Clear_Status_Out(ENDP0);
+    _SetEP0(ENDP0_RXADDR, ENDP0_TXADDR);
     SetEPRxCount(ENDP0, Device_Property.MaxPacketSize);
     SetEPRxValid(ENDP0);
 
     /* EP1: HID Interrupt IN/OUT */
-    SetEPType(ENDP1, EP_INTERRUPT);
+    _SetEPType(ENDP1, EP_INTERRUPT);
     SetEPTxAddr(ENDP1, ENDP1_TXADDR);
     SetEPTxCount(ENDP1, HID_EP_BUF_SIZE);
     SetEPTxStatus(ENDP1, EP_TX_NAK);
@@ -378,12 +375,12 @@ void UsbHidDev_Reset(void)
     SetEPRxStatus(ENDP1, EP_RX_VALID);
 
     /* EP2: CDC Notification IN */
-    SetEPType(ENDP2, EP_INTERRUPT);
+    _SetEPType(ENDP2, EP_INTERRUPT);
     SetEPTxAddr(ENDP2, ENDP2_TXADDR);
     SetEPTxStatus(ENDP2, EP_TX_NAK);
 
     /* EP3: CDC Data */
-    SetEPType(ENDP3, EP_BULK);
+    _SetEPType(ENDP3, EP_BULK);
     SetEPRxAddr(ENDP3, ENDP3_RXADDR);
     SetEPRxStatus(ENDP3, EP_RX_VALID);
     SetEPTxAddr(ENDP3, ENDP3_TXADDR);
@@ -391,7 +388,7 @@ void UsbHidDev_Reset(void)
     SetEPTxStatus(ENDP3, EP_TX_NAK);
 
     /* EP4: WinUSB */
-    SetEPType(ENDP4, EP_BULK);
+    _SetEPType(ENDP4, EP_BULK);
     SetEPRxAddr(ENDP4, ENDP4_RXADDR);
     SetEPRxStatus(ENDP4, EP_RX_VALID);
     SetEPTxAddr(ENDP4, ENDP4_TXADDR);
