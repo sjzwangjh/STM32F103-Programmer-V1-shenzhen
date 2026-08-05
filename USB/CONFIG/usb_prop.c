@@ -561,27 +561,8 @@ RESULT UsbHidDev_Data_Setup(u8 RequestNo)
     pInformation->Ctrl_Info.CopyData = CDC_SetLineCodingData;
     return USB_SUCCESS;
   }
-  else if ((Type_Recipient == (CLASS_REQUEST | INTERFACE_RECIPIENT))
-           && RequestNo == SET_REPORT)
-  {
-    if (g_hidPendingSetReport != 0U)
-    {
-      UsbHidDev_ProcessPendingSetReport();
-    }
-    if (pInformation->USBwLength == 0U || pInformation->USBwLength > sizeof(g_hidReportBuf))
-    {
-      return USB_UNSUPPORT;
-    }
+    /* SET_REPORT removed - HID uses EP1 Interrupt endpoints */
 
-    HID_BeginReportRequest((u8)pInformation->USBwValue0, REQUEST_TYPE_HID_FIRST);
-    g_hidPendingSetReport = 1U;
-    g_hidPendingSetReportId = (u8)pInformation->USBwValue0;
-    g_hidReportLen = (u8)pInformation->USBwLength;
-    pInformation->Ctrl_Info.Usb_rOffset = 0;
-    pInformation->Ctrl_Info.Usb_rLength = pInformation->USBwLength;
-    pInformation->Ctrl_Info.CopyData = UsbHidDev_SetReportData;
-    return USB_SUCCESS;
-  }
 
   if (CopyRoutine == NULL)
   {
