@@ -361,7 +361,9 @@ void UsbHidDev_Reset(void)
     pInformation->Current_Configuration = 0;
     pInformation->Current_Interface = 0;
     _SetBTABLE(BTABLE_ADDRESS);
-    _SetEP0(ENDP0_RXADDR, ENDP0_TXADDR);
+    _SetEPType(ENDP0, EP_CONTROL);
+    _SetEPRxAddr(ENDP0, ENDP0_RXADDR);
+    _SetEPTxAddr(ENDP0, ENDP0_TXADDR);
     SetEPRxCount(ENDP0, Device_Property.MaxPacketSize);
     SetEPRxValid(ENDP0);
 
