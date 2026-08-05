@@ -134,8 +134,7 @@ int main(void)
         { 
             BEEP = !BEEP; 
         }
-        HID_Task();     // USB HID RX
-        HID_Tx_Flush(); // USB HID TX (EP1 IN)
+        HID_Task();     // USB HID ÷∏¡Ó…®√Ë
         CDC_Task();     // USB CDC ÷∏¡Ó…®√Ë
 
         stkWinUSBTask();
@@ -157,5 +156,4 @@ int main(void)
         }
     }
 }
-
 
