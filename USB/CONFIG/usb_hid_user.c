@@ -54,8 +54,8 @@ static void HidDebugWriteDec(uint16_t value)
 /* ---- Helper: choose report ID based on payload size ---- */
 static uint8_t HID_ChooseReportId(uint16_t payloadLen)
 {
-    if (payloadLen <= 13U) return 1U;   /* Report 1: 15 bytes total */
-    return 2U;                           /* Report 2: 31 bytes total */
+    if (payloadLen <= 29U) return 1U;   /* Report 1: 31 bytes total */
+    return 2U;                           /* Report 2: 63 bytes total */
 }
 
 /* ---- Helper: free space in RX ring (one slot reserved) ---- */
@@ -107,10 +107,10 @@ void HID_EP1_OUT_Callback(void)
     payloadLen = buf[1];
     if (payloadLen > (uint16_t)(rx_count - 2U))
         payloadLen = (uint16_t)(rx_count - 2U);
-    if (buf[0] == 1U && payloadLen > 13U)
-        payloadLen = 13U;
-    else if (buf[0] == 2U && payloadLen > 29U)
+    if (buf[0] == 1U && payloadLen > 29U)
         payloadLen = 29U;
+    else if (buf[0] == 2U && payloadLen > 61U)
+        payloadLen = 61U;
     if (payloadLen == 0U)
     {
         SetEPRxStatus(ENDP1, EP_RX_VALID);
@@ -212,7 +212,7 @@ static uint8_t *HID_GetTxBuffer(uint16_t *pOutLen)
     for (idx = 0U; idx < HID_REPORT_MAX_LOAD; idx++) reportBuf[idx] = 0;
 
     reportId   = HID_ChooseReportId(txCount);
-    reportSize = (reportId == 1U) ? 15U : 31U;
+    reportSize = (reportId == 1U) ? 31U : 63U;
 
     reportBuf[0] = reportId;
     reportBuf[1] = 0U;

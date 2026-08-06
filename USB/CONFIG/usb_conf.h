@@ -42,21 +42,21 @@
 
 /* PMA layout optimized for 6 endpoints in 512 bytes (504B used):
  *   BTABLE:   0x00-0x2F  (48B)
- *   EP0 RX:   0x30-0x6F  (64B)  EP0 TX:   0x70-0xAF  (64B)
- *   EP1 TX:   0xB0-0xCF  (32B)  EP1 RX:   0xD0-0xEF  (32B)
+ *   EP0 RX:   0x30-0x4F  (32B)  EP0 TX:   0x50-0x6F  (32B)
+ *   EP1 TX:   0x70-0xAF  (64B)  EP1 RX:   0xB0-0xEF  (64B)
  *   EP2 TX:   0xF0-0xF7  (8B)
  *   EP3 TX:   0xF8-0x137 (64B)  EP3 RX:   0x138-0x177 (64B)
  *   EP4 TX:   0x178-0x1B7 (64B) EP4 RX:   0x1B8-0x1F7 (64B)
  * Total: 504 bytes (fits in 512-byte PMA), all addresses 4-byte aligned
  */
 
-/* EP0: Control */
+/* EP0: Control (32-byte MPS) */
 #define ENDP0_RXADDR        (0x30)
-#define ENDP0_TXADDR        (0x70)
+#define ENDP0_TXADDR        (0x50)
 
-/* EP1: HID Interrupt IN/OUT (32 bytes each) */
-#define ENDP1_TXADDR        (0xB0)
-#define ENDP1_RXADDR        (0xD0)
+/* EP1: HID Interrupt IN/OUT (64 bytes each) */
+#define ENDP1_TXADDR        (0x70)
+#define ENDP1_RXADDR        (0xB0)
 
 /* EP2: CDC Notification IN (8 bytes) */
 #define ENDP2_TXADDR        (0xF0)

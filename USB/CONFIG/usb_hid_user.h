@@ -12,9 +12,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* Max report buffer size (matches 32-byte EP1 wMaxPacketSize) */
-#define HID_REPORT_MAX_LOAD   32
-#define HID_EP_BUF_SIZE       32
+/* Max report buffer size (matches 64-byte EP1 wMaxPacketSize) */
+#define HID_REPORT_MAX_LOAD   64
+#define HID_EP_BUF_SIZE       64
 
 /* EP1 OUT ring buffer: stores bytes from host for main-loop processing */
 #define HID_RX_RING_SIZE      1024U

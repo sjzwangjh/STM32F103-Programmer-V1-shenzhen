@@ -13,7 +13,7 @@ const u8 UsbHidDev_DeviceDescriptor[USB_HID_DEV_SIZ_DEVICE_DESC] =
     0xEF,
     0x02,
     0x01,
-    0x40,
+    0x20,
     (u8)(USB_VID & 0xFF), (u8)(USB_VID >> 8),
     (u8)(USB_PID & 0xFF), (u8)(USB_PID >> 8),
     (u8)(USB_BCD_DEVICE & 0xFF), (u8)(USB_BCD_DEVICE >> 8),
@@ -56,14 +56,14 @@ const u8 UsbHidDev_ConfigDescriptor[USB_HID_DEV_SIZ_CONFIG_DESC] =
     USB_ENDPOINT_DESCRIPTOR_TYPE,
     0x81,
     0x03,
-    0x20, 0x00,
+    0x40, 0x00,
     0x01,
 
     0x07,
     USB_ENDPOINT_DESCRIPTOR_TYPE,
     0x01,
     0x03,
-    0x20, 0x00,
+    0x40, 0x00,
     0x01,
 
     0x08,
@@ -182,27 +182,27 @@ const u8 UsbHidDev_ReportDescriptor[USB_HID_DEV_SIZ_REPORT_DESC] =
     0x26, 0xff, 0x00,
     0x75, 0x08,
 
-    /* Input Report 1 (device->host): 14 data bytes, 15 bytes total incl. ID */
+    /* Input Report 1 (device->host): 30 data bytes, 31 bytes total incl. ID */
     0x85, 0x01,
-    0x95, 0x0e,
-    0x09, 0x00,
-    0x81, 0x02,
-
-    /* Input Report 2 (device->host): 30 data bytes, 31 bytes total incl. ID */
-    0x85, 0x02,
     0x95, 0x1e,
     0x09, 0x00,
     0x81, 0x02,
 
-    /* Output Report 1 (host->device): 14 data bytes, 15 bytes total incl. ID */
+    /* Input Report 2 (device->host): 62 data bytes, 63 bytes total incl. ID */
+    0x85, 0x02,
+    0x95, 0x3e,
+    0x09, 0x00,
+    0x81, 0x02,
+
+    /* Output Report 1 (host->device): 30 data bytes, 31 bytes total incl. ID */
     0x85, 0x01,
-    0x95, 0x0e,
+    0x95, 0x1e,
     0x09, 0x00,
     0x91, 0x02,
 
-    /* Output Report 2 (host->device): 30 data bytes, 31 bytes total incl. ID */
+    /* Output Report 2 (host->device): 62 data bytes, 63 bytes total incl. ID */
     0x85, 0x02,
-    0x95, 0x1e,
+    0x95, 0x3e,
     0x09, 0x00,
     0x91, 0x02,
 

@@ -81,7 +81,7 @@ DEVICE_PROP Device_Property =
     UsbHidDev_GetStringDescriptor,  /* ?? */
 
     UsbHidDev_GetBOSDescriptor,    0,
-    0x40 /*MAX PACKET SIZE*/       /* С 64 ? */
+    0x20 /*MAX PACKET SIZE*/       /* 32 */
   };
 USER_STANDARD_REQUESTS User_Standard_Requests =
   {
@@ -240,7 +240,7 @@ void UsbHidDev_Reset(void)
   SetEPType(ENDP1, EP_INTERRUPT);
   SetEPTxAddr(ENDP1, ENDP1_TXADDR);
   SetEPRxAddr(ENDP1, ENDP1_RXADDR);
-  SetEPRxCount(ENDP1, 32);
+  SetEPRxCount(ENDP1, 64);
   SetEPRxStatus(ENDP1, EP_RX_VALID);
   SetEPTxCount(ENDP1, 0);
   SetEPTxStatus(ENDP1, EP_TX_NAK);
