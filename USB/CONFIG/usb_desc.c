@@ -4,7 +4,7 @@
 #include "usb_desc.h"
 
 /* USB Standard Device Descriptor
- * VID/PID 缁х画 AVR-Doper HID ; 璁剧�?涓鸿锟?IAD)? */
+ * VID/PID 缂佈呯敾 AVR-Doper HID ; 鐠佸墽琚?娑撻缚顔曢敓?IAD)? */
 const u8 UsbHidDev_DeviceDescriptor[USB_HID_DEV_SIZ_DEVICE_DESC] =
 {
     0x12,
@@ -38,7 +38,7 @@ const u8 UsbHidDev_ConfigDescriptor[USB_HID_DEV_SIZ_CONFIG_DESC] =
     USB_INTERFACE_DESCRIPTOR_TYPE,
     0x00,
     0x00,
-    0x01,
+    0x02,
     0x03,
     0x00,
     0x00,
@@ -56,13 +56,15 @@ const u8 UsbHidDev_ConfigDescriptor[USB_HID_DEV_SIZ_CONFIG_DESC] =
     USB_ENDPOINT_DESCRIPTOR_TYPE,
     0x81,
     0x03,
-#if HW_USB_HID_SPEED_FULL
-    0x38, 0x00,
+    0x20, 0x00,
     0x01,
-#else
-    0x08, 0x00,
-    0x0A,
-#endif
+
+    0x07,
+    USB_ENDPOINT_DESCRIPTOR_TYPE,
+    0x01,
+    0x03,
+    0x20, 0x00,
+    0x01,
 
     0x08,
     USB_INTERFACE_ASSOCIATION_DESCRIPTOR_TYPE,
@@ -180,25 +182,29 @@ const u8 UsbHidDev_ReportDescriptor[USB_HID_DEV_SIZ_REPORT_DESC] =
     0x26, 0xff, 0x00,
     0x75, 0x08,
 
+    /* Input Report 1 (device->host): 14 data bytes, 15 bytes total incl. ID */
     0x85, 0x01,
     0x95, 0x0e,
     0x09, 0x00,
-    0xb2, 0x02, 0x01,
+    0x81, 0x02,
 
+    /* Input Report 2 (device->host): 30 data bytes, 31 bytes total incl. ID */
     0x85, 0x02,
     0x95, 0x1e,
     0x09, 0x00,
-    0xb2, 0x02, 0x01,
+    0x81, 0x02,
 
-    0x85, 0x03,
-    0x95, 0x3e,
+    /* Output Report 1 (host->device): 14 data bytes, 15 bytes total incl. ID */
+    0x85, 0x01,
+    0x95, 0x0e,
     0x09, 0x00,
-    0xb2, 0x02, 0x01,
+    0x91, 0x02,
 
-    0x85, 0x04,
-    0x95, 0x7e,
+    /* Output Report 2 (host->device): 30 data bytes, 31 bytes total incl. ID */
+    0x85, 0x02,
+    0x95, 0x1e,
     0x09, 0x00,
-    0xb2, 0x02, 0x01,
+    0x91, 0x02,
 
     0xc0
 };

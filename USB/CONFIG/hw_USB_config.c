@@ -1,5 +1,5 @@
 /*
- * USBÓ²¼þÅäÖÃÊµÏÖ - USBÍâÉè³õÊ¼»¯ÓëÅäÖÃ
+ * USBç¡¬ä»¶é…ç½®å®žçŽ° - USBå¤–è®¾åˆå§‹åŒ–ä¸Žé…ç½®
  */
 
 /******************** (C) COPYRIGHT 2008 STMicroelectronics ********************
@@ -36,11 +36,11 @@
 /* Private functions ---------------------------------------------------------*/
 			  
 
-//ÅäÖÃUSBÊ±ÖÓ,USBclk=48Mhz
+//é…ç½®USBæ—¶é’Ÿ,USBclk=48Mhz
 void Set_USBClock(void)
 {
  	RCC->CFGR&=~(1<<22); //USBclk=PLLclk/1.5=48Mhz	    
-	RCC->APB1ENR|=1<<23; //USBÊ±ÖÓÊ¹ÄÜ					 
+	RCC->APB1ENR|=1<<23; //USBæ—¶é’Ÿä½¿èƒ½					 
 }
  
 /*******************************************************************************
@@ -82,38 +82,15 @@ void Leave_LowPowerMode(void)
   }
 }
 
-//USBÖÐ¶ÏÅäÖÃ
+//USBä¸­æ–­é…ç½®
 void USB_Interrupts_Config(void)
 {
   
-	EXTI->IMR|=1<<18;//  ¿ªÆôÏß18ÉÏµÄÖÐ¶Ï
- 	EXTI->RTSR|=1<<18;//line 18ÉÏÊÂ¼þÉÏÉý½µÑØ´¥·¢	 
-	MY_NVIC_Init(1,0,USB_LP_CAN1_RX0_IRQn,2);//×é2£¬ÓÅÏÈ¼¶´ÎÖ® 
-	MY_NVIC_Init(0,0,USBWakeUp_IRQn,2);     //×é2£¬ÓÅÏÈ¼¶×î¸ß	 	 
+	EXTI->IMR|=1<<18;//  å¼€å¯çº¿18ä¸Šçš„ä¸­æ–­
+ 	EXTI->RTSR|=1<<18;//line 18ä¸Šäº‹ä»¶ä¸Šå‡é™æ²¿è§¦å‘	 
+	MY_NVIC_Init(1,0,USB_LP_CAN1_RX0_IRQn,2);//ç»„2ï¼Œä¼˜å…ˆçº§æ¬¡ä¹‹ 
+	MY_NVIC_Init(0,0,USBWakeUp_IRQn,2);     //ç»„2ï¼Œä¼˜å…ˆçº§æœ€é«˜	 	 
 }				  
-/*******************************************************************************
-* Function Name : UsbHidDev_Send.
-* Description   : prepares buffer to be sent containing UsbHidDev event infos.
-* Input         : Keys: keys received from terminal.
-* Output        : None.
-* Return value  : None.
-*******************************************************************************/
-void UsbHidDev_Send(u8 buf0,u8 buf1,u8 buf2,u8 buf3)
-{
-  u8 Mouse_Buffer[4] = {0, 0, 0, 0};
-    
-  /* prepare buffer to send */
-  Mouse_Buffer[0]=buf0;
-  Mouse_Buffer[1]=buf1;
-  Mouse_Buffer[2]=buf2;
-  Mouse_Buffer[3]=buf3;
-
-  /*copy mouse position info in ENDP1 Tx Packet Memory Area*/
-  UserToPMABufferCopy(Mouse_Buffer, GetEPTxAddr(ENDP1), 4);
-  /* enable endpoint for transmission */
-  SetEPTxValid(ENDP1);
-}
-
 /*******************************************************************************
 * Function Name  : Get_SerialNum.
 * Description    : Create the serial number string descriptor.
@@ -123,7 +100,7 @@ void UsbHidDev_Send(u8 buf0,u8 buf1,u8 buf2,u8 buf3)
 *******************************************************************************/
 void Get_SerialNum(void)
 {
-  /* AVR-Doper HID mode: ÎÞÐòÁÐºÅ¹¦ÄÜ */
+  /* AVR-Doper HID mode: æ— åºåˆ—å·åŠŸèƒ½ */
 }
 
 /******************* (C) COPYRIGHT 2008 STMicroelectronics *****END OF FILE****/

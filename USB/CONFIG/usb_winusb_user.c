@@ -9,36 +9,14 @@
 #include "usb_winusb_user.h"
 #include "Stk500Protocol.h"
 #include "usart.h"
+#include "Hardware_Config.h"
 
 #define WINUSB_RX_BUF_SIZE  2048
-#define IS_DEBUG_APP        0U
 
 static u8   g_winusb_rx_buf[WINUSB_RX_BUF_SIZE];
 static u16  g_winusb_rx_head = 0;
 static u16  g_winusb_rx_tail = 0;
 static u8   g_winusb_tx_busy = 0;
-
-#if IS_DEBUG_APP
-static void WinUsbDebugWriteDec(u16 value)
-{
-    char buf[6];
-    u8 i = 0U;
-    if (value == 0U)
-    {
-        uart1_WriteByte('0');
-        return;
-    }
-    while (value > 0U && i < sizeof(buf))
-    {
-        buf[i++] = (char)('0' + (value % 10U));
-        value /= 10U;
-    }
-    while (i > 0U)
-    {
-        uart1_WriteByte((u8)buf[--i]);
-    }
-}
-#endif
 
 static void WinUSB_TxPollDone(void)
 {
@@ -106,11 +84,6 @@ u8 WinUSB_Bulk_Send(const u8 *buf, u16 len)
     SetEPTxCount(ENDP4, len);
     g_winusb_tx_busy = 1U;
     SetEPTxStatus(ENDP4, EP_TX_VALID);
-#if IS_DEBUG_APP
-    uart1_WriteString("WINUSB TX len=");
-    WinUsbDebugWriteDec(len);
-    uart1_WriteString("\r\n");
-#endif
     return 0U;
 }
 
@@ -127,14 +100,6 @@ u16 WinUSB_Bulk_Recv(u8 *buf, u16 maxLen)
         buf[i] = g_winusb_rx_buf[g_winusb_rx_tail];
         g_winusb_rx_tail = (u16)((g_winusb_rx_tail + 1U) % WINUSB_RX_BUF_SIZE);
     }
-#if IS_DEBUG_APP
-    if (i > 0U)
-    {
-        uart1_WriteString("WINUSB RX len=");
-        WinUsbDebugWriteDec(i);
-        uart1_WriteString("\r\n");
-    }
-#endif
     return i;
 }
 
@@ -152,4 +117,39 @@ u8 WinUSB_Bulk_TxBusy(void)
 {
     WinUSB_TxPollDone();
     return g_winusb_tx_busy;
+}
+
+/* ---- Single main-loop entry: drain RX ring + flush TX (EP4) ---- */
+void WinUSB_Task(void)
+{
+    u8  buf[64];
+    u16 n, i;
+
+    while ((n = WinUSB_Bulk_Available()) != 0U)
+    {
+        if (n > sizeof(buf))
+            n = sizeof(buf);
+        n = WinUSB_Bulk_Recv(buf, n);
+        for (i = 0U; i < n; i++)
+            stkSetRxCharEx(STK_DATA_SOURCE_USB_WINUSB, buf[i]);
+    }
+
+    /* Process any complete STK frame */
+    stkPoll();
+
+    /* Flush the pending STK response via EP4 IN (source-gated) */
+    if (stkGetTxCount() <= 0) return;
+    if (stkGetTxSource() != STK_DATA_SOURCE_USB_WINUSB) return;
+    if (WinUSB_Bulk_TxBusy()) return;
+
+    n = (u16)stkGetTxCount();
+    if (n > sizeof(buf)) n = sizeof(buf);
+    for (i = 0U; i < n; i++)
+    {
+        int c = stkGetTxByte();
+        if (c < 0) break;
+        buf[i] = (u8)c;
+    }
+    if (i > 0U)
+        (void)WinUSB_Bulk_Send(buf, i);
 }

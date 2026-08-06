@@ -18,6 +18,7 @@ OBJ/
 # Keil MDK User Settings
 *.uvguix.*
 *.uvoptx
+MDK-ARM/DebugConfig/
 
 # Build Logs
 *.log

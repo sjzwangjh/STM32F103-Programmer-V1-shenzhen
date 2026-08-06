@@ -25,16 +25,17 @@
 #include "dutBus.h"
 #include "usb_hid_user.h"
 #include "usb_cdc_user.h"
+#include "usb_winusb_user.h"
 #include "stk500Protocol.h"
 #include "handler.h"
 #include "offLinePgmer.h"
 #include "debugBin.h"
 
-/// USB ¿Ú¶ÔÓ¦µÄMCUÒý½Å¶¨Òå
+/// USB å£å¯¹åº”çš„MCUå¼•è„šå®šä¹‰
 #define HW_USB_DP_PORT  A,12
 
-/// @brief ÉèÖÃUSB¡°Ê¹ÄÜ¡±×´Ì¬
-/// @param enable = 0£º¹Ø±Õ£»1£ºÊ¹ÄÜ
+/// @brief è®¾ç½®USBâ€œä½¿èƒ½â€çŠ¶æ€
+/// @param enable = 0ï¼šå…³é—­ï¼›1ï¼šä½¿èƒ½
 void usb_port_set(u8 enable)
 {
     RCC->APB2ENR|=1<<2;
@@ -47,7 +48,7 @@ void usb_port_set(u8 enable)
     }
 }
 
-/// @brief MCUÖ÷º¯ÊýÈë¿Ú
+/// @brief MCUä¸»å‡½æ•°å…¥å£
 /// @param  
 /// @return 
 int main(void)
@@ -74,7 +75,7 @@ int main(void)
     Set_USBClock();
     USB_Init();
 
-    /* ±£Áô SWD£¬¹Ø±Õ JTAG ¼´¿É£¬±ÜÃâÎó¹Ø SWD µ÷ÊÔ¿Ú¡£ */
+    /* ä¿ç•™ SWDï¼Œå…³é—­ JTAG å³å¯ï¼Œé¿å…è¯¯å…³ SWD è°ƒè¯•å£ã€‚ */
     Disable_JTAG_Keep_SWD();
     DutBus_Init();
 
@@ -95,29 +96,29 @@ int main(void)
     timerInit();
     Adc_Init();             // ADC + DMA1_Channel1
 
-    /* EEPROM µ±Ç°½öÌá¹©ÂÖÑ¯°æ SPI ¶ÁÐ´½Ó¿Ú£¬ÎÞÐè DMA ³õÊ¼»¯¡£ */
+    /* EEPROM å½“å‰ä»…æä¾›è½®è¯¢ç‰ˆ SPI è¯»å†™æŽ¥å£ï¼Œæ— éœ€ DMA åˆå§‹åŒ–ã€‚ */
     SPI_EEPROM_Init();
 
-    /* Flash Ä¬ÈÏ¶ÁÐ´½Ó¿ÚÒ²ÊÇÂÖÑ¯°æ¡£
-     * Ö»ÓÐÔÚºóÐøÃ÷È·µ÷ÓÃ SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
-     * Ê±£¬²ÅÐèÒª´ò¿ª SPI_Flash_DMA_Init()¡£
+    /* Flash é»˜è®¤è¯»å†™æŽ¥å£ä¹Ÿæ˜¯è½®è¯¢ç‰ˆã€‚
+     * åªæœ‰åœ¨åŽç»­æ˜Žç¡®è°ƒç”¨ SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
+     * æ—¶ï¼Œæ‰éœ€è¦æ‰“å¼€ SPI_Flash_DMA_Init()ã€‚
      */
     SPI_Flash_Init();
     /* SPI_Flash_DMA_Init(); */
 
-    /* FatFs / diskio µ±Ç°×ßµÄÊÇ SD_ReadSingleBlock()/SD_ReadBlocks()
-     * ÕâÌõÂÖÑ¯Â·¾¶£¬²»»á×Ô¶¯Ê¹ÓÃ SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()¡£
-     * Òò´ËÄ¬ÈÏÖ»³õÊ¼»¯ SDIO ±¾Ìå£»ÈôºóÐøÇÐ»»µ½µ×²ã DMA ½Ó¿Ú£¬
-     * ÔÙÔÚ SD_Init() ³É¹¦ºó²¹×ö SD_DMA_Init()¡£
+    /* FatFs / diskio å½“å‰èµ°çš„æ˜¯ SD_ReadSingleBlock()/SD_ReadBlocks()
+     * è¿™æ¡è½®è¯¢è·¯å¾„ï¼Œä¸ä¼šè‡ªåŠ¨ä½¿ç”¨ SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()ã€‚
+     * å› æ­¤é»˜è®¤åªåˆå§‹åŒ– SDIO æœ¬ä½“ï¼›è‹¥åŽç»­åˆ‡æ¢åˆ°åº•å±‚ DMA æŽ¥å£ï¼Œ
+     * å†åœ¨ SD_Init() æˆåŠŸåŽè¡¥åš SD_DMA_Init()ã€‚
      */
     if(SD_Init() == SD_OK)
     {
         /* SD_DMA_Init(); */
     }
-		/* ³õÊ¼»¯ Handler */
+		/* åˆå§‹åŒ– Handler */
     Handler_Task_Init();
-	HandlerTask(1,1);   // ³õÊ¼»¯·¢ËÍÒ»¸öÊ§Ð§ÐÅºÅ
-    /* ÀëÏß±à³ÌÆ÷³õÊ¼»¯ */
+	HandlerTask(1,1);   // åˆå§‹åŒ–å‘é€ä¸€ä¸ªå¤±æ•ˆä¿¡å·
+    /* ç¦»çº¿ç¼–ç¨‹å™¨åˆå§‹åŒ– */
     offlinePgmer_init();
     debugBin_Init();
     while(1)
@@ -134,12 +135,10 @@ int main(void)
         { 
             BEEP = !BEEP; 
         }
-        HID_Task();     // USB HID Ö¸ÁîÉ¨Ãè
-        CDC_Task();     // USB CDC Ö¸ÁîÉ¨Ãè
-
-        stkWinUSBTask();
-        stkWinUSBFlush();        
-        /* »úÐµÊÖÐÅºÅ¶ÁÈ¡ */
+        CDC_Task();     /* USB CDC: RX drain + TX flush (EP3)         */
+        HID_Task();     /* USB HID: RX drain + TX flush (EP1)         */
+        WinUSB_Task();  /* USB WinUSB Bulk: RX drain + TX flush (EP4) */
+        /* æœºæ¢°æ‰‹ä¿¡å·è¯»å– */
         handlerKey = HandlerTask(1,0);
         if(handlerKey>0){
             offlinePgmer();

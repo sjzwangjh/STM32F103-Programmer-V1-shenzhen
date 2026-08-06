@@ -1,5 +1,5 @@
 /*
- * STK500协�??头文�?- 协�??常量/命令�?函数原型
+ * STK500鍗忚??澶存枃浠?- 鍗忚??甯搁噺/鍛戒护鐮?鍑芥暟鍘熷瀷
  */
 
 #ifndef __STK500PROTOCOL_H_INCLUDED__
@@ -31,17 +31,17 @@
 #define STK_FW_UPGRADE_MAGIC0       0xA5U
 #define STK_FW_UPGRADE_MAGIC1       0x5AU
 
-typedef union{      // 字节/字转换辅助结构体
+typedef union{      // 瀛楄妭/瀛楄浆鎹㈣緟鍔╃粨鏋勪綋
     uint16_t    word;
     uint8_t     bytes[2];
 }utilWord_t;
 
-typedef union{      // ˫��/�ֽ�ת�������ṹ��
+typedef union{      // 双字/字节转换辅助结构体
     uint32_t    dword;
     uint8_t     bytes[4];
 }utilDword_t;
 
-typedef struct{     // STK参数�?字节数组�?换辅助构�?
+typedef struct{     // STK鍙傛暟缁?瀛楄妭鏁扮粍杞?鎹㈣緟鍔╂瀯浣?
     uint8_t     bytes[32];
     struct{
         int     buildVersionLow;
@@ -68,25 +68,25 @@ typedef struct{     // STK参数�?字节数组�?换辅助构�?
 /* Global variables */
 extern utilDword_t  stkAddress;
 extern stkParam_t   stkParam;
-/* STK500 ����֡��Դ��USB HID��USB CDC �� Flash ���߻طŶ�ʹ������ STK500 ֡��ʽ�� */
+/* STK500 数据帧来源。USB HID、USB CDC 和 Flash 离线回放都使用完整 STK500 帧格式。 */
 #define STK_DATA_SOURCE_USB_HID         0U
 #define STK_DATA_SOURCE_USB_CDC         1U
 #define STK_DATA_SOURCE_FLASH_RECORD    2U
 #define STK_DATA_SOURCE_USB_WINUSB     3U
 
 typedef struct stkDataFrame{
-    const uint8_t *frame;       /* RX: ���� STK500 ֡, ��Դ������ USB HID �� Flash ��¼ */
-    uint16_t frameLen;          /* RX: ����֡����, ���� payloadLen + 6 */
-    uint8_t *txFrame;           /* TX: ��Ӧ֡�����������USB ����ʱָ�� USB TX, ����ʱָ�򱾵��ж����� */
-    uint16_t txFrameSize;       /* TX: ��Ӧ֡��������С */
-    uint16_t txFrameLen;        /* TX: ʵ�����ɵ�������Ӧ֡���� */
-    uint8_t  source;            /* STK_DATA_SOURCE_xxx, �������� USB �� Flash �ط� */
+    const uint8_t *frame;       /* RX: 完整 STK500 帧, 来源可以是 USB HID 或 Flash 记录 */
+    uint16_t frameLen;          /* RX: 完整帧长度, 等于 payloadLen + 6 */
+    uint8_t *txFrame;           /* TX: 响应帧输出缓冲区。USB 在线时指向 USB TX, 离线时指向本地判定缓冲 */
+    uint16_t txFrameSize;       /* TX: 响应帧缓冲区大小 */
+    uint16_t txFrameLen;        /* TX: 实际生成的完整响应帧长度 */
+    uint8_t  source;            /* STK_DATA_SOURCE_xxx, 用于区分 USB 或 Flash 回放 */
 } stkDataFrame_t;
 
 /* =================== [ ISP parameter structs ] =================== */
 /* Ported from AVR-Doper firmware/stk500protocol.h */
 
-typedef struct stkEnterProgIsp{ // 进入ISP
+typedef struct stkEnterProgIsp{ // 杩涘叆ISP
     uint8_t   timeout;
     uint8_t   stabDelay;
     uint8_t   cmdExeDelay;
@@ -97,18 +97,18 @@ typedef struct stkEnterProgIsp{ // 进入ISP
     uint8_t   cmd[4];
 }stkEnterProgIsp_t;
 
-typedef struct stkLeaveProgIsp{ // �?出ISP
+typedef struct stkLeaveProgIsp{ // 閫?鍑篒SP
     uint8_t   preDelay;
     uint8_t   postDelay;
 }stkLeaveProgIsp_t;
 
-typedef struct stkChipEraseIsp{ // 擦除器件
+typedef struct stkChipEraseIsp{ // 鎿﹂櫎鍣ㄤ欢
     uint8_t   eraseDelay;
     uint8_t   pollMethod;
     uint8_t   cmd[4];
 }stkChipEraseIsp_t;
 
-typedef struct stkProgramFlashIsp{  // 编程Flash
+typedef struct stkProgramFlashIsp{  // 缂栫▼Flash
     uint8_t   numBytes[2];
     uint8_t   mode;
     uint8_t   delay;
@@ -117,22 +117,22 @@ typedef struct stkProgramFlashIsp{  // 编程Flash
     uint8_t   data[1];    /* actually more data than 1 byte */
 }stkProgramFlashIsp_t;
 
-typedef struct stkReadFlashIsp{     // 读取Flash
+typedef struct stkReadFlashIsp{     // 璇诲彇Flash
     uint8_t   numBytes[2];
     uint8_t   cmd;
 }stkReadFlashIsp_t;
 
-typedef struct stkReadFlashIspResult{   // Flash读取结果
+typedef struct stkReadFlashIspResult{   // Flash璇诲彇缁撴灉
     uint8_t   status1;
     uint8_t   data[1];    /* actually more than 1 byte */
     /* uint8_t status2 */
 }stkReadFlashIspResult_t;
 
-typedef struct stkProgramFuseIsp{       // ISP �����˿λ
+typedef struct stkProgramFuseIsp{       // ISP 编程熔丝位
     uint8_t   cmd[4];
 }stkProgramFuseIsp_t;
 
-typedef struct stkReadFuseIsp{          // ISP ��ȡ��˿λ
+typedef struct stkReadFuseIsp{          // ISP 读取熔丝位
     uint8_t   retAddr;
     uint8_t   cmd[4];
 }stkReadFuseIsp_t;
@@ -235,9 +235,9 @@ typedef struct stkProgramFusePp{
 /* =================== [ ICSP parameter structs ] =================== */
 
 typedef struct stkEnterProgIcsp{
-    uint8_t   deviceProfile;    /* 兼�?�旧协�?? 0=沿用当前, 1=baseline, 2=mid-range, 3=enhanced */
-    uint8_t   enterMode;        /* bit0=prefer LVP, bit7=使用 deviceIndex */
-    uint8_t   deviceIndex[2];   /* 新协�? little-endian 器件索引 */
+    uint8_t   deviceProfile;    /* 鍏煎?规棫鍗忚?? 0=娌跨敤褰撳墠, 1=baseline, 2=mid-range, 3=enhanced */
+    uint8_t   enterMode;        /* bit0=prefer LVP, bit7=浣跨敤 deviceIndex */
+    uint8_t   deviceIndex[2];   /* 鏂板崗璁? little-endian 鍣ㄤ欢绱㈠紩 */
 }stkEnterProgIcsp_t;
 
 typedef struct stkLeaveProgIcsp{
@@ -254,7 +254,7 @@ typedef struct stkProgramFlashIcsp{
     uint8_t   numWords[2];
     uint8_t   flags;
     uint8_t   delay;
-    uint8_t   data[1];          /* 实际后面跟随更�?�数�? */
+    uint8_t   data[1];          /* 瀹為檯鍚庨潰璺熼殢鏇村?氭暟鎹? */
 }stkProgramFlashIcsp_t;
 
 typedef struct stkReadFlashIcsp{
@@ -268,7 +268,7 @@ typedef struct stkProgramEepromIcsp{
     uint8_t   numBytes[2];
     uint8_t   flags;
     uint8_t   delay;
-    uint8_t   data[1];          /* 实际后面跟随更�?�数�? */
+    uint8_t   data[1];          /* 瀹為檯鍚庨潰璺熼殢鏇村?氭暟鎹? */
 }stkProgramEepromIcsp_t;
 
 typedef struct stkReadEepromIcsp{
@@ -320,8 +320,6 @@ int     stkGetTxByte(void);
 int     stkGetTxCount(void);
 void    stkPoll(void);              /* must be called from main loop */
 uint8_t stkGetTxSource(void);
-void    stkWinUSBTask(void);
-void    stkWinUSBFlush(void);
 uint8_t stkFwUpgradeRequested(void);
 void    stkIncrementAddress(void);
 
@@ -460,13 +458,13 @@ void    stkIncrementAddress(void);
 #define STK_MCU_PROGRAM_WITH_ICSP       3
 #define STK_MCU_PROGRAM_WITH_JTAG       4
 
-/* �?添加协�??> 器件标识信息结构�?此结构体不可轻易�?�? */
+/* 鑷?娣诲姞鍗忚??> 鍣ㄤ欢鏍囪瘑淇℃伅缁撴瀯浣?姝ょ粨鏋勪綋涓嶅彲杞绘槗淇?鏀? */
 typedef struct
 {
-    uint8_t arch;     // 器件类型�?= AVR, 1 = PIC
-    uint16_t index;     // 器件索引�?(0~65535)
-    uint8_t itemId[STK_DEVICE_ITEM_ID_LEN];     // ��Ŀ ID, ���ڱ�ʶ��ͬ�ı������
-    char itemDesc[STK_DEVICE_ITEM_DESC_LEN + 1];// ��Ŀ����, ���ڱ�ʶ��ͬ�ı������
+    uint8_t arch;     // 鍣ㄤ欢绫诲瀷锛?= AVR, 1 = PIC
+    uint16_t index;     // 鍣ㄤ欢绱㈠紩鍙?(0~65535)
+    uint8_t itemId[STK_DEVICE_ITEM_ID_LEN];     // 项目 ID, 用于标识不同的编程任务
+    char itemDesc[STK_DEVICE_ITEM_DESC_LEN + 1];// 项目描述, 用于标识不同的编程任务
 } stkDeviceIdentity_t;
 
 

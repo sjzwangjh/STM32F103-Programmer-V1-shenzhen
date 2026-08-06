@@ -1,15 +1,15 @@
 /*
- * MCP4017 Êı×ÖµçÎ»Æ÷ VPP ¿ØÖÆÄ£¿é
+ * MCP4017 æ•°å­—ç”µä½å™¨ VPP æ§åˆ¶æ¨¡å—
  *
- * ÒÆÖ²×Ô Digital POT.cpp / DigitalPot.h£¨STM32F103VET6_DFM_Burner_Developer_V5£©
- * ÊÊÅä±¾ÏîÄ¿ iicSoftware.h ÖĞµÄÍ³Ò» IIC ½Ó¿Ú¡£
+ * ç§»æ¤è‡ª Digital POT.cpp / DigitalPot.hï¼ˆSTM32F103VET6_DFM_Burner_Developer_V5ï¼‰
+ * é€‚é…æœ¬é¡¹ç›® iicSoftware.h ä¸­çš„ç»Ÿä¸€ IIC æ¥å£ã€‚
  *
- * ±¾Ä£¿éÄÚ²¿½¨Á¢ÁË×Ô¼ºµÄ IIC ×ÜÏßÊµÀı g_iicSoftware_VPP£¬
- * Ê¹ÓÃ Hardware_Config.h ÖĞ¶¨ÒåµÄÓ²¼şÒı½Å£º
+ * æœ¬æ¨¡å—å†…éƒ¨å»ºç«‹äº†è‡ªå·±çš„ IIC æ€»çº¿å®ä¾‹ g_iicSoftware_VPPï¼Œ
+ * ä½¿ç”¨ Hardware_Config.h ä¸­å®šä¹‰çš„ç¡¬ä»¶å¼•è„šï¼š
  *   SCL = HW_DVR_VPP_IIC_SCL  (D,5)
  *   SDA = HW_DVR_VPP_IIC_SDA  (D,6)
  *
- * MCP4017 ÊÇ 7Î»Êı×ÖµçÎ»Æ÷£¨128³éÍ·£©£¬I2CÆ÷¼şµØÖ· 0x2F£¨7Î»£©¡£
+ * MCP4017 æ˜¯ 7ä½æ•°å­—ç”µä½å™¨ï¼ˆ128æŠ½å¤´ï¼‰ï¼ŒI2Cå™¨ä»¶åœ°å€ 0x2Fï¼ˆ7ä½ï¼‰ã€‚
  */
 
 #include "MCP4017_VPP.h"
@@ -18,12 +18,12 @@
 #include "delay.h"
 #include <stdio.h>
 
-/* ==================== ½¨Á¢ VPP ×¨Êô IIC ×ÜÏßÊµÀı ==================== */
+/* ==================== å»ºç«‹ VPP ä¸“å± IIC æ€»çº¿å®ä¾‹ ==================== */
 
-// Ê¹ÓÃ iicSoftware.h ÖĞµÄºêÉú³ÉËùÓĞÒı½Å²Ù×÷º¯Êı£¨static£©
+// ä½¿ç”¨ iicSoftware.h ä¸­çš„å®ç”Ÿæˆæ‰€æœ‰å¼•è„šæ“ä½œå‡½æ•°ï¼ˆstaticï¼‰
 IIC_BUS_FUNCS(HW_DVR_VPP_IIC_SCL, HW_DVR_VPP_IIC_SDA, vpp)
 
-// VPP µÄ IIC ×ÜÏßÊµÀı£¨±¾ÎÄ¼şÄÚ²¿Ê¹ÓÃ£©
+// VPP çš„ IIC æ€»çº¿å®ä¾‹ï¼ˆæœ¬æ–‡ä»¶å†…éƒ¨ä½¿ç”¨ï¼‰
 static const IIC_IO_t g_iicSoftware_VPP = {
     .sda_out  = vpp_sda_out,
     .sda_in   = vpp_sda_in,
@@ -35,33 +35,33 @@ static const IIC_IO_t g_iicSoftware_VPP = {
     .init     = vpp_init,
 };
 
-/* ==================== ³õÊ¼»¯º¯Êı ==================== */
+/* ==================== åˆå§‹åŒ–å‡½æ•° ==================== */
 
-// ³õÊ¼»¯ VPP µÄ IIC ×ÜÏßÒı½Å£¬ÔÚ main ³õÊ¼»¯½×¶Îµ÷ÓÃÒ»´Î
+// åˆå§‹åŒ– VPP çš„ IIC æ€»çº¿å¼•è„šï¼Œåœ¨ main åˆå§‹åŒ–é˜¶æ®µè°ƒç”¨ä¸€æ¬¡
 void MCP4017_VPP_Init(void)
 {
     g_iicSoftware_VPP.init();
 }
 
-/* ==================== MCP4017 I2C ¶ÁĞ´²Ù×÷ ==================== */
+/* ==================== MCP4017 I2C è¯»å†™æ“ä½œ ==================== */
 
 /*
- * MCP4017 I2C Ğ´µç×èÖµ
+ * MCP4017 I2C å†™ç”µé˜»å€¼
  *
- * Ğ­Òé£ºStart | SendAddr(Ğ´) | WaitAck | SendData(value) | WaitAck | Stop
+ * åè®®ï¼šStart | SendAddr(å†™) | WaitAck | SendData(value) | WaitAck | Stop
  *
- * value : µç×èÊı×ÖÖµ 0~127
- * ·µ»ØÖµ: 0=³É¹¦£»0xFF=Ê§°Ü£¨ÎŞÓ¦´ğ£©
+ * value : ç”µé˜»æ•°å­—å€¼ 0~127
+ * è¿”å›å€¼: 0=æˆåŠŸï¼›0xFF=å¤±è´¥ï¼ˆæ— åº”ç­”ï¼‰
  */
 static uint8_t MCP4017_VPP_WriteResistor(uint8_t value)
 {
     uint8_t error = 0xFF;
 
-#ifdef DEBUG_HARDWARE_CONFIG
+#if DEBUG_HARDWARE_CONFIG
     printf("MCP4017_VPP_WriteResistor: value=%d\r\n", value);
 #endif
     IIC_Start(&g_iicSoftware_VPP);
-    IIC_Send_Byte(&g_iicSoftware_VPP, (MCP4017_ADDR << 1) | 0);   // µØÖ· + W(0)
+    IIC_Send_Byte(&g_iicSoftware_VPP, (MCP4017_ADDR << 1) | 0);   // åœ°å€ + W(0)
     error = IIC_Wait_Ack(&g_iicSoftware_VPP);
     if (error == 0)
     {
@@ -73,11 +73,11 @@ static uint8_t MCP4017_VPP_WriteResistor(uint8_t value)
 }
 
 /*
- * MCP4017 I2C ¶Áµç×èÖµ
+ * MCP4017 I2C è¯»ç”µé˜»å€¼
  *
- * Ğ­Òé£ºStart | SendAddr(¶Á) | WaitAck | ReadData(NACK) | Stop
+ * åè®®ï¼šStart | SendAddr(è¯») | WaitAck | ReadData(NACK) | Stop
  *
- * ·µ»ØÖµ: 0~127£¨ÓĞĞ§Öµ£©£»0xFF£¨¶ÁÈ¡Ê§°Ü£©
+ * è¿”å›å€¼: 0~127ï¼ˆæœ‰æ•ˆå€¼ï¼‰ï¼›0xFFï¼ˆè¯»å–å¤±è´¥ï¼‰
  */
 static uint8_t MCP4017_VPP_ReadResistor(void)
 {
@@ -85,31 +85,31 @@ static uint8_t MCP4017_VPP_ReadResistor(void)
     uint8_t error = 0xFF;
 
     IIC_Start(&g_iicSoftware_VPP);
-    IIC_Send_Byte(&g_iicSoftware_VPP, (MCP4017_ADDR << 1) | 1);   // µØÖ· + R(1)
+    IIC_Send_Byte(&g_iicSoftware_VPP, (MCP4017_ADDR << 1) | 1);   // åœ°å€ + R(1)
     error = IIC_Wait_Ack(&g_iicSoftware_VPP);
     if (error == 0)
     {
-        value = IIC_Read_Byte(&g_iicSoftware_VPP, 0);              // ×îºó×Ö½Ú·¢NACK
+        value = IIC_Read_Byte(&g_iicSoftware_VPP, 0);              // æœ€åå­—èŠ‚å‘NACK
         IIC_Stop(&g_iicSoftware_VPP);
         return value;
     }
     return 0xFF;
 }
 
-/* ==================== ¶ÔÍâ½Ó¿Ú ==================== */
+/* ==================== å¯¹å¤–æ¥å£ ==================== */
 
 /*
- * VPP µçÑ¹ÉèÖÃº¯Êı
+ * VPP ç”µå‹è®¾ç½®å‡½æ•°
  *
- * ¸ù¾İÄ¿±êµçÑ¹¼ÆËã MCP4017 Ó¦ÉèÖÃµÄµç×èÊı×ÖÖµ¡£
+ * æ ¹æ®ç›®æ ‡ç”µå‹è®¡ç®— MCP4017 åº”è®¾ç½®çš„ç”µé˜»æ•°å­—å€¼ã€‚
  *
- * µçÂ·Ô­Àí£¨Buck-BoostÎÈÑ¹£©£º
+ * ç”µè·¯åŸç†ï¼ˆBuck-Boostç¨³å‹ï¼‰ï¼š
  *   VOUT = ( RUP / RDN + 1 ) x VFB
  *   RDN = RUP / ( VOUT / VFB - 1 )
  *   DigitalValue = RDN / RALL x 127
- * ×îµÍµçÑ¹ ((22000/5000) + 1) * VFB = 3.24 V
- * voltageInt : µçÑ¹Öµx100£¬ÀıÈç 1120 = 11.20V
- * ·µ»ØÖµ    : ³É¹¦=¼ÆËã³öµÄµç×èÊı×ÖÖµ(0~127)£»Ê§°Ü=0xFF
+ * æœ€ä½ç”µå‹ ((22000/5000) + 1) * VFB = 3.24 V
+ * voltageInt : ç”µå‹å€¼x100ï¼Œä¾‹å¦‚ 1120 = 11.20V
+ * è¿”å›å€¼    : æˆåŠŸ=è®¡ç®—å‡ºçš„ç”µé˜»æ•°å­—å€¼(0~127)ï¼›å¤±è´¥=0xFF
  */
 uint8_t MCP4017_VPP_SetVoltage(uint16_t voltageInt)
 {
@@ -118,28 +118,27 @@ uint8_t MCP4017_VPP_SetVoltage(uint16_t voltageInt)
     float vol;
     uint8_t error;
 
-    // VPP ×î´óÏŞÖÆ 15.00V -> 1500
+    // VPP æœ€å¤§é™åˆ¶ 15.00V -> 1500
     if (voltageInt > 1500)
     {
         voltageInt = 1500;
     }
 
-    vol = voltageInt / 100.0f;                     // ×ª»»Îª¸¡µãµçÑ¹Öµ£¨V£©
-    rx  = VPP_RUP / (vol / VPP_REF - 1);           // ¼ÆËã RDN ÀíÂÛÖµ£¨ohm£©
-    rt  = (uint8_t)(rx / VPP_4017_RALL * 127);     // ¼ÆËãÊı×ÖµçÎ»Æ÷±ÈÀıÖµ£¨0~127£©
+    vol = voltageInt / 100.0f;                     // è½¬æ¢ä¸ºæµ®ç‚¹ç”µå‹å€¼ï¼ˆVï¼‰
+    rx  = VPP_RUP / (vol / VPP_REF - 1);           // è®¡ç®— RDN ç†è®ºå€¼ï¼ˆohmï¼‰
+    rt  = (uint8_t)(rx / VPP_4017_RALL * 127);     // è®¡ç®—æ•°å­—ç”µä½å™¨æ¯”ä¾‹å€¼ï¼ˆ0~127ï¼‰
 
-    error = MCP4017_VPP_WriteResistor(rt);              // Í¨¹ıIICĞ´Èë
+    error = MCP4017_VPP_WriteResistor(rt);              // é€šè¿‡IICå†™å…¥
 
     if (error == 0)
     {
-        return rt;                                 // ³É¹¦£¬·µ»ØÉè¶¨Öµ
+        return rt;                                 // æˆåŠŸï¼Œè¿”å›è®¾å®šå€¼
     }
     else
     {
-        return 0xFF;                               // Ê§°Ü
+        return 0xFF;                               // å¤±è´¥
     }
 }
-
 
 
 

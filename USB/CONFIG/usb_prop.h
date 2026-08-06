@@ -1,5 +1,5 @@
 /*
- * USBÊôĞÔ´¦ÀíÍ·ÎÄ¼ş - ÊôĞÔÇëÇó´¦Àí½Ó¿Ú
+ * USBå±æ€§å¤„ç†å¤´æ–‡ä»¶ - å±æ€§è¯·æ±‚å¤„ç†æ¥å£
  */
 
 /******************** (C) COPYRIGHT 2008 STMicroelectronics ********************
@@ -58,7 +58,6 @@ u8 *UsbHidDev_GetProtocolValue(u16 Length);
 RESULT UsbHidDev_SetProtocol(void);
 u8 *UsbHidDev_GetReportDescriptor(u16 Length);
 u8 *UsbHidDev_GetHIDDescriptor(u16 Length);
-u8 *UsbHidDev_SetReportData(u16 Length);
 
 /* Exported define -----------------------------------------------------------*/
 #define UsbHidDev_GetConfiguration          NOP_Process

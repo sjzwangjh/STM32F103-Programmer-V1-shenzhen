@@ -1,12 +1,12 @@
 /*
- * STK500v2 Ğ­Òé½âÎöÄ£¿é
+ * STK500v2 åè®®è§£ææ¨¡å—
  *
- * ±¾Ä£¿é¸ºÔğ½âÎöÉÏÎ»»ú·¢ËÍµÄ STK500v2 Êı¾İÖ¡, ²¢°ÑÃüÁî·Ö·¢µ½
- * AVR ISP/HVSP/HVPP¡¢PIC ICSP ÒÔ¼°ÀëÏßÊı¾İ°ü¼ÇÂ¼Ä£¿é¡£
+ * æœ¬æ¨¡å—è´Ÿè´£è§£æä¸Šä½æœºå‘é€çš„ STK500v2 æ•°æ®å¸§, å¹¶æŠŠå‘½ä»¤åˆ†å‘åˆ°
+ * AVR ISP/HVSP/HVPPã€PIC ICSP ä»¥åŠç¦»çº¿æ•°æ®åŒ…è®°å½•æ¨¡å—ã€‚
  *
- * Êı¾İÀ´Ô´Ö§³ÖÁ½Àà: USB HID ÔÚÏßÍ¨Ñ¶ºÍ Flash ÀëÏß»Ø·Å¡£
- * stkEvaluateRxMessage() Í¨¹ı stkDataFrame_t Í¬Ê±½ÓÊÕ RX/TX »º³å,
- * ´Ó¶ø±ÜÃâÔÚÏß TX ºÍÀëÏßÅĞ¶¨ TX »¥Ïà½»²æ¡£
+ * æ•°æ®æ¥æºæ”¯æŒä¸¤ç±»: USB HID åœ¨çº¿é€šè®¯å’Œ Flash ç¦»çº¿å›æ”¾ã€‚
+ * stkEvaluateRxMessage() é€šè¿‡ stkDataFrame_t åŒæ—¶æ¥æ”¶ RX/TX ç¼“å†²,
+ * ä»è€Œé¿å…åœ¨çº¿ TX å’Œç¦»çº¿åˆ¤å®š TX äº’ç›¸äº¤å‰ã€‚
  */
 
 #include "Stk500Protocol.h"
@@ -18,20 +18,19 @@
 #include "offLineRecorder.h"
 #include "eeprom.h"
 #include "usart.h"
-#include "usb_winusb_user.h"
 
-/* ÉÏ±¨¸øÉÏÎ»»úµÄ STK500 °æ±¾ºÅ¡£ */
+/* ä¸ŠæŠ¥ç»™ä¸Šä½æœºçš„ STK500 ç‰ˆæœ¬å·ã€‚ */
 #define STK_VERSION_HW      1
 #define STK_VERSION_MAJOR   2
 #define STK_VERSION_MINOR   4
 
-/* USB HID ½ÓÊÕÁ´Ê¹ÓÃµÄÈ«¾Ö RX »º³å, Ö»±£´æµ±Ç°ÔÚÏßÊÕµ½µÄÒ»Ö¡¡£ */
+/* USB HID æ¥æ”¶é“¾ä½¿ç”¨çš„å…¨å±€ RX ç¼“å†², åªä¿å­˜å½“å‰åœ¨çº¿æ”¶åˆ°çš„ä¸€å¸§ã€‚ */
 static uint8_t      rxBuffer[BUFFER_SIZE];
 static uint16_t     rxPos;
 static utilWord_t   rxLen;
 static uint8_t      rxBlockAvailable;
 
-/* USB HID ·¢ËÍÁ´Ê¹ÓÃµÄÈ«¾Ö TX »º³å¡£Flash »Ø·ÅÊ¹ÓÃµ÷ÓÃ·½´«ÈëµÄ¶ÀÁ¢ TX »º³å¡£ */
+/* USB HID å‘é€é“¾ä½¿ç”¨çš„å…¨å±€ TX ç¼“å†²ã€‚Flash å›æ”¾ä½¿ç”¨è°ƒç”¨æ–¹ä¼ å…¥çš„ç‹¬ç«‹ TX ç¼“å†²ã€‚ */
 static uint8_t      txBuffer[BUFFER_SIZE];
 static uint16_t     txPos, txLen;
 
@@ -43,23 +42,23 @@ stkParam_t      stkParam = {{
                 }};
 utilDword_t     stkAddress;
 
-/* È«¾Ö±äÁ¿: ¼ÇÂ¼ÉÏÎ»»úÏÂ·¢µÄÆ÷¼şºÍÏîÄ¿Éí·İĞÅÏ¢¡£ */
+/* å…¨å±€å˜é‡: è®°å½•ä¸Šä½æœºä¸‹å‘çš„å™¨ä»¶å’Œé¡¹ç›®èº«ä»½ä¿¡æ¯ã€‚ */
 static stkDeviceIdentity_t g_stkDeviceIdentity;
 
-/* ´ÓĞ¡¶Ë×Ö½ÚÁ÷ÖĞ¶ÁÈ¡ 16 Î»Êı¾İ¡£ */
+/* ä»å°ç«¯å­—èŠ‚æµä¸­è¯»å– 16 ä½æ•°æ®ã€‚ */
 static uint16_t stkGetLe16(const uint8_t *bytes);
-/* ½« 16 Î»Êı¾İ°´Ğ¡¶Ë¸ñÊ½Ğ´Èë×Ö½ÚÁ÷¡£ */
+/* å°† 16 ä½æ•°æ®æŒ‰å°ç«¯æ ¼å¼å†™å…¥å­—èŠ‚æµã€‚ */
 static void stkPutLe16(uint8_t *bytes, uint16_t value);
-/* ±£´æÉÏÎ»»úÏÂ·¢µÄÆ÷¼şºÍÏîÄ¿Éí·İĞÅÏ¢, ºóĞø»áĞ´Èë Raw ÀëÏß°üÍ·¡£ */
+/* ä¿å­˜ä¸Šä½æœºä¸‹å‘çš„å™¨ä»¶å’Œé¡¹ç›®èº«ä»½ä¿¡æ¯, åç»­ä¼šå†™å…¥ Raw ç¦»çº¿åŒ…å¤´ã€‚ */
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen);
-/* ½«µ±Ç°Æ÷¼şºÍÏîÄ¿Éí·İĞÅÏ¢´ò°ü·µ»Ø¸øÉÏÎ»»ú¡£ */
+/* å°†å½“å‰å™¨ä»¶å’Œé¡¹ç›®èº«ä»½ä¿¡æ¯æ‰“åŒ…è¿”å›ç»™ä¸Šä½æœºã€‚ */
 static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize);
-/* ´ò°üÀëÏß°ü×ÜÌåĞÅÏ¢: ÓĞĞ§°üÊıÁ¿¡¢¼¤»î°üĞòºÅ¡¢×î´ó°üÊıÁ¿¡£ */
+/* æ‰“åŒ…ç¦»çº¿åŒ…æ€»ä½“ä¿¡æ¯: æœ‰æ•ˆåŒ…æ•°é‡ã€æ¿€æ´»åŒ…åºå·ã€æœ€å¤§åŒ…æ•°é‡ã€‚ */
 static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize);
-/* ´ò°üÖ¸¶¨ÀëÏß°üÕªÒª, ¹©ÉÏÎ»»ú²é¿´ Flash ÖĞµÄ¼ÇÂ¼ÄÚÈİ¡£ */
+/* æ‰“åŒ…æŒ‡å®šç¦»çº¿åŒ…æ‘˜è¦, ä¾›ä¸Šä½æœºæŸ¥çœ‹ Flash ä¸­çš„è®°å½•å†…å®¹ã€‚ */
 static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t index);
 
-/* ±£Áô AVR-Doper µÄ switch ºê·ç¸ñ, ±ãÓÚºÍÔ­Ê¼Ğ­Òé·Ö·¢½á¹¹¶ÔÕÕ¡£ */
+/* ä¿ç•™ AVR-Doper çš„ switch å®é£æ ¼, ä¾¿äºå’ŒåŸå§‹åè®®åˆ†å‘ç»“æ„å¯¹ç…§ã€‚ */
 #define SWITCH_START        switch(cmd){{
 #define SWITCH_CASE(value)  }break; case (value):{
 #define SWITCH_CASE2(v1,v2) }break; case (v1): case(v2):{
@@ -68,7 +67,7 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
 #define SWITCH_DEFAULT      }break; default:{
 #define SWITCH_END          }}
 
-/* ÀëÏßÄ£Ê½ÏÂµÄ¼ÇÂ¼×´Ì¬: 0=¿ÕÏĞ(IDLE), 1=¼ÇÂ¼ÖĞ */
+/* ç¦»çº¿æ¨¡å¼ä¸‹çš„è®°å½•çŠ¶æ€: 0=ç©ºé—²(IDLE), 1=è®°å½•ä¸­ */
 uint8_t g_stkProgrammerState = STK500_PROGRAM_IDLE;
 
 /* Firmware-upgrade request flag: set after the EEPROM boot-mode flag is written and read back OK. */
@@ -79,20 +78,20 @@ uint8_t stkFwUpgradeRequested(void)
     return g_stkFwUpgradePending;
 }
 
-/* ´ÓĞ¡¶Ë×Ö½ÚÁ÷ÖĞ¶ÁÈ¡ 16 Î»Êı¾İ¡£ */
+/* ä»å°ç«¯å­—èŠ‚æµä¸­è¯»å– 16 ä½æ•°æ®ã€‚ */
 static uint16_t stkGetLe16(const uint8_t *bytes)
 {
     return (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
 }
 
-/* ½« 16 Î»Êı¾İ°´Ğ¡¶Ë¸ñÊ½Ğ´Èë×Ö½ÚÁ÷¡£ */
+/* å°† 16 ä½æ•°æ®æŒ‰å°ç«¯æ ¼å¼å†™å…¥å­—èŠ‚æµã€‚ */
 static void stkPutLe16(uint8_t *bytes, uint16_t value)
 {
     bytes[0] = (uint8_t)(value & 0xFFU);
     bytes[1] = (uint8_t)(value >> 8);
 }
 
-/* ±£´æÉÏÎ»»úÏÂ·¢µÄÆ÷¼şºÍÏîÄ¿Éí·İĞÅÏ¢, ºóĞø»áĞ´Èë Raw ÀëÏß°üÍ·¡£ */
+/* ä¿å­˜ä¸Šä½æœºä¸‹å‘çš„å™¨ä»¶å’Œé¡¹ç›®èº«ä»½ä¿¡æ¯, åç»­ä¼šå†™å…¥ Raw ç¦»çº¿åŒ…å¤´ã€‚ */
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
 {
     if (payload == NULL)
@@ -111,7 +110,7 @@ static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
     return STK_STATUS_CMD_OK;
 }
 
-/* ½«µ±Ç°Æ÷¼şºÍÏîÄ¿Éí·İĞÅÏ¢´ò°ü·µ»Ø¸øÉÏÎ»»ú¡£ */
+/* å°†å½“å‰å™¨ä»¶å’Œé¡¹ç›®èº«ä»½ä¿¡æ¯æ‰“åŒ…è¿”å›ç»™ä¸Šä½æœºã€‚ */
 static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize)
 {
     uint16_t needLen;
@@ -140,7 +139,7 @@ static void stkPutLe32(uint8_t *bytes, uint32_t value)
     bytes[3] = (uint8_t)((value >> 24) & 0xFFU);
 }
 
-/* ´ò°üÀëÏß°ü×ÜÌåĞÅÏ¢: ÓĞĞ§°üÊıÁ¿¡¢¼¤»î°üĞòºÅ¡¢×î´ó°üÊıÁ¿¡£ */
+/* æ‰“åŒ…ç¦»çº¿åŒ…æ€»ä½“ä¿¡æ¯: æœ‰æ•ˆåŒ…æ•°é‡ã€æ¿€æ´»åŒ…åºå·ã€æœ€å¤§åŒ…æ•°é‡ã€‚ */
 static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize)
 {
     offline_package_info_t info;
@@ -157,7 +156,7 @@ static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize)
     return 6U;
 }
 
-/* ´ò°üÖ¸¶¨ÀëÏß°üÕªÒª, ¹©ÉÏÎ»»ú²é¿´ Flash ÖĞµÄ¼ÇÂ¼ÄÚÈİ¡£ */
+/* æ‰“åŒ…æŒ‡å®šç¦»çº¿åŒ…æ‘˜è¦, ä¾›ä¸Šä½æœºæŸ¥çœ‹ Flash ä¸­çš„è®°å½•å†…å®¹ã€‚ */
 static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t index)
 {
     offline_package_index_t summary;
@@ -185,7 +184,7 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
     return pos;
 }
 
-/* °´µ±Ç° STK µØÖ·Ğ´Èë PIC Flash, ³É¹¦ºóÍ¬²½ÍÆ½øĞ­Òé²ãµØÖ·¡£ */
+/* æŒ‰å½“å‰ STK åœ°å€å†™å…¥ PIC Flash, æˆåŠŸååŒæ­¥æ¨è¿›åè®®å±‚åœ°å€ã€‚ */
 static uint8_t stkIcspProgramFlash(const stkProgramFlashIcsp_t *param)
 {
     uint16_t wordCount;
@@ -211,7 +210,7 @@ static uint8_t stkIcspProgramFlash(const stkProgramFlashIcsp_t *param)
     return STK_STATUS_CMD_OK;
 }
 
-/* °´µ±Ç° STK µØÖ·Ğ´Èë PIC Flash, ³É¹¦ºóÍ¬²½ÍÆ½øĞ­Òé²ãµØÖ·¡£ */
+/* æŒ‰å½“å‰ STK åœ°å€å†™å…¥ PIC Flash, æˆåŠŸååŒæ­¥æ¨è¿›åè®®å±‚åœ°å€ã€‚ */
 static uint16_t stkIcspReadFlash(const stkReadFlashIcsp_t *param, uint8_t *out)
 {
     uint16_t wordCount;
@@ -240,7 +239,7 @@ static uint16_t stkIcspReadFlash(const stkReadFlashIcsp_t *param, uint8_t *out)
     return (uint16_t)(1U + wordCount * 2U);
 }
 
-/* °´µ±Ç° STK µØÖ·Ğ´Èë PIC EEPROM, ³É¹¦ºóÍ¬²½ÍÆ½øĞ­Òé²ãµØÖ·¡£ */
+/* æŒ‰å½“å‰ STK åœ°å€å†™å…¥ PIC EEPROM, æˆåŠŸååŒæ­¥æ¨è¿›åè®®å±‚åœ°å€ã€‚ */
 static uint8_t stkIcspProgramEeprom(const stkProgramEepromIcsp_t *param)
 {
     uint16_t byteCount;
@@ -264,7 +263,7 @@ static uint8_t stkIcspProgramEeprom(const stkProgramEepromIcsp_t *param)
     return STK_STATUS_CMD_OK;
 }
 
-/* °´µ±Ç° STK µØÖ·Ğ´Èë PIC EEPROM, ³É¹¦ºóÍ¬²½ÍÆ½øĞ­Òé²ãµØÖ·¡£ */
+/* æŒ‰å½“å‰ STK åœ°å€å†™å…¥ PIC EEPROM, æˆåŠŸååŒæ­¥æ¨è¿›åè®®å±‚åœ°å€ã€‚ */
 static uint16_t stkIcspReadEeprom(const stkReadEepromIcsp_t *param, uint8_t *out)
 {
     uint16_t byteCount;
@@ -297,7 +296,7 @@ static uint16_t stkIcspReadEeprom(const stkReadEepromIcsp_t *param, uint8_t *out
     return (uint16_t)(1U + byteCount);
 }
 
-/* ¸ù¾İ STK500 payload Éú³ÉÍêÕû TX Ö¡, Êä³öµ½µ÷ÓÃ·½Ö¸¶¨µÄ TX »º³å¡£ */
+/* æ ¹æ® STK500 payload ç”Ÿæˆå®Œæ•´ TX å¸§, è¾“å‡ºåˆ°è°ƒç”¨æ–¹æŒ‡å®šçš„ TX ç¼“å†²ã€‚ */
 static uint16_t stkSetTxMessage(uint8_t *out, uint16_t outSize, uint16_t len, uint8_t seq)
 {
     uint8_t *p;
@@ -348,7 +347,46 @@ static uint8_t getParameter(uint8_t index)
     return stkParam.bytes[index];
 }
 
-/* ½âÎöÒ»Ö¡ÍêÕû STK500 Êı¾İ¡£USB À´Ô´»á½øÈë HID TX, Flash À´Ô´Ö»Éú³É±¾µØ TX ÅĞ¶¨½á¹û¡£ */
+#if DEBUG_HARDWARE_CONFIG
+/* ç®€æ´è°ƒè¯•: æ•°æ®æ¥æºå */
+static const char *stkSourceName(uint8_t src)
+{
+    switch (src)
+    {
+    case STK_DATA_SOURCE_USB_HID:    return "HID";
+    case STK_DATA_SOURCE_USB_CDC:    return "CDC";
+    case STK_DATA_SOURCE_USB_WINUSB: return "WINUSB";
+    default:                         return "?";
+    }
+}
+
+static void stkDebugWriteHex8(uint8_t value)
+{
+    static const char hexTable[] = "0123456789ABCDEF";
+    uart1_WriteByte((uint8_t)hexTable[(value >> 4) & 0x0F]);
+    uart1_WriteByte((uint8_t)hexTable[value & 0x0F]);
+}
+
+static void stkDebugWriteDec(uint16_t value)
+{
+    char buf[6];
+    uint8_t n = 0U;
+    if (value == 0U)
+    {
+        uart1_WriteByte('0');
+        return;
+    }
+    while (value > 0U && n < sizeof(buf))
+    {
+        buf[n++] = (char)('0' + (value % 10U));
+        value /= 10U;
+    }
+    while (n > 0U)
+        uart1_WriteByte((uint8_t)buf[--n]);
+}
+#endif
+
+/* è§£æä¸€å¸§å®Œæ•´ STK500 æ•°æ®ã€‚USB æ¥æºä¼šè¿›å…¥ HID TX, Flash æ¥æºåªç”Ÿæˆæœ¬åœ° TX åˆ¤å®šç»“æœã€‚ */
 void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
 {
     uint8_t     i, cmd;
@@ -371,21 +409,13 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         return;
 
 #if DEBUG_HARDWARE_CONFIG
-    /* µ÷ÊÔ: ½«ÊÕµ½µÄÊı¾İ°üÄÚÈİ×ª»»³ÉÊ®Áù½øÖÆ×Ö·û´®Í¨¹ı UART1 ·¢ËÍ */
-    if (pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
-        pDataFrame->source == STK_DATA_SOURCE_USB_CDC)
-    {
-        static const char hexTable[] = "0123456789ABCDEF";
-        uint16_t i;
-        uart1_WriteString("Rece:");
-        for (i = 0; i < pDataFrame->frameLen; i++)
-        {
-            uart1_WriteByte((uint8_t)hexTable[(pRx[i] >> 4) & 0x0F]);
-            uart1_WriteByte((uint8_t)hexTable[pRx[i] & 0x0F]);
-            uart1_WriteByte(' ');
-        }
-        uart1_WriteString((const char*)"\r\n");
-    }
+    /* ç®€æ´è°ƒè¯•: åªæ‰“å°æ•°æ®æ¥æºã€æ–¹å‘ã€å‘½ä»¤IDã€æ•°æ®åŒ…å¤§å°ã€‚ */
+    uart1_WriteString(stkSourceName(pDataFrame->source));
+    uart1_WriteString(" RX cmd=0x");
+    stkDebugWriteHex8(pRx[STK_TXMSG_START]);
+    uart1_WriteString(" len=");
+    stkDebugWriteDec(pDataFrame->frameLen);
+    uart1_WriteString("\r\n");
 #endif
 
     cmd = pRx[STK_TXMSG_START];
@@ -408,18 +438,18 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     
     SWITCH_START
     SWITCH_CASE(STK_CMD_SIGN_ON)
-        /* »ñÈ¡ÉÕÂ¼Æ÷±êÊ¶¡£ */
+        /* è·å–çƒ§å½•å™¨æ ‡è¯†ã€‚ */
         static const char string[] = {8, 'S', 'T', 'K', '5', '0', '0', '_', '2', 0};
         memcpy(&pTx[STK_TXMSG_START + 2], string, sizeof(string));
         len.bytes[0] = 11;
     SWITCH_CASE(STK_CMD_SET_WORK_STATE)
-        /* ÉèÖÃ¹¤×÷Ä£Ê½: 0=simulate, 1=online, 2=record, 3=online+record¡£ */
+        /* è®¾ç½®å·¥ä½œæ¨¡å¼: 0=simulate, 1=online, 2=record, 3=online+recordã€‚ */
         if (stkSetWorkMode(pRx[STK_TXMSG_START + 1]) == 0U)
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
         else
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
     SWITCH_CASE(STK_CMD_SET_PROG_STATE)
-        /* ÉèÖÃ±à³Ì»á»°×´Ì¬: 0=STOP_PROG ¹Ø±ÕÀëÏß°ü, 1=START_PROG ´´½¨ÀëÏß°ü¡£ */
+        /* è®¾ç½®ç¼–ç¨‹ä¼šè¯çŠ¶æ€: 0=STOP_PROG å…³é—­ç¦»çº¿åŒ…, 1=START_PROG åˆ›å»ºç¦»çº¿åŒ…ã€‚ */
         if (pRx[STK_TXMSG_START + 1] > STK500_PROGRAM_RECORDING)
         {
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
@@ -489,7 +519,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 (offlinePgmerSetActivePackage(index) == 0U) ?
                 STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
         }
-    SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* ÉèÖÃ STK ²ÎÊı»òÆ÷¼şÉí·İĞÅÏ¢¡£ */
+    SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* è®¾ç½® STK å‚æ•°æˆ–å™¨ä»¶èº«ä»½ä¿¡æ¯ã€‚ */
         if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)
         {
             pTx[STK_TXMSG_START + 1] = stkSetDeviceIdentity(
@@ -528,7 +558,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         for(i = 0; i < 4; i++){
             stkAddress.bytes[3 - i] = pRx[STK_TXMSG_START + 1 + i];
         }
-    SWITCH_CASE(STK_CMD_FIRMWARE_UPGRADE)   /* ¸ÃÃüÁîÓÉÉÏÎ»»úÔÚÉı¼¶¹Ì¼şÇ°·¢ËÍ, ÒÔ±ãÉÕÂ¼Æ÷½øÈëÉı¼¶Ä£Ê½¡£ */
+    SWITCH_CASE(STK_CMD_FIRMWARE_UPGRADE)   /* è¯¥å‘½ä»¤ç”±ä¸Šä½æœºåœ¨å‡çº§å›ºä»¶å‰å‘é€, ä»¥ä¾¿çƒ§å½•å™¨è¿›å…¥å‡çº§æ¨¡å¼ã€‚ */
         {
             /* Payload must carry the magic bytes: cmd + 0xA5 0x5A. */
             if (payloadLen >= 3U &&
@@ -537,7 +567,8 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             {
                 /* Only act for online USB sources; flash replay only replies, no side effects. */
                 if (pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
-                    pDataFrame->source == STK_DATA_SOURCE_USB_CDC)
+                    pDataFrame->source == STK_DATA_SOURCE_USB_CDC ||
+                    pDataFrame->source == STK_DATA_SOURCE_USB_WINUSB)
                 {
                     SPI_EEPROM_WriteByte(EEPROM_BOOT_MODE_ADDR, EEPROM_BOOT_MODE_UPDATE);
                     if (SPI_EEPROM_ReadByte(EEPROM_BOOT_MODE_ADDR) == EEPROM_BOOT_MODE_UPDATE)
@@ -550,6 +581,11 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                         pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
                     }
                 }
+                else
+                {
+                    /* Non-USB replay source: explicit reply, no side effects. */
+                    pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+                }
             }
             else
             {
@@ -557,7 +593,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             }
         }
     SWITCH_CASE(STK_CMD_SET_CONTROL_STACK)
-        /* AVR Studio Ì½²âÄÜÁ¦Ê±»á·¢ËÍ¸ÃÃüÁî, ÕâÀï±£³Ö AVR-Doper µÄ¼æÈİĞĞÎª¡£ */
+        /* AVR Studio æ¢æµ‹èƒ½åŠ›æ—¶ä¼šå‘é€è¯¥å‘½ä»¤, è¿™é‡Œä¿æŒ AVR-Doper çš„å…¼å®¹è¡Œä¸ºã€‚ */
 #if ENABLE_HVPROG
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_HVSP)
         {
@@ -793,10 +829,10 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             len.word = 1 + ispMulti((stkMultiIsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1]);
         else
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
-        /*------------------- PIC ICSP ÃüÁî´¦Àí¿ªÊ¼ -------------------*/
+        /*------------------- PIC ICSP å‘½ä»¤å¤„ç†å¼€å§‹ -------------------*/
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_ICSP)
         {
-            /* ½øÈë ICSP Ä£Ê½Ê±, ÉÏÎ»»úÏÂ·¢Ä£Ê½: 0=¸ßÑ¹, 1=µÍÑ¹¡£ */
+            /* è¿›å…¥ ICSP æ¨¡å¼æ—¶, ä¸Šä½æœºä¸‹å‘æ¨¡å¼: 0=é«˜å‹, 1=ä½å‹ã€‚ */
             uint8_t recStatus = STK_STATUS_CMD_OK;
             uint8_t onlineStatus = stkIsOnlineMode() ?
                 pic8EnterProgmode((uint8_t)(pRx[STK_TXMSG_START + 1] & 0x01U)) :
@@ -900,7 +936,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             uint8_t recStatus = STK_STATUS_CMD_OK;
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
         }
-    /* PIC ICSP ÃüÁî´¦Àí½áÊø¡£ */
+    /* PIC ICSP å‘½ä»¤å¤„ç†ç»“æŸã€‚ */
     SWITCH_DEFAULT
         pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
     SWITCH_END
@@ -915,26 +951,19 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     }
 
 #if DEBUG_HARDWARE_CONFIG
-    /* µ÷ÊÔ: ±ØĞëÔÚ stkSetTxMessage() Ö®ºó´òÓ¡£¬´ËÊ±³¤¶ÈºÍ XOR Ğ£ÑéºÍ²ÅÍêÕû¡£ */
-    if ((pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
-         pDataFrame->source == STK_DATA_SOURCE_USB_CDC) &&
-        pDataFrame->txFrameLen != 0U)
+    if (pDataFrame->txFrameLen != 0U)
     {
-        static const char hexTable[] = "0123456789ABCDEF";
-        uint16_t i;
-        uart1_WriteString("Send:");
-        for (i = 0; i < pDataFrame->txFrameLen; i++)
-        {
-            uart1_WriteByte((uint8_t)hexTable[(pTx[i] >> 4) & 0x0F]);
-            uart1_WriteByte((uint8_t)hexTable[pTx[i] & 0x0F]);
-            uart1_WriteByte(' ');
-        }
+        uart1_WriteString(stkSourceName(pDataFrame->source));
+        uart1_WriteString(" TX cmd=0x");
+        stkDebugWriteHex8(cmd);
+        uart1_WriteString(" len=");
+        stkDebugWriteDec(pDataFrame->txFrameLen);
         uart1_WriteString("\r\n");
     }
 #endif
 }
 
-/* USB HID ÔÚÏßÈë¿Ú: Öğ×Ö½Ú×é×° STK500 Ö¡²¢Ğ£Ñé XOR Ğ£ÑéºÍ¡£ */
+/* USB HID åœ¨çº¿å…¥å£: é€å­—èŠ‚ç»„è£… STK500 å¸§å¹¶æ ¡éªŒ XOR æ ¡éªŒå’Œã€‚ */
 static uint8_t g_rxSource = STK_DATA_SOURCE_USB_HID;
 static uint8_t g_txSource = STK_DATA_SOURCE_USB_HID;
 static void stkAssemble(uint8_t c);
@@ -1007,47 +1036,6 @@ uint8_t stkGetTxSource(void)
     return g_txSource;
 }
 
-void stkWinUSBTask(void)
-{
-    uint8_t buf[64];
-    uint16_t n, i;
-
-    while ((n = WinUSB_Bulk_Available()) != 0U)
-    {
-        if (n > sizeof(buf))
-            n = sizeof(buf);
-
-        n = WinUSB_Bulk_Recv(buf, n);
-        for (i = 0U; i < n; i++)
-        {
-            stkSetRxCharEx(STK_DATA_SOURCE_USB_WINUSB, buf[i]);
-        }
-    }
-
-    stkPoll();
-}
-
-void stkWinUSBFlush(void)
-{
-    uint8_t out[64];
-    uint16_t n, i;
-    if (stkGetTxCount() <= 0) return;
-    if (stkGetTxSource() != STK_DATA_SOURCE_USB_WINUSB) return;
-    if (WinUSB_Bulk_TxBusy()) return;
-    n = (uint16_t)stkGetTxCount();
-    if (n > sizeof(out)) n = sizeof(out);
-    for (i = 0U; i < n; i++)
-    {
-        int c = stkGetTxByte();
-        if (c < 0) break;
-        out[i] = (uint8_t)c;
-    }
-    if (i > 0U)
-    {
-        WinUSB_Bulk_Send(out, i);
-    }
-}
-
 int stkGetTxByte(void)
 {
     uint8_t c;
@@ -1062,7 +1050,7 @@ int stkGetTxByte(void)
     return c;
 }
 
-/* Ö÷Ñ­»·ÂÖÑ¯Èë¿Ú: ½« USB RX/TX »º³å°ü×°³É stkDataFrame_t ºó½»¸øĞ­Òé½âÎö¡£ */
+/* ä¸»å¾ªç¯è½®è¯¢å…¥å£: å°† USB RX/TX ç¼“å†²åŒ…è£…æˆ stkDataFrame_t åäº¤ç»™åè®®è§£æã€‚ */
 void stkPoll(void)
 {
     if(rxBlockAvailable){

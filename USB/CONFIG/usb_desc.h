@@ -8,14 +8,14 @@
 #include "usb_type.h"
 
 /* ============================================================================
- * USB Éè±¸Éí·ÝÅäÖÃÇø ¡ª¡ª ºóÐøÐÞ¸Ä VID/PID/×Ö·û´®µÈ²ÎÊýÖ»¸ÄÕâÀï
+ * USB è®¾å¤‡èº«ä»½é…ç½®åŒº â€”â€” åŽç»­ä¿®æ”¹ VID/PID/å­—ç¬¦ä¸²ç­‰å‚æ•°åªæ”¹è¿™é‡Œ
  * ==========================================================================*/
 #define USB_VID                        0x16C0
 #define USB_PID                        0x05DF
 #define USB_BCD_USB                    0x0200
 #define USB_BCD_DEVICE                 0x0200
 
-/* ×Ö·û´®ÒÔ UTF-16LE ×Ö·û¶ÔÕ¹¿ª£»CHAR ¼ÆÊýÓÃÓÚ×Ô¶¯¼ÆËãÃèÊö·û³¤¶È¡£ */
+/* å­—ç¬¦ä¸²ä»¥ UTF-16LE å­—ç¬¦å¯¹å±•å¼€ï¼›CHAR è®¡æ•°ç”¨äºŽè‡ªåŠ¨è®¡ç®—æè¿°ç¬¦é•¿åº¦ã€‚ */
 #define USB_STRING_VENDOR_CHARS        8
 #define USB_STRING_VENDOR              'o',0,'b',0,'d',0,'e',0,'v',0,'.',0,'a',0,'t',0
 
@@ -25,7 +25,7 @@
 #define USB_STRING_SERIAL_CHARS        19
 #define USB_STRING_SERIAL              'd',0,'f',0,'m',0,'I',0,'n',0,'L',0,'i',0,'n',0,'e',0,'P',0,'r',0,'o',0,'g',0,'r',0,'a',0,'m',0,'m',0,'e',0,'r',0
 
-/* WinUSB / MS OS ÃèÊö·ûÏà¹Ø²ÎÊý */
+/* WinUSB / MS OS æè¿°ç¬¦ç›¸å…³å‚æ•° */
 #define USB_MS_VENDOR_CODE             0x07
 #define USB_MSOS_GUID_UTF16 \
     '{',0,'9',0,'B',0,'0',0,'D',0,'1',0,'C',0,'A',0,'8',0, \
@@ -49,8 +49,8 @@
 #define REPORT_DESCRIPTOR                          0x22
 
 #define USB_HID_DEV_SIZ_DEVICE_DESC               18
-#define USB_HID_DEV_SIZ_CONFIG_DESC               132
-#define USB_HID_DEV_SIZ_REPORT_DESC               51
+#define USB_HID_DEV_SIZ_CONFIG_DESC               139
+#define USB_HID_DEV_SIZ_REPORT_DESC               47
 #define USB_HID_DEV_SIZ_HID_DESC                  9
 #define USB_HID_DEV_SIZ_BOS_DESC                  33
 #define USB_HID_DEV_SIZ_MSOS20_DESC               178

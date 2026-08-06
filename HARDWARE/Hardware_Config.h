@@ -1,17 +1,21 @@
 /*
- * ����: Hardware_Config.h
- * ˵��: ͳһ���屾��Ŀʹ�õ�Ӳ�����ź͹��ܿ��ء�
- *      ����ģ��ֻ��������ĺ꣬��ֱ��д���������š�
+ * 名称: Hardware_Config.h
+ * 说明: 统一定义本项目使用的硬件引脚和功能开关。
+ *      其他模块只依赖这里的宏，不直接写死具体引脚。
  */
 
 #ifndef __HARDWARE_CONFIG_H__
 #define __HARDWARE_CONFIG_H__
 
-#define  APP_START_ADDER            0x0800C000      // Ӧ�ó�����ʼ��ַ
+#ifdef USE_BOOTLOADER
+  #define APP_START_ADDER  0x0800C000   // bootloader 占 48KB
+#else
+  #define APP_START_ADDER  0x08000000   // 独立运行
+#endif
 
-#define  DEBUG_HARDWARE_CONFIG      1       // Ӳ�����Ա�־
+#define  DEBUG_HARDWARE_CONFIG      1       // 硬件调试标志
 
-#define  HW_USB_HID_SPEED_FULL      1       // USB HID ȫ��ģʽ��1=ȫ�٣�0=USB1.1����ģʽ��
+#define  HW_USB_HID_SPEED_FULL      1       // USB HID 全速模式（1=全速，0=USB1.1兼容模式）
 
 /* -------- LED -------- */
 #define HW_LED_ACTIVE               C,0
@@ -28,7 +32,7 @@
 #define HW_BTN_ENTER                D,15
 #define HW_BTN_BACK                 D,14
 
-/* -------- LCD12864 / GB2312 �ֿ� -------- */
+/* -------- LCD12864 / GB2312 字库 -------- */
 #define HW_LCD12864_GB2312_MOSI     C,5
 #define HW_GB2312_MISO              B,0
 #define HW_LCD12864_GB2312_SCK      B,1
@@ -37,16 +41,16 @@
 #define HW_LCD12864_RST             B,10
 #define HW_LCD12864_CS              E,10
 
-/* -------- ���ص�λ�� IIC -------- */
+/* -------- 数控电位器 IIC -------- */
 #define HW_DVR_VPP_IIC_SCL          D,5
 #define HW_DVR_VPP_IIC_SDA          D,6
 #define HW_DVR_VDD_IIC_SCL          B,7
 #define HW_DVR_VDD_IIC_SDA          B,6
 
-/* -------- ��Դ�ܿ� -------- */
+/* -------- 电源总控 -------- */
 #define HW_USB_ON                   C,3
 
-/* -------- DUT ���� --------
+/* -------- DUT 总线 --------
  * PIN1: VPP / RESET
  * PIN2: VDD
  * PIN3: GND
@@ -54,7 +58,7 @@
  * PIN5: ICSP_CLK / TCK / SCK / DW
  * PIN6: ICSP_LVP / TDI / MOSI / SDI
  * PIN7: TMS / SII
- * PIN8: Ԥ��
+ * PIN8: 预留
  */
 #define HW_DUT_VPP_VH_ON            E,12
 #define HW_DUT_VPP_VL_ON            E,13
@@ -79,13 +83,13 @@
 #define HW_HANDLER_START            D,1
 #define HW_HANDLER_UD               D,0
 
-/* -------- ���ܿ��� -------- */
+/* -------- 功能开关 -------- */
 #define ENABLE_DEBUG_INTERFACE      1
 #define ENABLE_HID_INTERFACE        1
 #define ENABLE_HVPROG               1
 #define HW_DEBUG_BAUDRATE           256000
 
-/* -------- SPI2: EEPROM / FLASH ���� -------- */
+/* -------- SPI2: EEPROM / FLASH 共用 -------- */
 #define HW_SPI2_SCK                 B,13
 #define HW_SPI2_SDI                 B,14
 #define HW_SPI2_SDO                 B,15
@@ -107,17 +111,16 @@
 #define HW_VREF_PLUS                2.5
 #define HW_VREF_NEG                 0
 
-/* ԭ����ΪADC1��ADC2������ADC2û��DMA���䣬���Զ���ΪADC1�ɼ� */
-#define HW_ADC1_IN1_VDD_FBACK       A,1     // DUT VDD��ѹ�ɼ�
-#define HW_ADC1_IN2_VPP_MAIN_FBACK  A,2     // DUT ����ԴVPP��ѹ�ɼ�
-#define HW_ADC1_IN3_USB_GOOD        A,3     // USB�����ѹ�ɼ�
-#define HW_ADC1_IN4_DUT_IVDD        A,4     // DUT VDD�����ɼ�
-#define HW_ADC1_IN5_DUT_IVPP        A,5     // DUT VPP�����ɼ�
-#define HW_ADC1_IN6_3V3_POWER_GOOD  A,6     // MCU 3.3V������ѹ�ɼ�
-#define HW_ADC1_IN7_DUT_UVPP        A,7     // DUT VPP��ѹ�ɼ�
-#define HW_ADC1_IN14_VDD_MAIN_FBACK C,4     // DUT ����ԴVDD��ѹ�ɼ�
+/* 原本分为ADC1和ADC2，但是ADC2没有DMA传输，所以都改为ADC1采集 */
+#define HW_ADC1_IN1_VDD_FBACK       A,1     // DUT VDD电压采集
+#define HW_ADC1_IN2_VPP_MAIN_FBACK  A,2     // DUT 主电源VPP电压采集
+#define HW_ADC1_IN3_USB_GOOD        A,3     // USB输入电压采集
+#define HW_ADC1_IN4_DUT_IVDD        A,4     // DUT VDD电流采集
+#define HW_ADC1_IN5_DUT_IVPP        A,5     // DUT VPP电流采集
+#define HW_ADC1_IN6_3V3_POWER_GOOD  A,6     // MCU 3.3V工作电压采集
+#define HW_ADC1_IN7_DUT_UVPP        A,7     // DUT VPP电压采集
+#define HW_ADC1_IN14_VDD_MAIN_FBACK C,4     // DUT 主电源VDD电压采集
 
 
 #endif
-
 

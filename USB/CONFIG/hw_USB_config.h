@@ -1,5 +1,5 @@
 /*
- * USBÓ²¼şÅäÖÃÍ·ÎÄ¼ş - USBÒı½Å/Ê±ÖÓ/ÖĞ¶ÏÅäÖÃ
+ * USBç¡¬ä»¶é…ç½®å¤´æ–‡ä»¶ - USBå¼•è„š/æ—¶é’Ÿ/ä¸­æ–­é…ç½®
  */
 
 /******************** (C) COPYRIGHT 2008 STMicroelectronics ********************
@@ -42,7 +42,6 @@ void Enter_LowPowerMode(void);
 void Leave_LowPowerMode(void);
 void USB_Interrupts_Config(void);
 void USB_Cable_Config (FunctionalState NewState);
-void UsbHidDev_Send(u8 buf0,u8 buf1,u8 buf2,u8 buf3);
 u8 JoyState(void);
 void Get_SerialNum(void);
 

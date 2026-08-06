@@ -13,6 +13,10 @@ u16  WinUSB_Bulk_Recv(u8 *buf, u16 maxLen);
 u16  WinUSB_Bulk_Available(void);
 u8   WinUSB_Bulk_TxBusy(void);
 
+/* Single main-loop entry: drains EP4 RX ring into the STK parser and
+ * flushes pending STK responses via EP4 IN. */
+void WinUSB_Task(void);
+
 /* EP4 callbacks (bound via usb_conf.h macros) */
 void WinUSB_IN_Callback(void);
 void WinUSB_OUT_Callback(void);
