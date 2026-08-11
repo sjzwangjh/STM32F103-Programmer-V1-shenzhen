@@ -9,6 +9,8 @@
 #include "Hardware_Config.h"
 #include "dutBus.h"
 #include "picDeviceConst.h"
+/* Protocol-facing types (stkProgramFlashIcsp_t etc.) and stkAddress. */
+#include "Stk500Protocol.h"
 
 // 基于Hardware_Config.h中的"扩展宏定义"-----
 // 扩展宏定义--PIC 编程器ICSP接口----CLK/DAT/LVP----
@@ -108,6 +110,14 @@ uint8_t  icspProgUID(uint8_t idx, uint16_t val);
 uint16_t icspReadUID(uint8_t idx);
 uint16_t icspReadOSCCAL(uint8_t idx);
 uint8_t  icspWriteOSCCAL(uint8_t idx, uint16_t val);
+/* ================================================================= */
+/* D2: STK500v2 protocol adapter layer (same layout as isp.c/hvproc.c) */
+/* ================================================================= */
+
+uint8_t  icspProgramMemory(stkProgramFlashIcsp_t *param, uint8_t isEeprom);
+uint16_t icspReadMemory(stkReadFlashIcsp_t *param,
+                        stkReadFlashIcspResult_t *result,
+                        uint8_t isEeprom);
 
 /* ================================================================= */
 /* E层: 校验与安全                                                     */

@@ -91,22 +91,23 @@ static void stkPutLe16(uint8_t *bytes, uint16_t value)
     bytes[1] = (uint8_t)(value >> 8);
 }
 
-/* 保存上位机下发的器件和项目身份信息, 后续会写入 Raw 离线包头。 */
+/* 保存上位机下发的器件和项目身份信息, 后续会写入 Raw 离线包头。此指令每次编程都要下发 */
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
 {
     if (payload == NULL)
         return STK_STATUS_CMD_FAILED;
 
-    if (payloadLen < (uint16_t)(1U + 2U + STK_DEVICE_ITEM_ID_LEN + STK_DEVICE_ITEM_DESC_LEN))
+    if (payloadLen < (uint16_t)(1U + 2U + STK_PARAM_ITEM_ID_LEN + STK_PARAM_ITEM_DESC_LEN))
         return STK_STATUS_CMD_FAILED;
 
     g_stkDeviceIdentity.arch = payload[0];
     g_stkDeviceIdentity.index = stkGetLe16(&payload[1]);
-    memcpy(g_stkDeviceIdentity.itemId, &payload[3], STK_DEVICE_ITEM_ID_LEN);
+    memcpy(g_stkDeviceIdentity.itemId, &payload[3], STK_PARAM_ITEM_ID_LEN);
     memcpy(g_stkDeviceIdentity.itemDesc,
-           &payload[3 + STK_DEVICE_ITEM_ID_LEN],
-           STK_DEVICE_ITEM_DESC_LEN);
-    g_stkDeviceIdentity.itemDesc[STK_DEVICE_ITEM_DESC_LEN] = '\0';
+           &payload[3 + STK_PARAM_ITEM_ID_LEN],
+           STK_PARAM_ITEM_DESC_LEN);
+    g_stkDeviceIdentity.itemDesc[STK_PARAM_ITEM_DESC_LEN] = '\0';
+    offlinePgmerInitWith(&g_stkDeviceIdentity);
     return STK_STATUS_CMD_OK;
 }
 
@@ -118,16 +119,16 @@ static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize)
     if (out == NULL)
         return 0U;
 
-    needLen = (uint16_t)(1U + 2U + STK_DEVICE_ITEM_ID_LEN + STK_DEVICE_ITEM_DESC_LEN);
+    needLen = (uint16_t)(1U + 2U + STK_PARAM_ITEM_ID_LEN + STK_PARAM_ITEM_DESC_LEN);
     if (outSize < needLen)
         return 0U;
 
     out[0] = g_stkDeviceIdentity.arch;
     stkPutLe16(&out[1], g_stkDeviceIdentity.index);
-    memcpy(&out[3], g_stkDeviceIdentity.itemId, STK_DEVICE_ITEM_ID_LEN);
-    memcpy(&out[3 + STK_DEVICE_ITEM_ID_LEN],
+    memcpy(&out[3], g_stkDeviceIdentity.itemId, STK_PARAM_ITEM_ID_LEN);
+    memcpy(&out[3 + STK_PARAM_ITEM_ID_LEN],
            g_stkDeviceIdentity.itemDesc,
-           STK_DEVICE_ITEM_DESC_LEN);
+           STK_PARAM_ITEM_DESC_LEN);
     return needLen;
 }
 
@@ -177,123 +178,11 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
     stkPutLe32(&out[pos], summary.crc32); pos += 4U;
     out[pos++] = summary.identity.arch;
     stkPutLe16(&out[pos], summary.identity.index); pos += 2U;
-    memcpy(&out[pos], summary.identity.itemId, STK_DEVICE_ITEM_ID_LEN);
-    pos += STK_DEVICE_ITEM_ID_LEN;
-    memcpy(&out[pos], summary.identity.itemDesc, STK_DEVICE_ITEM_DESC_LEN);
-    pos += STK_DEVICE_ITEM_DESC_LEN;
+    memcpy(&out[pos], summary.identity.itemId, STK_PARAM_ITEM_ID_LEN);
+    pos += STK_PARAM_ITEM_ID_LEN;
+    memcpy(&out[pos], summary.identity.itemDesc, STK_PARAM_ITEM_DESC_LEN);
+    pos += STK_PARAM_ITEM_DESC_LEN;
     return pos;
-}
-
-/* 按当前 STK 地址写入 PIC Flash, 成功后同步推进协议层地址。 */
-static uint8_t stkIcspProgramFlash(const stkProgramFlashIcsp_t *param)
-{
-    uint16_t wordCount;
-    uint16_t i;
-
-    if (param == NULL)
-        return STK_STATUS_CMD_FAILED;
-
-    wordCount = stkGetLe16(param->numWords);
-    if (icspSetProgramAddress(stkAddress.dword) != ICSP_OK)
-        return STK_STATUS_CMD_FAILED;
-
-    for (i = 0; i < wordCount; i++)
-    {
-        uint16_t word = stkGetLe16(&param->data[i * 2U]);
-        if (icspProgWord(word) != ICSP_OK)
-            return STK_STATUS_CMD_FAILED;
-        if (i + 1U < wordCount)
-            stkAddress.dword++;
-    }
-    if (wordCount != 0U)
-        stkAddress.dword++;
-    return STK_STATUS_CMD_OK;
-}
-
-/* 按当前 STK 地址写入 PIC Flash, 成功后同步推进协议层地址。 */
-static uint16_t stkIcspReadFlash(const stkReadFlashIcsp_t *param, uint8_t *out)
-{
-    uint16_t wordCount;
-    uint16_t i;
-
-    if (param == NULL || out == NULL)
-        return 0U;
-
-    wordCount = stkGetLe16(param->numWords);
-    if (icspSetProgramAddress(stkAddress.dword) != ICSP_OK)
-    {
-        out[0] = STK_STATUS_CMD_FAILED;
-        return 1U;
-    }
-
-    out[0] = STK_STATUS_CMD_OK;
-    for (i = 0; i < wordCount; i++)
-    {
-        uint16_t word = icspReadWord();
-        stkPutLe16(&out[1 + i * 2U], word);
-        if (i + 1U < wordCount)
-            stkAddress.dword++;
-    }
-    if (wordCount != 0U)
-        stkAddress.dword++;
-    return (uint16_t)(1U + wordCount * 2U);
-}
-
-/* 按当前 STK 地址写入 PIC EEPROM, 成功后同步推进协议层地址。 */
-static uint8_t stkIcspProgramEeprom(const stkProgramEepromIcsp_t *param)
-{
-    uint16_t byteCount;
-    uint16_t i;
-
-    if (param == NULL)
-        return STK_STATUS_CMD_FAILED;
-    byteCount = stkGetLe16(param->numBytes);
-    if (icspSetEeAddress(stkAddress.dword) != ICSP_OK)
-        return STK_STATUS_CMD_FAILED;
-
-    for (i = 0; i < byteCount; i++)
-    {
-        if (icspProgEE(param->data[i]) != ICSP_OK)
-            return STK_STATUS_CMD_FAILED;
-        if (i + 1U < byteCount)
-            stkAddress.dword++;
-    }
-    if (byteCount != 0U)
-        stkAddress.dword++;
-    return STK_STATUS_CMD_OK;
-}
-
-/* 按当前 STK 地址写入 PIC EEPROM, 成功后同步推进协议层地址。 */
-static uint16_t stkIcspReadEeprom(const stkReadEepromIcsp_t *param, uint8_t *out)
-{
-    uint16_t byteCount;
-    uint16_t i;
-    uint8_t value;
-
-    if (param == NULL || out == NULL)
-        return 0U;
-    byteCount = stkGetLe16(param->numBytes);
-    if (icspSetEeAddress(stkAddress.dword) != ICSP_OK)
-    {
-        out[0] = STK_STATUS_CMD_FAILED;
-        return 1U;
-    }
-
-    out[0] = STK_STATUS_CMD_OK;
-    for (i = 0; i < byteCount; i++)
-    {
-        if (icspReadEE(&value) != ICSP_OK)
-        {
-            out[0] = STK_STATUS_CMD_FAILED;
-            return 1U;
-        }
-        out[1 + i] = value;
-        if (i + 1U < byteCount)
-            stkAddress.dword++;
-    }
-    if (byteCount != 0U)
-        stkAddress.dword++;
-    return (uint16_t)(1U + byteCount);
 }
 
 /* 根据 STK500 payload 生成完整 TX 帧, 输出到调用方指定的 TX 缓冲。 */
@@ -443,13 +332,13 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         memcpy(&pTx[STK_TXMSG_START + 2], string, sizeof(string));
         len.bytes[0] = 11;
     SWITCH_CASE(STK_CMD_SET_WORK_STATE)
-        /* 设置工作模式: 0=simulate, 1=online, 2=record, 3=online+record。 */
+        /* 设置工作模式: 0=simulate, 1=online, 2=record, 3=online+record。开机默认=online */
         if (stkSetWorkMode(pRx[STK_TXMSG_START + 1]) == 0U)
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
         else
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
     SWITCH_CASE(STK_CMD_SET_PROG_STATE)
-        /* 设置编程会话状态: 0=STOP_PROG 关闭离线包, 1=START_PROG 创建离线包。 */
+        /* 设置编程会话状态: 0=STOP_PROG 关闭离线包, 1=START_PROG 创建离线包。-----本指令只在“记录”模式下才会下发---- */
         if (pRx[STK_TXMSG_START + 1] > STK500_PROGRAM_RECORDING)
         {
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
@@ -520,7 +409,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
         }
     SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* 设置 STK 参数或器件身份信息。 */
-        if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)
+        if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)// 设置器件“身份信息”
         {
             pTx[STK_TXMSG_START + 1] = stkSetDeviceIdentity(
                 &pRx[STK_TXMSG_START + 2],
@@ -851,24 +740,28 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         {
             stkProgramFlashIcsp_t *icspParam = (stkProgramFlashIcsp_t *)param;
             uint8_t onlineStatus = stkIsOnlineMode() ?
-                stkIcspProgramFlash(icspParam) : STK_STATUS_CMD_OK;
+                icspProgramMemory(icspParam, 0U) : STK_STATUS_CMD_OK;
             pTx[STK_TXMSG_START + 1] = onlineStatus;
         }
     SWITCH_CASE(STK_CMD_READ_FLASH_ICSP)
         if (stkIsOnlineMode())
-            len.word = 1 + stkIcspReadFlash((stkReadFlashIcsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1]);
+            len.word = 1 + icspReadMemory((stkReadFlashIcsp_t *)param,
+                                          (stkReadFlashIcspResult_t *)&pTx[STK_TXMSG_START + 1],
+                                          0U);
         else
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
     SWITCH_CASE(STK_CMD_PROGRAM_EEPROM_ICSP)
         {
             stkProgramEepromIcsp_t *icspParam = (stkProgramEepromIcsp_t *)param;
             uint8_t onlineStatus = stkIsOnlineMode() ?
-                stkIcspProgramEeprom(icspParam) : STK_STATUS_CMD_OK;
+                icspProgramMemory((stkProgramFlashIcsp_t *)icspParam, 1U) : STK_STATUS_CMD_OK;
             pTx[STK_TXMSG_START + 1] = onlineStatus;
         }
     SWITCH_CASE(STK_CMD_READ_EEPROM_ICSP)
         if (stkIsOnlineMode())
-            len.word = 1 + stkIcspReadEeprom((stkReadEepromIcsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1]);
+            len.word = 1 + icspReadMemory((stkReadFlashIcsp_t *)param,
+                                          (stkReadFlashIcspResult_t *)&pTx[STK_TXMSG_START + 1],
+                                          1U);
         else
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
     SWITCH_CASE(STK_CMD_PROGRAM_CONFIG_ICSP)

@@ -1,6 +1,22 @@
 /*
  * 高压编程器控制实现 - DUT编程/擦除/校验时序控制
  */
+/*----------------------------------------------
+HVSR  Pin, 
+    SDI->PB0->Serial DAta Input
+    SII->PB1->Serial Instruction Input
+    SDO->PB2->Serial Data Output
+    SCI->PB3->Serial Clock Input
+    SCK->PB4->校准时钟输入--校准时使用
+
+    PB1 PB4  -  PB5
+    SII CLK  -  RST GND
+     2   4   6   8   10
+     1   3   5   7   9
+    SDI SDO  -  SCI VDD
+    PB0 PB2     PB3
+-----------------------------------------------*/
+
 
 #include "sys.h"
 #include "Hardware_Config.h"

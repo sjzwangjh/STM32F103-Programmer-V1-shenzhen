@@ -1801,3 +1801,126 @@ uint8_t pic8VerifySec(const pic8_section_desc_t *sec)
         return ICSP_ERR;
     }
 }
+
+/* ================================================================= */
+/* G: STK500v2 protocol adapter layer                                 */
+/*                                                                   */
+/* Moved from USER/Stk500Protocol.c (former stkIcspProgramFlash,     */
+/* stkIcspReadFlash, stkIcspProgramEeprom, stkIcspReadEeprom).       */
+/* Organized like isp.c / hvproc.c: the protocol command structs      */
+/* (stkProgramFlashIcsp_t / stkReadFlashIcsp_t) are taken directly   */
+/* and the target address comes from the protocol-layer global        */
+/* stkAddress (LOAD_ADDRESS register). The address is advanced after */
+/* every written/read unit, keeping the same behavior as before.     */
+/* ================================================================= */
+
+static uint16_t icspGetLe16(const uint8_t *bytes)
+{
+    return (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
+}
+
+static void icspPutLe16(uint8_t *bytes, uint16_t value)
+{
+    bytes[0] = (uint8_t)(value & 0xFFU);
+    bytes[1] = (uint8_t)(value >> 8);
+}
+
+/* Program flash words (isEeprom=0) or data EEPROM bytes (isEeprom=1)
+ * at the current protocol address, then advance stkAddress. */
+uint8_t icspProgramMemory(stkProgramFlashIcsp_t *param, uint8_t isEeprom)
+{
+    uint16_t count;
+    uint16_t i;
+
+    if (param == NULL)
+        return STK_STATUS_CMD_FAILED;
+
+    count = icspGetLe16(param->numWords);   /* EEPROM struct uses numBytes, same layout */
+    if (isEeprom)
+    {
+        if (icspSetEeAddress(stkAddress.dword) != ICSP_OK)
+            return STK_STATUS_CMD_FAILED;
+    }
+    else
+    {
+        if (icspSetProgramAddress(stkAddress.dword) != ICSP_OK)
+            return STK_STATUS_CMD_FAILED;
+    }
+
+    for (i = 0; i < count; i++)
+    {
+        if (isEeprom)
+        {
+            if (icspProgEE(param->data[i]) != ICSP_OK)
+                return STK_STATUS_CMD_FAILED;
+        }
+        else
+        {
+            uint16_t word = icspGetLe16(&param->data[i * 2U]);
+            if (icspProgWord(word) != ICSP_OK)
+                return STK_STATUS_CMD_FAILED;
+        }
+        if (i + 1U < count)
+            stkAddress.dword++;
+    }
+    if (count != 0U)
+        stkAddress.dword++;
+    return STK_STATUS_CMD_OK;
+}
+
+/* Read flash words (isEeprom=0) or data EEPROM bytes (isEeprom=1)
+ * from the current protocol address, then advance stkAddress.
+ * Returns status + data byte count (caller prepends the command byte). */
+uint16_t icspReadMemory(stkReadFlashIcsp_t *param,
+                        stkReadFlashIcspResult_t *result,
+                        uint8_t isEeprom)
+{
+    uint16_t count;
+    uint16_t i;
+
+    if (param == NULL || result == NULL)
+        return 0U;
+
+    count = icspGetLe16(param->numWords);   /* EEPROM struct uses numBytes, same layout */
+    if (isEeprom)
+    {
+        if (icspSetEeAddress(stkAddress.dword) != ICSP_OK)
+        {
+            result->status1 = STK_STATUS_CMD_FAILED;
+            return 1U;
+        }
+    }
+    else
+    {
+        if (icspSetProgramAddress(stkAddress.dword) != ICSP_OK)
+        {
+            result->status1 = STK_STATUS_CMD_FAILED;
+            return 1U;
+        }
+    }
+
+    result->status1 = STK_STATUS_CMD_OK;
+    for (i = 0; i < count; i++)
+    {
+        if (isEeprom)
+        {
+            uint8_t value;
+            if (icspReadEE(&value) != ICSP_OK)
+            {
+                result->status1 = STK_STATUS_CMD_FAILED;
+                return 1U;
+            }
+            result->data[i] = value;
+        }
+        else
+        {
+            uint16_t word = icspReadWord();
+            icspPutLe16(&result->data[i * 2U], word);
+        }
+        if (i + 1U < count)
+            stkAddress.dword++;
+    }
+    if (count != 0U)
+        stkAddress.dword++;
+    return (uint16_t)(1U + (isEeprom ? count : count * 2U));
+}

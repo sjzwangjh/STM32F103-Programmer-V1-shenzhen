@@ -199,11 +199,11 @@ void offlinePgmerInitWith(stkDeviceIdentity_t* di)
 
     g_activeDeviceParams.device_arch = di->arch;
     g_activeDeviceParams.device_index = di->index;
-    for(i=0;i<STK_DEVICE_ITEM_ID_LEN;i++)
+    for(i=0;i<STK_PARAM_ITEM_ID_LEN;i++)
     {
         pByte[i] = di->itemId[i];
     }
-    for(i=0;i<STK_DEVICE_ITEM_DESC_LEN;i++)
+    for(i=0;i<STK_PARAM_ITEM_DESC_LEN;i++)
     {
         g_activeDeviceParams.item_desc[i] = di->itemDesc[i];
     }
@@ -212,6 +212,11 @@ void offlinePgmerInitWith(stkDeviceIdentity_t* di)
     {
         (void)avrFindDeviceByIndex(g_activeDeviceParams.device_index,
                 &g_activeDeviceParams.device_params.avrParam);
+    }
+    else //STK_MCU_ARCH_PIC
+    {
+        (void)picFindDeviceByIndex(g_activeDeviceParams.device_index,
+                &g_activeDeviceParams.device_params.picParam);
     }
 }
 
