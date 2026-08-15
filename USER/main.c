@@ -60,11 +60,12 @@ int main(void)
     sysClockMHz = Stm32_Clock_Init(6);
     delay_init(sysClockMHz);
     uart_init(sysClockMHz,HW_DEBUG_BAUDRATE);
+		uart1_WriteString("app start...\r\n");
     if(sysClockMHz != 72U)
     {
-        uart1_WriteString("[BOOT] clock init failed, running on HSI 8MHz\r\n");
+        uart1_WriteString("[App] clock init failed, running on HSI 8MHz\r\n");
     }else{
-        uart1_WriteString("[BOOT] clock init success, running on HSI 72MHz\r\n");
+        uart1_WriteString("[App] clock init success, running on HSI 72MHz\r\n");
 		}
 
     LED_Init(); KEY_Init(); BEEP_Init();

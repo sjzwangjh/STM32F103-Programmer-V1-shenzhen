@@ -1,10 +1,10 @@
-#ifndef __SYS_H
+﻿#ifndef __SYS_H
 #define __SYS_H	  
 #include <stm32f10x.h>   
-//ϵͳʱ�ӳ�ʼ��	   
+//系统时钟初始化	   
 
-//-------- ����Ϊ��չ���������壬�����޸� --------
-// �� "B,5" ����ȡ�˿ں�����
+//-------- 以下为宏展开辅助定义，无需修改 --------
+// 从 "B,5" 中提取端口和引脚
 // GET_PORT_FROM(HARDWARE_LED0)  => B
 // GET_PIN_FROM(HARDWARE_LED0)   => 5
 #define GET_PORT_FROM(...)       GET_PORT_FROM_(__VA_ARGS__)
@@ -12,23 +12,23 @@
 #define GET_PIN_FROM(...)        GET_PIN_FROM_(__VA_ARGS__)
 #define GET_PIN_FROM_(x, y, ...) y
 
-// ƴ�ӳ� PBout��PEout ��λ������������
+// 拼接出 PBout、PEout 等位带操作函数名
 #define ARM_PORT_OUT(port)      ARM_PORT_OUT_(port)
 #define ARM_PORT_OUT_(port)     P##port##out
 
-// ��ȡ�˿�����ֵ��ARM_PORT_IN(B) => PBin
+// 读取端口输入值：ARM_PORT_IN(B) => PBin
 #define ARM_PORT_IN(port)       ARM_PORT_IN_(port)
 #define ARM_PORT_IN_(port)      P##port##in
 
-// �˿ڽṹ��ָ�룺ARM_PORT_GPIO(B) => GPIOB
+// 端口结构体指针：ARM_PORT_GPIO(B) => GPIOB
 #define ARM_PORT_GPIO(port)     ARM_PORT_GPIO_(port)
 #define ARM_PORT_GPIO_(port)    GPIO##port
 
-// CRL/CRH �Ĵ�����ARM_PORT_CRL(B) => GPIOB->CRL, ARM_PORT_CRH(B) => GPIOB->CRH
+// CRL/CRH 寄存器：ARM_PORT_CRL(B) => GPIOB->CRL, ARM_PORT_CRH(B) => GPIOB->CRH
 #define ARM_PORT_CRL(port)      (ARM_PORT_GPIO(port)->CRL)
 #define ARM_PORT_CRH(port)      (ARM_PORT_GPIO(port)->CRH)
 
-// RCC ʱ��ʹ�ܣ�ARM_PORT_RCC_CLK(B) ʹ�� GPIOB ʱ��
+// RCC 时钟使能：ARM_PORT_RCC_CLK(B) 使能 GPIOB 时钟
 #define ARM_PORT_RCC_CLK(port)  (RCC->APB2ENR |= (1 << (ARM_PORT_RCC_BIT(port))))
 #define ARM_PORT_RCC_BIT(port)  ARM_PORT_RCC_BIT_(port)
 #define ARM_PORT_RCC_BIT_(port) ARM_PORT_RCC_BIT_##port
@@ -39,19 +39,19 @@
 #define ARM_PORT_RCC_BIT_E      6
 #define ARM_PORT_RCC_BIT_F      7
 #define ARM_PORT_RCC_BIT_G      8
-// ���մ򿪶˿�ʱ��ʹ�õĺ궨��
+// 最终打开端口时钟使用的宏定义
 #define PORT_RCC_CLK(...)        ARM_PORT_RCC_CLK(GET_PORT_FROM(__VA_ARGS__))
 
-// GPIO ����/ģʽ���ø����꣺
-// cfg4bit Ϊ STM32F103 CRL/CRH �ж�Ӧ���ŵ� 4bit ����ֵ
-// ���磺
-//   0x3 = 50MHz ͨ���������
-//   0x7 = 50MHz ͨ�ÿ�©���
-//   0xB = 50MHz �����������
-//   0xF = 50MHz ���ÿ�©���
-//   0x4 = ��������
-//   0x8 = ����/��������
-//   0x0 = ģ������
+// GPIO 方向/模式设置辅助宏：
+// cfg4bit 为 STM32F103 CRL/CRH 中对应引脚的 4bit 配置值
+// 例如：
+//   0x3 = 50MHz 通用推挽输出
+//   0x7 = 50MHz 通用开漏输出
+//   0xB = 50MHz 复用推挽输出
+//   0xF = 50MHz 复用开漏输出
+//   0x4 = 浮空输入
+//   0x8 = 上拉/下拉输入
+//   0x0 = 模拟输入
 #define ARM_PORT_SET_CFG_(port, pin, cfg4bit) \
     do { \
         if ((pin) < 8U) \
@@ -60,71 +60,71 @@
             ARM_PORT_CRH(port) = (ARM_PORT_CRH(port) & ~((u32)0x0FU << (((pin) & 0x07U) << 2))) | ((u32)(cfg4bit) << (((pin) & 0x07U) << 2)); \
     } while (0)
 
-// 50MHz ͨ�����������CNF=00 MODE=11 => 0x3
+// 50MHz 通用推挽输出：CNF=00 MODE=11 => 0x3
 #define PORT_SET_DIR_PP(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x03U)
 
-// 50MHz ͨ�ÿ�©�����CNF=01 MODE=11 => 0x7
+// 50MHz 通用开漏输出：CNF=01 MODE=11 => 0x7
 #define PORT_SET_DIR_OUT_OC(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x07U)
 
-// 50MHz �������������CNF=10 MODE=11 => 0xB
+// 50MHz 复用推挽输出：CNF=10 MODE=11 => 0xB
 #define PORT_SET_DIR_OUT_MUX_PP(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x0BU)
 
-// 50MHz ���ÿ�©�����CNF=11 MODE=11 => 0xF
+// 50MHz 复用开漏输出：CNF=11 MODE=11 => 0xF
 #define PORT_SET_DIR_OUT_MUX_OC(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x0FU)
 
-// �������룺CNF=01 MODE=00 => 0x4
+// 浮空输入：CNF=01 MODE=00 => 0x4
 #define PORT_SET_DIR_IN_FLOAT(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x04U)
 
-// ģ�����룺CNF=00 MODE=00 => 0x0
+// 模拟输入：CNF=00 MODE=00 => 0x0
 #define PORT_SET_DIR_AIN(...) \
     ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x00U)
 
-// �������룺CNF=10 MODE=00 => 0x8���� ODR ��Ӧλд 1
+// 上拉输入：CNF=10 MODE=00 => 0x8，且 ODR 对应位写 1
 #define PORT_SET_DIR_IN_PU(...) \
     do { \
         ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x08U); \
         PORT_OUT(__VA_ARGS__) = 1; \
     } while (0)
 
-// �������룺CNF=10 MODE=00 => 0x8���� ODR ��Ӧλд 0
+// 下拉输入：CNF=10 MODE=00 => 0x8，且 ODR 对应位写 0
 #define PORT_SET_DIR_IN_PD(...) \
     do { \
         ARM_PORT_SET_CFG_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__), 0x08U); \
         PORT_OUT(__VA_ARGS__) = 0; \
     } while (0)
 
-// ���ݾ�����
+// 兼容旧名字
 #define PORT_SET_DIR_IN_UPLOAD(...) PORT_SET_DIR_IN_PU(__VA_ARGS__)
 
 
-//-------- ͳһ�Ķ˿�/���ŷ��ʺ� --------
+//-------- 统一的端口/引脚访问宏 --------
 #define PORT_OUT(...)            ARM_PORT_OUT(GET_PORT_FROM(__VA_ARGS__))(GET_PIN_FROM(__VA_ARGS__))
 #define PORT_IN(...)             ARM_PORT_IN(GET_PORT_FROM(__VA_ARGS__))(GET_PIN_FROM(__VA_ARGS__))
 #define PIN_MASK(...)            (1U << GET_PIN_FROM(__VA_ARGS__))
 
-/* -------- �ڶ��� GPIO �꣺ֱ��ʹ�� stm32f10x.h �е�λ���� --------
- * 1. Hardware_Config.h �м������� "B,5" ����д�����䡣
- * 2. ��һ������ CRL/CRH��IDR��BSRR��BRR��ODR ֱ�ӷ��ʼĴ�����
- * 3. ����д������Ч�����ӽ���
+/* -------- 第二套 GPIO 宏：直接使用 stm32f10x.h 中的位定义 --------
+ * 1. Hardware_Config.h 中继续保持 "B,5" 这种写法不变。
+ * 2. 这一组宏改用 CRL/CRH、IDR、BSRR、BRR、ODR 直接访问寄存器。
+ * 3. 这样写出来的效果更接近：
  *      GPIOE->CRL &= ~(GPIO_CRL_CNF4 | GPIO_CRL_MODE4);
  *      GPIOE->CRL |= GPIO_CRL_MODE4_0;
  *      GPIOE->BSRR = GPIO_BSRR_BS4;
  *      GPIOE->BRR  = GPIO_BRR_BR4;
  *
- * ˵����
- * "B,5" ��������Ȼᱻ��� port=B��pin=5��
- * ���� pin ������Ҫ�������ƴ�ӣ�����ƴ�� STM_IO_SET_SEL_5_FN��
- * Ԥ�����������Զ��� GET_PIN_FROM(...) �Ľ����չ����ƴ�ӡ�
- * ���������������չ����
+ * 说明：
+ * "B,5" 这类参数先会被拆成 port=B、pin=5。
+ * 由于 pin 后续还要参与宏名拼接，例如拼成 STM_IO_SET_SEL_5_FN，
+ * 预处理器不会自动把 GET_PIN_FROM(...) 的结果先展开再拼接。
+ * 所以这里采用两级展开：
  *   STM_IO_SET_(...) -> STM_IO_SET_X(...) -> STM_IO_SET_Y(...)
- * Ŀ����ȷ�� pin �ȱ�ɾ������֣��ٲ��� ## ƴ�ӡ�
- * �������һ�㣬�������ͻῴ������ STM_IO_SET_SEL_GET_PIN_FROM(...)
- * �����Ĵ������֣��Ӷ��� ��identifier E/B/D is undefined�� һ�����
+ * 目的是确保 pin 先变成具体数字，再参与 ## 拼接。
+ * 如果少这一层，编译器就会看到类似 STM_IO_SET_SEL_GET_PIN_FROM(...)
+ * 这样的错误名字，从而报 “identifier E/B/D is undefined” 一类错误。
  */
 #define STM_IO_GPIO(port)          GPIO##port
 #define STM_IO_SET_DIR_PP(...)     STM_IO_SET_DIR_PP_(GET_PORT_FROM(__VA_ARGS__), GET_PIN_FROM(__VA_ARGS__))
@@ -143,7 +143,7 @@
 #define STM_IO_CLR_(port, pin)             STM_IO_CLR_X(port, pin)
 #define STM_IO_TOGGLE_(port, pin)          STM_IO_TOGGLE_X(port, pin)
 
-/* X/Y ����չ�������ڡ��� pin ��չ�������֣��ٲ��� ## ƴ�ӡ��� */
+/* X/Y 两级展开仅用于“让 pin 先展开成数字，再参与 ## 拼接”。 */
 #define STM_IO_SET_DIR_PP_X(port, pin)     STM_IO_SET_DIR_PP_Y(port, pin)
 #define STM_IO_SET_DIR_IN_PD_X(port, pin)  STM_IO_SET_DIR_IN_PD_Y(port, pin)
 #define STM_IO_SET_DIR_IN_PU_X(port, pin)  STM_IO_SET_DIR_IN_PU_Y(port, pin)
@@ -160,7 +160,7 @@
 #define STM_IO_CLR_Y(port, pin)            STM_IO_CLR_SEL_##pin##_FN(STM_IO_GPIO(port))
 #define STM_IO_TOGGLE_Y(port, pin)         STM_IO_TOGGLE_SEL_##pin##_FN(STM_IO_GPIO(port))
 
-/* pin=0~7 ʹ�� CRL��ÿ�� pin ����һ��̶������� */
+/* pin=0~7 使用 CRL；每个 pin 生成一组固定函数。 */
 #define STM_IO_DEF_CRL(pin) \
     static __inline void STM_IO_SET_DIR_PP_SEL_##pin##_FN(GPIO_TypeDef *gpio) { gpio->CRL &= ~(GPIO_CRL_CNF##pin | GPIO_CRL_MODE##pin); gpio->CRL |= (GPIO_CRL_MODE##pin##_0 | GPIO_CRL_MODE##pin##_1); } \
     static __inline void STM_IO_SET_DIR_IN_PD_SEL_##pin##_FN(GPIO_TypeDef *gpio) { gpio->CRL &= ~(GPIO_CRL_CNF##pin | GPIO_CRL_MODE##pin); gpio->CRL |= GPIO_CRL_CNF##pin##_1; gpio->BRR = GPIO_BRR_BR##pin; } \
@@ -170,7 +170,7 @@
     static __inline void STM_IO_CLR_SEL_##pin##_FN(GPIO_TypeDef *gpio) { gpio->BRR = GPIO_BRR_BR##pin; } \
     static __inline void STM_IO_TOGGLE_SEL_##pin##_FN(GPIO_TypeDef *gpio) { gpio->ODR ^= GPIO_ODR_ODR##pin; }
 
-/* pin=8~15 ʹ�� CRH��������ͬ���� */
+/* pin=8~15 使用 CRH；与上面同理。 */
 #define STM_IO_DEF_CRH(pin) \
     static __inline void STM_IO_SET_DIR_PP_SEL_##pin##_FN(GPIO_TypeDef *gpio) { gpio->CRH &= ~(GPIO_CRH_CNF##pin | GPIO_CRH_MODE##pin); gpio->CRH |= (GPIO_CRH_MODE##pin##_0 | GPIO_CRH_MODE##pin##_1); } \
     static __inline void STM_IO_SET_DIR_IN_PD_SEL_##pin##_FN(GPIO_TypeDef *gpio) { gpio->CRH &= ~(GPIO_CRH_CNF##pin | GPIO_CRH_MODE##pin); gpio->CRH |= GPIO_CRH_CNF##pin##_1; gpio->BRR = GPIO_BRR_BR##pin; } \
@@ -199,12 +199,12 @@ STM_IO_DEF_CRH(15)
 
 #define SYSTEM_SUPPORT_UCOS		0
 
-//λ��������ʵ������ 51 ��Ƭ���� GPIO ���ƹ���
+//位带操作，实现类似 51 单片机的 GPIO 控制功能
 #define BITBAND(addr, bitnum) ((addr & 0xF0000000)+0x2000000+((addr &0xFFFFF)<<5)+(bitnum<<2)) 
 #define MEM_ADDR(addr)  *((volatile unsigned long  *)(addr)) 
 #define BIT_ADDR(addr, bitnum)   MEM_ADDR(BITBAND(addr, bitnum)) 
 
-//IO �ڵ�ַӳ��
+//IO 口地址映射
 #define GPIOA_ODR_Addr    (GPIOA_BASE+12)
 #define GPIOB_ODR_Addr    (GPIOB_BASE+12)
 #define GPIOC_ODR_Addr    (GPIOC_BASE+12)
@@ -221,7 +221,7 @@ STM_IO_DEF_CRH(15)
 #define GPIOF_IDR_Addr    (GPIOF_BASE+8)
 #define GPIOG_IDR_Addr    (GPIOG_BASE+8)
 
-//IO �ڲ�����ֻ�Ե�һ IO ��
+//IO 口操作，只对单一 IO 口
 #define PAout(n)   BIT_ADDR(GPIOA_ODR_Addr,n)
 #define PAin(n)    BIT_ADDR(GPIOA_IDR_Addr,n)
 #define PBout(n)   BIT_ADDR(GPIOB_ODR_Addr,n)
@@ -237,7 +237,7 @@ STM_IO_DEF_CRH(15)
 #define PGout(n)   BIT_ADDR(GPIOG_ODR_Addr,n)
 #define PGin(n)    BIT_ADDR(GPIOG_IDR_Addr,n)
 
-//Ex_NVIC_Config ר�ö���
+//Ex_NVIC_Config 专用定义
 #define GPIO_A 0
 #define GPIO_B 1
 #define GPIO_C 2
@@ -249,6 +249,7 @@ STM_IO_DEF_CRH(15)
 #define RTIR   2
 
 u8 Stm32_Clock_Init(u8 PLL);
+void AppProgrammer_EarlyTrace(void);
 void Sys_Soft_Reset(void);
 void Sys_Standby(void);
 void MY_NVIC_SetVectorTable(u32 NVIC_VectTab, u32 Offset);
@@ -260,7 +261,7 @@ void WFI_SET(void);
 void INTX_DISABLE(void);
 void INTX_ENABLE(void);
 void MSR_MSP(u32 addr);
-/* NULL ָ�붨�� */
+/* NULL 指针定义 */
 #ifndef NULL
 #define NULL ((void *)0)
 #endif

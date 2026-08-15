@@ -3,9 +3,10 @@
 
 #include "sys.h"
 #include <stdint.h>
-#include "Stk500Protocol.h"
 #include "avrDeviceConst.h"
 #include "picDeviceConst.h"
+#include "Stk500Protocol.h"
+
 
 /*
  * offLineRecorder 只负责“数据包记录”。
@@ -55,7 +56,7 @@ typedef union mcuParamUnion{
 typedef struct offlineDeviceParams{
     uint8_t     device_arch;        /* 器件架构: STK_MCU_ARCH_AVR / STK_MCU_ARCH_PIC */
     uint16_t    device_index;       /* 器件索引号, 来自上位机下发的 device identity */
-    uint32_t    item_id;            /* 项目 ID, 通常由 YYMMDDhhmmss 压缩得到 */
+    uint8_t     item_id[STK_PARAM_ITEM_ID_LEN]; /* 项目 ID, 按 device identity 原样保存 */
     uint8_t     item_desc[64];      /* 项目描述字符串 */
     mcuParamUnion_t device_params;  /* 当前器件的完整编程参数 */
     uint32_t    device_opeator_bit; /* 预留: 离线执行控制位 */

@@ -152,8 +152,15 @@ SystemInit_ExtMemCtl     PROC
 Reset_Handler   PROC
                 EXPORT  Reset_Handler             [WEAK]
                 IMPORT  __main
+                IMPORT  AppProgrammer_EarlyTrace
 
                 LDR     R0, = SystemInit_ExtMemCtl ; initialize external memory controller
+                BLX     R0
+
+                LDR     R1, = __initial_sp        ; restore original stack pointer
+                MSR     MSP, R1
+
+                LDR     R0, =AppProgrammer_EarlyTrace
                 BLX     R0
 
                 LDR     R0, =__main

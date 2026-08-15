@@ -162,8 +162,10 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
 {
     offline_package_index_t summary;
     uint16_t pos = 0U;
+    uint16_t minSize = (uint16_t)(1U + 1U + 2U + 4U + 4U + 4U + 4U + 1U + 2U +
+                                  STK_PARAM_ITEM_ID_LEN + STK_PARAM_ITEM_DESC_LEN);
 
-    if (out == 0 || outSize < 93U)
+    if (out == 0 || outSize < minSize)
         return 0U;
 
     if (offlinePgmerGetPackageSummary(index, &summary) != 0U)

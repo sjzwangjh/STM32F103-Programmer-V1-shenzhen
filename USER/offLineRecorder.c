@@ -14,6 +14,8 @@
  */
 
 #include "offLineRecorder.h"
+#include "avrDeviceConst.h"
+#include "picDeviceConst.h"
 #include "Stk500Protocol.h"
 #include "string.h"
 #include "flash.h"
@@ -195,13 +197,12 @@ void offlinePgmerInit(void)
 void offlinePgmerInitWith(stkDeviceIdentity_t* di)
 {
     uint16_t i;
-    uint8_t *pByte = (uint8_t *)&(g_activeDeviceParams.item_id);
 
     g_activeDeviceParams.device_arch = di->arch;
     g_activeDeviceParams.device_index = di->index;
     for(i=0;i<STK_PARAM_ITEM_ID_LEN;i++)
     {
-        pByte[i] = di->itemId[i];
+        g_activeDeviceParams.item_id[i] = di->itemId[i];
     }
     for(i=0;i<STK_PARAM_ITEM_DESC_LEN;i++)
     {
@@ -215,7 +216,7 @@ void offlinePgmerInitWith(stkDeviceIdentity_t* di)
     }
     else //STK_MCU_ARCH_PIC
     {
-        (void)picFindDeviceByIndex(g_activeDeviceParams.device_index,
+        (void)pic8FindDeviceByIndex(g_activeDeviceParams.device_index,
                 &g_activeDeviceParams.device_params.picParam);
     }
 }
