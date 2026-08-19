@@ -24,6 +24,7 @@
 #include "Hardware_Config.h"
 #include "delay.h"
 #include "timer.h"
+#include "usart.h"
 #include "icsp.h"
 #include <string.h>
 
@@ -154,6 +155,25 @@ static uint32_t     g_picCurrentAddress;           /* 当前PC地址值 */
 /* Forward declarations used by helper routines below. */
 static uint8_t icspWriteConfigWordAt(uint32_t targetAddr, uint16_t value, uint16_t waitUs);
 static uint8_t icspReadConfigWordAt(uint32_t targetAddr, uint16_t *value);
+static uint32_t icspGetBaselineConfigPhys(void);
+static uint32_t icspGetBaselinePcSpace(void);
+static uint8_t  icspRestartAndSyncCodeBase(void);
+static uint8_t  icspEnsureBaselineAtConfig(void);
+/*
+ * Clock-calibrated microsecond busy-wait (SYSCLK fixed at 72MHz).
+ * Each loop iteration costs ~4 CPU cycles, so 18 iterations give ~1us.
+ * All device wait values (wait_pgm_us / wait_erase_us / wait_cfg_us ...)
+ * are passed through ICSP_DELAY_US() so the struct values control the
+ * real programming delay time in microseconds.
+ */
+void icspDelayUs(uint32_t us)
+{
+    volatile uint32_t n = us * 18UL;
+    while (n-- != 0UL)
+    {
+    }
+}
+
 
 /* ================================================================= */
 /* 内部辅助函数                                                         */
@@ -260,7 +280,8 @@ static uint8_t icspGetConfigAddressByIndex(uint8_t idx, uint32_t *addr)
         return ICSP_ERR;
 
     /* 优先使用 DCRDef 中记录的物理地址 */
-    if (icsp_pdev->common.config_dcr[idx].dcr_addr != 0U)
+    if (!ICSP_IS_BASELINE_FAST() &&
+        icsp_pdev->common.config_dcr[idx].dcr_addr != 0U)
     {
         *addr = icsp_pdev->common.config_dcr[idx].dcr_addr;
         return ICSP_OK;
@@ -269,9 +290,7 @@ static uint8_t icspGetConfigAddressByIndex(uint8_t idx, uint32_t *addr)
     /* baseline 器件: 使用 config_shadow_addr 或按偏移计算 */
     if (ICSP_IS_BASELINE_FAST())
     {
-        *addr = (icsp_pdev->baseLine.config_shadow_addr != 0U) ?
-                icsp_pdev->baseLine.config_shadow_addr :
-                (icsp_pdev->common.config_addr + idx);
+        *addr = icspGetBaselineConfigPhys();
         return ICSP_OK;
     }
 
@@ -443,31 +462,6 @@ static uint8_t icspWriteWordByAbsoluteAddress(uint32_t targetAddr, uint16_t valu
  * @param  savedValue 擦除前保存的配置字原始值
  * @return 恢复时应写入的配置字值 (已合并未实现位)
  */
-static uint16_t icspBuildConfigRestoreValue(uint8_t idx, uint16_t savedValue)
-{
-    uint16_t widthMask;
-    uint16_t implMask;
-    uint16_t erasedDefault;
-    uint16_t unimplFill;
-
-    if (icsp_pdev == NULL || idx >= MAX_CONFIG_WORDS)
-        return savedValue;
-
-    widthMask = icspGetBitMask((icsp_pdev->common.config_dcr[idx].nzwidth != 0U) ?
-                               icsp_pdev->common.config_dcr[idx].nzwidth :
-                               g_picDataWidth);
-    implMask = icsp_pdev->common.config_dcr[idx].impl_mask;
-    erasedDefault = icsp_pdev->common.config_dcr[idx].default_value & widthMask;
-
-    if (implMask == 0U)
-        implMask = widthMask;
-
-    unimplFill = (icsp_pdev->common.config_dcr[idx].unimpl_val != 0U) ?
-                 (uint16_t)(widthMask & (~implMask)) :
-                 (uint16_t)(erasedDefault & (~implMask));
-
-    return (uint16_t)(((savedValue & implMask) | unimplFill) & widthMask);
-}
 
 /**
  * @brief  检查配置字当前是否处于已擦除状态
@@ -477,26 +471,6 @@ static uint16_t icspBuildConfigRestoreValue(uint8_t idx, uint16_t savedValue)
  * @param  readValue 从器件读取到的当前配置字值
  * @return 1=已擦除, 0=未擦除 (仍有数据)
  */
-static uint8_t icspIsConfigWordErased(uint8_t idx, uint16_t readValue)
-{
-    uint16_t widthMask;
-    uint16_t implMask;
-    uint16_t erasedDefault;
-
-    if (icsp_pdev == NULL || idx >= MAX_CONFIG_WORDS)
-        return 0U;
-
-    widthMask = icspGetBitMask((icsp_pdev->common.config_dcr[idx].nzwidth != 0U) ?
-                               icsp_pdev->common.config_dcr[idx].nzwidth :
-                               g_picDataWidth);
-    implMask = icsp_pdev->common.config_dcr[idx].impl_mask;
-    erasedDefault = icsp_pdev->common.config_dcr[idx].default_value & widthMask;
-
-    if (implMask == 0U)
-        implMask = widthMask;
-
-    return (((readValue & implMask) == (erasedDefault & implMask)) ? 1U : 0U);
-}
 
 /**
  * @brief  检查校准字当前是否处于已擦除状态 (全1)
@@ -602,6 +576,11 @@ static uint8_t icspRestoreCriticalWords(void)
         return ICSP_ERR;
 
     /* 恢复所有配置字 */
+    /* Config word is NOT rewritten after erase:
+     * flash programming can only clear bits, so restoring a code-protected
+     * (CP/CPD = 0) config would re-lock the chip and all program reads would
+     * return 0x0000. The host programs config words last anyway.
+     * Keep the post-erase read for debug to confirm the erase cleared it. */
     count = icspGetConfigWordCountEffective();
     for (idx = 0U; idx < count && idx < MAX_CONFIG_WORDS; idx++)
     {
@@ -612,12 +591,13 @@ static uint8_t icspRestoreCriticalWords(void)
             return ICSP_ERR;
         if (icspReadWordByAbsoluteAddress(targetAddr, &value) != ICSP_OK)
             return ICSP_ERR;
-        if (icspIsConfigWordErased(idx, value))
-        {
-            value = icspBuildConfigRestoreValue(idx, *slot);
-            if (icspWriteWordByAbsoluteAddress(targetAddr, value, icsp_pdev->common.wait_cfg_us) != ICSP_OK)
-                return ICSP_ERR;
-        }
+        #if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("ICSP erase cfg back=0x");
+        uart1_WriteHex16(*slot);
+        uart1_WriteString(" post=0x");
+        uart1_WriteHex16(value);
+        uart1_WriteString("\r\n");
+        #endif
     }
 
     /* 恢复 OSCCAL 校准字 */
@@ -763,6 +743,8 @@ static uint8_t icspGotoConfigAddress(uint32_t targetAddr)
     icspResetAddressRaw();
     icspLoadCmd(CMD_LOAD_CFG);
     ICSP_CMD_GAP_FAST();
+    icspLoadData(0xFFF, g_picDataWidth);  /* Load Config Data (dummy) */
+    ICSP_CMD_GAP_FAST();
     while (stepCount-- != 0U)
     {
         ICSP_INCREMENT_ADDRESS_FAST();
@@ -782,6 +764,24 @@ static uint8_t icspGotoConfigAddress(uint32_t targetAddr)
  *
  * @return ICSP_OK=成功, ICSP_ERR=失败
  */
+static uint32_t icspGetBaselineConfigPhys(void)
+{
+    if (icsp_pdev == NULL)
+        return 0U;
+    if (icsp_pdev->baseLine.config_shadow_addr != 0U)
+        return icsp_pdev->baseLine.config_shadow_addr;
+    return (icsp_pdev->common.code_end_addr << 1) - 1U;
+}
+
+static uint32_t icspGetBaselinePcSpace(void)
+{
+    if (icsp_pdev == NULL)
+        return 0U;
+    if (icsp_pdev->baseLine.config_shadow_addr != 0U)
+        return icsp_pdev->baseLine.config_shadow_addr + 1U;
+    return icsp_pdev->common.code_end_addr << 1;
+}
+
 static uint8_t icspRestartAndSyncCodeBase(void)
 {
     uint32_t initAddr = 0U;
@@ -822,10 +822,7 @@ static uint8_t icspRestartAndSyncCodeBase(void)
                 initAddr = codeSpan - 1U;
                 break;
             case PIC8_PC_INIT_AT_CONFIG:
-                if (icsp_pdev->baseLine.config_shadow_addr != 0U)
-                    initAddr = icsp_pdev->baseLine.config_shadow_addr;
-                else
-                    initAddr = codeSpan - 1U;
+                initAddr = icspGetBaselineConfigPhys();
                 break;
             case PIC8_PC_INIT_AT_ZERO:
             default:
@@ -835,6 +832,11 @@ static uint8_t icspRestartAndSyncCodeBase(void)
         }
     }
 
+    #if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ICSP restart init=0x");
+    uart1_WriteHex16((uint16_t)initAddr);
+    uart1_WriteString("\r\n");
+    #endif
     g_picCurrentArea = ICSP_AREA_PROGRAM;
     g_picCurrentAddress = initAddr;
     return ICSP_OK;
@@ -845,24 +847,34 @@ static uint8_t icspRestartAndSyncCodeBase(void)
  * @param  targetAddr 目标程序地址
  * @return 递增次数
  */
+static uint8_t icspEnsureBaselineAtConfig(void)
+{
+    uint32_t cfgPhys;
+
+    if (icsp_pdev == NULL)
+        return ICSP_ERR;
+    cfgPhys = icspGetBaselineConfigPhys();
+    if (g_picCurrentArea == ICSP_AREA_PROGRAM && g_picCurrentAddress == cfgPhys)
+        return ICSP_OK;
+    return icspRestartAndSyncCodeBase();
+}
+
 static uint32_t icspGetBaselineProgramSteps(uint32_t targetAddr)
 {
     uint32_t codeSpan = icsp_pdev->common.code_end_addr;
     uint32_t startAddr = 0U;
+    uint32_t pcSpace = icspGetBaselinePcSpace();
 
-    if (codeSpan == 0U)
+    if (pcSpace == 0U)
         return targetAddr;
 
     switch ((pic8_pc_init_mode_t)icsp_pdev->common.pc_init_mode)
     {
     case PIC8_PC_INIT_AT_TOP:
-        startAddr = codeSpan - 1U;
+        startAddr = (codeSpan != 0U) ? (codeSpan - 1U) : 0U;
         break;
     case PIC8_PC_INIT_AT_CONFIG:
-        if (icsp_pdev->baseLine.config_shadow_addr != 0U)
-            startAddr = icsp_pdev->baseLine.config_shadow_addr;
-        else
-            startAddr = codeSpan - 1U;
+        startAddr = icspGetBaselineConfigPhys();
         break;
     case PIC8_PC_INIT_AT_ZERO:
     default:
@@ -870,8 +882,8 @@ static uint32_t icspGetBaselineProgramSteps(uint32_t targetAddr)
         break;
     }
 
-    if (startAddr < codeSpan)
-        return (targetAddr + codeSpan - startAddr) % codeSpan;
+    if (startAddr < pcSpace)
+        return (targetAddr + pcSpace - startAddr) % pcSpace;
 
     return targetAddr;
 }
@@ -883,22 +895,51 @@ static uint32_t icspGetBaselineProgramSteps(uint32_t targetAddr)
  * @param  waitUs      编程等待时间（微秒）
  * @return ICSP_OK=成功, ICSP_ERR=失败
  */
+/* Reset the four write latches by loading all of them with '1's.
+ * Required after programming user ID / configuration words on 14-bit
+ * parts (spec: the latches are NOT auto-reset by config-space writes). */
+static uint8_t icspResetWriteLatches(void)
+{
+    uint8_t i;
+    uint16_t allOnes;
+
+    if (icsp_pdev == NULL)
+        return ICSP_ERR;
+    allOnes = icspGetBitMask(g_picDataWidth);
+    for (i = 0U; i < 4U; i++)
+    {
+        icspLoadCmd(ICSP_LOAD_PROG_CMD_FAST());
+        ICSP_CMD_GAP_FAST();
+        icspLoadData(allOnes, g_picDataWidth);
+        if (i < 3U)
+            ICSP_INCREMENT_ADDRESS_FAST();
+    }
+    return ICSP_OK;
+}
+
 static uint8_t icspWriteConfigWordAt(uint32_t targetAddr, uint16_t value, uint16_t waitUs)
 {
     if (icspGotoConfigAddress(targetAddr) != ICSP_OK)
         return ICSP_ERR;
 
+    #if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ICSP cfgW addr=0x");
+    uart1_WriteHex16((uint16_t)targetAddr);
+    uart1_WriteString(" val=0x");
+    uart1_WriteHex16(value);
+    uart1_WriteString(" w=");
+    uart1_WriteDec(g_picDataWidth);
+    uart1_WriteString("\r\n");
+    #endif
     icspLoadCmd(CMD_LOAD_PROG);
     ICSP_CMD_GAP_FAST();
     icspLoadData(value, g_picDataWidth);
     ICSP_BEGIN_PROGRAM_FAST(waitUs);
 
-    /*
-     * 编程操作不改变 PC 位置, 保持 g_picCurrentArea / g_picCurrentAddress 不变。
-     * ICSP_BEGIN_PROGRAM_FAST 可能包含 END_PROG (baseline), 但不影响 PC。
-     */
-    return ICSP_OK;
+    /* keep the write latches clean for the next program-memory write */
+    return icspResetWriteLatches();
 }
+
 
 /**
  * @brief  从配置空间指定地址读取一个配置字 (智能寻址)
@@ -922,6 +963,7 @@ static uint8_t icspReadConfigWordAt(uint32_t targetAddr, uint16_t *value)
      */
     return ICSP_OK;
 }
+
 
 /**
  * @brief  发送6位命令 (LSB first)
@@ -1114,7 +1156,13 @@ void icspExit(void)
     if (icsp_pdev != NULL)
         offDelay = icspGetDelayOrDefault(icsp_pdev->common.icsp_off_delay_us, 10U);
 
-    ICSP_VPP_OFF();
+    /* drive MCLR/VPP low so the chip really exits Program/Verify mode;
+     * floating the rail may leave the part inside programming mode and the
+     * PC is then NOT reset to 0x0000 on the next entry. */
+    ICSP_VPP_GND();
+    #if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ICSP exit: VPP->GND\r\n");
+    #endif
     ICSP_DELAY_US(10);
     ICSP_VDD_OFF();
     ICSP_DELAY_US(offDelay);                    /* TRESET */
@@ -1163,6 +1211,11 @@ uint8_t icspReadSignature(uint16_t *sig)
     if (sig == NULL)
         return ICSP_ERR;
     *sig = (uint16_t)icspReadDevID();
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("icspReadSignature: ");
+    uart1_WriteHex16(*sig);
+    uart1_WriteString("\r\n");
+#endif
     return (*sig != 0U) ? ICSP_OK : ICSP_ERR;
 }
 
@@ -1192,6 +1245,8 @@ uint8_t icspBulkErase(void)
     else
     {
         icspLoadCmd(CMD_LOAD_CFG);
+        ICSP_CMD_GAP_FAST();
+        icspLoadData(0xFFF, g_picDataWidth);  /* Load Config Data (dummy) */
         ICSP_CMD_GAP_FAST();
         icspLoadCmd(CMD_ERASE_PROG);
         ICSP_DELAY_US(icsp_pdev->common.wait_erase_us);
@@ -1323,6 +1378,15 @@ uint8_t icspSetProgramAddress(uint32_t addr)
 
     if (icsp_pdev == NULL)
         return ICSP_ERR;
+    #if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ICSP setPA req=0x");
+    uart1_WriteHex16((uint16_t)addr);
+    uart1_WriteString(" area=");
+    uart1_WriteDec(g_picCurrentArea);
+    uart1_WriteString(" cur=0x");
+    uart1_WriteHex16((uint16_t)g_picCurrentAddress);
+    uart1_WriteString("\r\n");
+    #endif
 
     /* === 情况1: 已在目标地址, 零操作 === */
     if (g_picCurrentArea == ICSP_AREA_PROGRAM && g_picCurrentAddress == addr)
@@ -1472,7 +1536,11 @@ uint8_t icspProgCfg(uint8_t idx, uint16_t val)
         return ICSP_ERR;
 
     if (icsp_pdev->common.core_family == PIC8_CORE_BASELINE_12BIT)
+    {
+        if (icspEnsureBaselineAtConfig() != ICSP_OK)
+            return ICSP_ERR;
         return icspWriteProgramWordAt(targetAddr, val, icsp_pdev->common.wait_cfg_us);
+    }
 
     /*
      * icspWriteConfigWordAt 内部调用 icspGotoConfigAddress,
@@ -1499,6 +1567,8 @@ uint16_t icspReadCfg(uint8_t idx)
 
     if (icsp_pdev->common.core_family == PIC8_CORE_BASELINE_12BIT)
     {
+        if (icspEnsureBaselineAtConfig() != ICSP_OK)
+            return 0xFFFF;
         if (icspReadProgramWordAt(targetAddr, &value) != ICSP_OK)
             return 0xFFFF;
         return value;
@@ -1510,6 +1580,15 @@ uint16_t icspReadCfg(uint8_t idx)
      */
     if (icspReadConfigWordAt(targetAddr, &value) != ICSP_OK)
         return 0xFFFF;
+    #if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ICSP cfgR idx=");
+    uart1_WriteDec(idx);
+    uart1_WriteString(" val=0x");
+    uart1_WriteHex16(value);
+    uart1_WriteString(" w=");
+    uart1_WriteDec(g_picDataWidth);
+    uart1_WriteString("\r\n");
+    #endif
     return value;
 }
 
@@ -1529,11 +1608,8 @@ uint8_t icspProgUID(uint8_t idx, uint16_t val)
 
     if (icsp_pdev->common.core_family == PIC8_CORE_BASELINE_12BIT)
     {
-        icspLoadCmd(CMD12_LOAD_PROG);
-        ICSP_CMD_GAP_FAST();
-        icspLoadData(val, g_picDataWidth);
-        ICSP_BEGIN_PROGRAM_FAST(icsp_pdev->common.wait_userid_us);
-        return ICSP_OK;
+        targetAddr = icsp_pdev->common.userid_base + idx;
+        return icspWriteWordByAbsoluteAddress(targetAddr, val, icsp_pdev->common.wait_userid_us);
     }
 
     if (idx >= icsp_pdev->common.userid_word_count && icsp_pdev->common.userid_word_count != 0U)
@@ -1560,7 +1636,11 @@ uint16_t icspReadUID(uint8_t idx)
 
     if (icsp_pdev == NULL || idx > 3) return 0xFFFF;
     if (icsp_pdev->common.core_family == PIC8_CORE_BASELINE_12BIT)
-        return icspReadWord();
+    {
+        if (icspReadWordByAbsoluteAddress(icsp_pdev->common.userid_base + idx, &value) != ICSP_OK)
+            return 0xFFFF;
+        return value;
+    }
 
     if (idx >= icsp_pdev->common.userid_word_count && icsp_pdev->common.userid_word_count != 0U)
         return 0xFFFF;
@@ -1618,41 +1698,6 @@ uint8_t icspWriteOSCCAL(uint8_t idx, uint16_t val)
 
 /* ================================================================= */
 /* E层: 校验与安全                                                     */
-/* ================================================================= */
-
-/**
- * @brief  校验程序区数据（框架函数，暂未实现）
- * @param  sec  section描述符
- * @return ICSP_OK=成功
- */
-uint8_t icspVerifyProg(const pic8_section_desc_t *sec)
-{
-    (void)sec;
-    return ICSP_OK;
-}
-
-/**
- * @brief  校验EEPROM区数据（框架函数，暂未实现）
- * @param  sec  section描述符
- * @return ICSP_OK=成功
- */
-uint8_t icspVerifyEE(const pic8_section_desc_t *sec)
-{
-    (void)sec;
-    return ICSP_OK;
-}
-
-/**
- * @brief  校验配置区数据（框架函数，暂未实现）
- * @param  sec  section描述符
- * @return ICSP_OK=成功
- */
-uint8_t icspVerifyCfg(const pic8_section_desc_t *sec)
-{
-    (void)sec;
-    return ICSP_OK;
-}
-
 /* ================================================================= */
 /* F层: Family 驱动入口                                                */
 /* ================================================================= */
@@ -1739,67 +1784,39 @@ void pic8LeaveProgmode(void)
      */
 }
 
-/**
- * @brief  编程一个section数据
- *         根据section_type分发到对应的编程函数
- * @param  sec  section描述符
- * @return ICSP_OK=成功, ICSP_ERR=失败
- */
-uint8_t pic8ProgSec(const pic8_section_desc_t *sec)
+/* ================================================================= */
+/* G2: User ID block helpers (absolute address, LE16 wire format)     */
+/* ================================================================= */
+
+uint8_t icspProgUserIdWords(uint32_t baseAddr, const uint8_t *data, uint16_t count)
 {
-    if (sec == NULL || icsp_pdev == NULL) return ICSP_ERR;
-    switch ((pic_section_type_t)sec->section_type)
+    uint16_t i;
+    if (data == NULL || icsp_pdev == NULL)
+        return ICSP_ERR;
+    for (i = 0U; i < count; i++)
     {
-    case PIC_SECTION_PROGRAM_MEMORY:
-    case PIC_SECTION_DATA_EEPROM:
-    case PIC_SECTION_CONFIG_WORDS:
-    case PIC_SECTION_USER_ID:
-    case PIC_SECTION_OSCCAL_BACKUP:
-    case PIC_SECTION_CALIBRATION_DATA:
-        /* 当前 section 描述符只给出了偏移信息，没有直接携带 payload 指针。 */
-        return ICSP_ERR;
-    case PIC_SECTION_DEVICE_ID_EXPECTED:
-        return ICSP_OK;
-    default:
-        return ICSP_ERR;
+        uint16_t word = (uint16_t)data[i * 2U] | ((uint16_t)data[i * 2U + 1U] << 8);
+        if (icspWriteWordByAbsoluteAddress(baseAddr + i, word,
+                                           icsp_pdev->common.wait_userid_us) != ICSP_OK)
+            return ICSP_ERR;
     }
+    return ICSP_OK;
 }
 
-/**
- * @brief  校验一个section数据
- *         根据section_type分发到对应的校验函数
- * @param  sec  section描述符
- * @return ICSP_OK=成功, ICSP_ERR=失败
- */
-uint8_t pic8VerifySec(const pic8_section_desc_t *sec)
+uint8_t icspReadUserIdWords(uint32_t baseAddr, uint8_t *out, uint16_t count)
 {
-    if (sec == NULL || icsp_pdev == NULL)
+    uint16_t i;
+    if (out == NULL || icsp_pdev == NULL)
         return ICSP_ERR;
-
-    switch ((pic_section_type_t)sec->section_type)
+    for (i = 0U; i < count; i++)
     {
-    case PIC_SECTION_PROGRAM_MEMORY:
-        return icspVerifyProg(sec);
-    case PIC_SECTION_DATA_EEPROM:
-        return icspVerifyEE(sec);
-    case PIC_SECTION_CONFIG_WORDS:
-    case PIC_SECTION_USER_ID:
-    case PIC_SECTION_OSCCAL_BACKUP:
-    case PIC_SECTION_CALIBRATION_DATA:
-        return icspVerifyCfg(sec);
-    case PIC_SECTION_DEVICE_ID_EXPECTED:
-    {
-        /* 读取Device ID并与期望值比较，支持掩码匹配 */
-        uint32_t deviceId = icspReadDevID();
-        uint32_t mask = (sec->expected_mask != 0U) ? sec->expected_mask : icsp_pdev->common.deviceid_mask;
-        uint32_t expect = (sec->expected_mask != 0U) ? sec->expected_value : icsp_pdev->common.deviceid_expected;
-        if (mask == 0U)
-            return (deviceId == expect) ? ICSP_OK : ICSP_ERR;
-        return ((deviceId & mask) == (expect & mask)) ? ICSP_OK : ICSP_ERR;
+        uint16_t word;
+        if (icspReadWordByAbsoluteAddress(baseAddr + i, &word) != ICSP_OK)
+            return ICSP_ERR;
+        out[i * 2U] = (uint8_t)(word & 0xFFU);
+        out[i * 2U + 1U] = (uint8_t)(word >> 8);
     }
-    default:
-        return ICSP_ERR;
-    }
+    return ICSP_OK;
 }
 
 /* ================================================================= */
@@ -1831,6 +1848,7 @@ uint8_t icspProgramMemory(stkProgramFlashIcsp_t *param, uint8_t isEeprom)
 {
     uint16_t count;
     uint16_t i;
+    uint16_t row;
 
     if (param == NULL)
         return STK_STATUS_CMD_FAILED;
@@ -1847,7 +1865,47 @@ uint8_t icspProgramMemory(stkProgramFlashIcsp_t *param, uint8_t isEeprom)
             return STK_STATUS_CMD_FAILED;
     }
 
-    for (i = 0; i < count; i++)
+    row = (icsp_pdev != NULL) ? icsp_pdev->common.row_pgm_words : 0U;
+    i = 0U;
+
+    /* Block (multi-word) programming for flash when the device table defines
+     * a row size of 2..8 words (e.g. 12F6XX 4-word mode). One Begin command
+     * programs the whole row; the write latches auto-reset for program memory. */
+    if (!isEeprom && row >= 2U && row <= 8U)
+    {
+        /* head: single words until the address is row-aligned */
+        while (i < count && ((stkAddress.dword + i) % row) != 0U)
+        {
+            uint16_t word = icspGetLe16(&param->data[i * 2U]);
+            if (icspProgWord(word) != ICSP_OK)
+                return STK_STATUS_CMD_FAILED;
+            ICSP_INCREMENT_ADDRESS_FAST();
+            stkAddress.dword++;
+            i++;
+        }
+
+        /* aligned rows: load row words, one Begin, one trailing increment */
+        while (i + row <= count)
+        {
+            uint16_t k;
+            for (k = 0U; k < row; k++)
+            {
+                uint16_t word = icspGetLe16(&param->data[(i + k) * 2U]);
+                icspLoadCmd(ICSP_LOAD_PROG_CMD_FAST());
+                ICSP_CMD_GAP_FAST();
+                icspLoadData(word, g_picDataWidth);
+                if (k + 1U < row)
+                    ICSP_INCREMENT_ADDRESS_FAST();
+            }
+            ICSP_BEGIN_PROGRAM_FAST(icsp_pdev->common.wait_pgm_us);
+            ICSP_INCREMENT_ADDRESS_FAST();
+            stkAddress.dword += row;
+            i += row;
+        }
+    }
+
+    /* tail (and the whole block when row programming is not active) */
+    for (; i < count; i++)
     {
         if (isEeprom)
         {
@@ -1861,7 +1919,10 @@ uint8_t icspProgramMemory(stkProgramFlashIcsp_t *param, uint8_t isEeprom)
                 return STK_STATUS_CMD_FAILED;
         }
         if (i + 1U < count)
+        {
+            ICSP_INCREMENT_ADDRESS_FAST();
             stkAddress.dword++;
+        }
     }
     if (count != 0U)
         stkAddress.dword++;
@@ -1918,7 +1979,10 @@ uint16_t icspReadMemory(stkReadFlashIcsp_t *param,
             icspPutLe16(&result->data[i * 2U], word);
         }
         if (i + 1U < count)
+        {
+            ICSP_INCREMENT_ADDRESS_FAST();
             stkAddress.dword++;
+        }
     }
     if (count != 0U)
         stkAddress.dword++;

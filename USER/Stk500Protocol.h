@@ -1,4 +1,4 @@
-/*
+ï»¿/*
  * STK500?????????????????????- ?????????????????/???????????????????????????????
  */
 
@@ -22,11 +22,12 @@
  * External called from main loop: stkPoll()
  */
 
+/* Boot/App å…¬å…±å¥‘çº¦ï¼šEEPROM å¯åŠ¨æ¨¡å¼æ ‡å¿—ç­‰ï¼Œä¸ Boot å·¥ç¨‹å…±ç”¨åŒä¸€æ¥æº */
+#include "bootAppCommon.h"
+
 #define BUFFER_SIZE     281 /* results in 275 bytes max body size */
 #define RX_TIMEOUT      200 /* timeout in milliseconds */
 
-#define EEPROM_BOOT_MODE_ADDR       0x0200U
-#define EEPROM_BOOT_MODE_UPDATE     0xFFU
 /* STK_CMD_FIRMWARE_UPGRADE payload magic; must match STM32F103VET6_BootLoader_PC. */
 #define STK_FW_UPGRADE_MAGIC0       0xA5U
 #define STK_FW_UPGRADE_MAGIC1       0x5AU
@@ -458,13 +459,13 @@ void    stkIncrementAddress(void);
 #define STK_MCU_PROGRAM_WITH_ICSP       3
 #define STK_MCU_PROGRAM_WITH_JTAG       4
 
-/* ÉÏÎ»»úÏÂ·¢Ö¸Áî STK_CMD_SET_PARAMETER -> STK_PARAM_DEVICE_IDENTITY ¶ÔÓ¦µÄ½á¹¹Ìå */
+/* ä¸Šä½æœºä¸‹å‘æŒ‡ä»¤ STK_CMD_SET_PARAMETER -> STK_PARAM_DEVICE_IDENTITY å¯¹åº”çš„ç»“æ„ä½“ */
 typedef struct
 {
-    uint8_t arch;     // Æ÷¼şÀàĞÍ£º0= AVR, 1 = PIC
-    uint16_t index;     // Æ÷¼şË÷Òı (0~65535)
-    uint8_t itemId[STK_PARAM_ITEM_ID_LEN];     // ÏîÄ¿ID, ÓÃÓÚÎ¨Ò»±êÊ¶Ò»¸öÏîÄ¿£¨Ò»¸öÉÕÂ¼ÈÎÎñ£©
-    char itemDesc[STK_PARAM_ITEM_DESC_LEN + 1];// ÏîÄ¿ÃèÊö, ÓÃÓÚÏÔÊ¾ÏîÄ¿µÄĞÅÏ¢
+    uint8_t arch;     // å™¨ä»¶ç±»å‹ï¼š0= AVR, 1 = PIC
+    uint16_t index;     // å™¨ä»¶ç´¢å¼• (0~65535)
+    uint8_t itemId[STK_PARAM_ITEM_ID_LEN];     // é¡¹ç›®ID, ç”¨äºå”¯ä¸€æ ‡è¯†ä¸€ä¸ªé¡¹ç›®ï¼ˆä¸€ä¸ªçƒ§å½•ä»»åŠ¡ï¼‰
+    char itemDesc[STK_PARAM_ITEM_DESC_LEN + 1];// é¡¹ç›®æè¿°, ç”¨äºæ˜¾ç¤ºé¡¹ç›®çš„ä¿¡æ¯
 } stkDeviceIdentity_t;
 
 

@@ -14,8 +14,8 @@
 
 // 基于Hardware_Config.h中的"扩展宏定义"-----
 // 扩展宏定义--PIC 编程器ICSP接口----CLK/DAT/LVP----
-#define HWPIN_ICSP_CLK          HW_DUT_PIN4_DAT     // ICSPCLK
-#define HWPIN_ICSP_DAT          HW_DUT_PIN5_DAT     // ICSPDAT
+#define HWPIN_ICSP_DAT          HW_DUT_PIN4_DAT     // ICSPDAT
+#define HWPIN_ICSP_CLK          HW_DUT_PIN5_DAT     // ICSPCLK
 #define HWPIN_ICSP_LVP          HW_DUT_PIN6_DAT     // PGM (LVP控制)
 
 // ICSP电源控制宏定义
@@ -39,19 +39,20 @@
 /* VPP 操作 */
 #define ICSP_VPP_ON()           do{ PORT_RCC_CLK(HW_DUT_VPP_VH_ON); PORT_RCC_CLK(HW_DUT_VPP_VL_ON); ICSP_HVP_ON; }while(0)
 #define ICSP_VPP_OFF()          ICSP_HVP_OFF
+#define ICSP_VPP_GND()          ICSP_HVP_GND
 
 /* CLK 操作 */
 #define ICSP_CLK_H()            PORT_OUT(HWPIN_ICSP_CLK) = 1
 #define ICSP_CLK_L()            PORT_OUT(HWPIN_ICSP_CLK) = 0
-#define ICSP_CLK_OUT()          DUT_PIN4_SET_OUTPUT
-#define ICSP_CLK_IN()           DUT_PIN4_SET_INPUT
+#define ICSP_CLK_OUT()          DUT_PIN5_SET_OUTPUT
+#define ICSP_CLK_IN()           DUT_PIN5_SET_INPUT
 
 /* DAT 操作 */
 #define ICSP_DAT_H()            PORT_OUT(HWPIN_ICSP_DAT) = 1
 #define ICSP_DAT_L()            PORT_OUT(HWPIN_ICSP_DAT) = 0
 #define ICSP_DAT_R()            (PORT_IN(HWPIN_ICSP_DAT))
-#define ICSP_DAT_OUT()          DUT_PIN5_SET_OUTPUT
-#define ICSP_DAT_IN()           DUT_PIN5_SET_INPUT
+#define ICSP_DAT_OUT()          DUT_PIN4_SET_OUTPUT
+#define ICSP_DAT_IN()           DUT_PIN4_SET_INPUT
 
 /* LVP/PGM 操作 */
 #define ICSP_LVP_H()            PORT_OUT(HWPIN_ICSP_LVP) = 1
@@ -60,7 +61,8 @@
 #define ICSP_LVP_IN()           DUT_PIN6_SET_INPUT
 
 /* 微秒延时 */
-#define ICSP_DELAY_US(n)        do{ volatile uint32_t _i_ = (uint32_t)(n) * 12UL; while(_i_--){} }while(0)
+void icspDelayUs(uint32_t us);
+#define ICSP_DELAY_US(n)        icspDelayUs((uint32_t)(n))
 #define ICSP_CLK_DELAY          ICSP_DELAY_US(1)
 
 /* ================================================================= */
@@ -110,6 +112,8 @@ uint8_t  icspProgUID(uint8_t idx, uint16_t val);
 uint16_t icspReadUID(uint8_t idx);
 uint16_t icspReadOSCCAL(uint8_t idx);
 uint8_t  icspWriteOSCCAL(uint8_t idx, uint16_t val);
+uint8_t  icspProgUserIdWords(uint32_t baseAddr, const uint8_t *data, uint16_t count);
+uint8_t  icspReadUserIdWords(uint32_t baseAddr, uint8_t *out, uint16_t count);
 /* ================================================================= */
 /* D2: STK500v2 protocol adapter layer (same layout as isp.c/hvproc.c) */
 /* ================================================================= */
@@ -123,9 +127,6 @@ uint16_t icspReadMemory(stkReadFlashIcsp_t *param,
 /* E层: 校验与安全                                                     */
 /* ================================================================= */
 
-uint8_t icspVerifyProg(const pic8_section_desc_t *sec);
-uint8_t icspVerifyEE(const pic8_section_desc_t *sec);
-uint8_t icspVerifyCfg(const pic8_section_desc_t *sec);
 
 /* ================================================================= */
 /* F层: Family 驱动入口                                                */
@@ -134,8 +135,6 @@ uint8_t icspVerifyCfg(const pic8_section_desc_t *sec);
 void    pic8Init(const pic_prog_params_t *dev);
 uint8_t pic8EnterProgmode(uint8_t preferLvp);
 void    pic8LeaveProgmode(void);
-uint8_t pic8ProgSec(const pic8_section_desc_t *sec);
-uint8_t pic8VerifySec(const pic8_section_desc_t *sec);
 
 #endif /* __ICSP_H__ */
 

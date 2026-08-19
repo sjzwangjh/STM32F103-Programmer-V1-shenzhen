@@ -24,6 +24,10 @@ extern u16 USART_RX_STA;         		//接收状态标记
 // 写环形缓冲区（发送），如果缓冲区满则等待
 void uart1_WriteByte(u8 data);
 void uart1_WriteString(const char *str);
+// uart1 format output interfaces (hex/dec)
+void uart1_WriteHex8(u8 value);
+void uart1_WriteHex16(u16 value);
+void uart1_WriteDec(u16 value);
 
 // 读环形缓冲区（接收），返回1表示成功读到数据，0表示缓冲区空
 u8   uart1_ReadByte(u8 *data);

@@ -1,6 +1,7 @@
 /* Auto-generated avrDeviceConst.c from avrdude-avr-init.xml */
 /* AVR 器件参数常量表 — 存储 392 个 AVR 器件的 ISP 编程参数 */
 #include "avrDeviceConst.h"
+#include "Hardware_Config.h"
 #include <string.h>
 #include <stdio.h>
 #include "usart.h"
@@ -587,6 +588,9 @@ int avrFindDeviceByName(const char* n, avr_prog_params_t* out)
 int avrFindDeviceByIndex(uint16_t idx, avr_prog_params_t* out)
 {
     if (out == NULL || idx >= AVR_DEVICE_COUNT) return -1;
+    #if DEBUG_HARDWARE_CONFIG
+        printf("avrFindDeviceByIndex: idx=%u, name=%s\r\n", idx, g_avrDeviceTable[idx].avrName);
+    #endif 
     return avrAggregateParams(&g_avrDeviceTable[idx], out);
 }
 

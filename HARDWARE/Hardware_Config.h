@@ -7,14 +7,24 @@
 #ifndef __HARDWARE_CONFIG_H__
 #define __HARDWARE_CONFIG_H__
 
+/* Boot/App 公共契约：App 分区地址、EEPROM 标志、RAM 跳转痕迹。
+ * 本文件与 Boot 工程 USER\bootAppCommon.h 各存一份，修改时需同步。 */
+#include "bootAppCommon.h"
+
+/* App 起始地址：
+ * - USE_BOOTLOADER（配合 Boot 烧录）：采用 bootAppCommon.h 定义，0x0800C000；
+ * - 独立运行（整片烧录，无 Boot）：覆盖为 0x08000000。 */
 #ifdef USE_BOOTLOADER
-  #define APP_START_ADDER  0x0800C000   // bootloader 占 48KB
+  /* 保持 bootAppCommon.h 中的 APP_START_ADDER（0x0800C000） */
 #else
+  #undef  APP_START_ADDER
   #define APP_START_ADDER  0x08000000   // 独立运行
 #endif
 
 #define  DEBUG_HARDWARE_CONFIG      1       // 硬件调试标志
 
+/* STK500v2 SIGN_ON 回复中的烧录器标识（首字节=字符串长度，末字节 0 用于 sizeof），修改只需改这里。 */
+#define  PROGRAMMER_ID_STR   {8, 'S', 'T', 'K', '5', '0', '0', '_', '2', 0}
 #define  HW_USB_HID_SPEED_FULL      1       // USB HID 全速模式（1=全速，0=USB1.1兼容模式）
 
 /* -------- LED -------- */
@@ -123,4 +133,3 @@
 
 
 #endif
-

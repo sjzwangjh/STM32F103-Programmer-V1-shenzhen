@@ -1,12 +1,12 @@
 /*
  * STK500v2 协议解析模块
  *
- * 本模块负责解析上位机发送的 STK500v2 数据帧, 并把命令分发到
- * AVR ISP/HVSP/HVPP、PIC ICSP 以及离线数据包记录模块。
+ * 本模块负责解析上位机发送的 STK500v2 数据�? 并把命令分发�?
+ * AVR ISP/HVSP/HVPP、PIC ICSP 以及离线数据包记录模块�?
  *
- * 数据来源支持两类: USB HID 在线通讯和 Flash 离线回放。
+ * 数据来源支持两类: USB HID 在线通讯�?Flash 离线回放�?
  * stkEvaluateRxMessage() 通过 stkDataFrame_t 同时接收 RX/TX 缓冲,
- * 从而避免在线 TX 和离线判定 TX 互相交叉。
+ * 从而避免在�?TX 和离线判�?TX 互相交叉�?
  */
 
 #include "Stk500Protocol.h"
@@ -15,22 +15,23 @@
 #include "isp.h"
 #include "hvproc.h"
 #include "icsp.h"
+#include "picDeviceConst.h"
 #include "offLineRecorder.h"
 #include "eeprom.h"
 #include "usart.h"
 
-/* 上报给上位机的 STK500 版本号。 */
+/* 上报给上位机�?STK500 版本号�?*/
 #define STK_VERSION_HW      1
 #define STK_VERSION_MAJOR   2
 #define STK_VERSION_MINOR   4
 
-/* USB HID 接收链使用的全局 RX 缓冲, 只保存当前在线收到的一帧。 */
+/* USB HID 接收链使用的全局 RX 缓冲, 只保存当前在线收到的一帧�?*/
 static uint8_t      rxBuffer[BUFFER_SIZE];
 static uint16_t     rxPos;
 static utilWord_t   rxLen;
 static uint8_t      rxBlockAvailable;
 
-/* USB HID 发送链使用的全局 TX 缓冲。Flash 回放使用调用方传入的独立 TX 缓冲。 */
+/* USB HID 发送链使用的全局 TX 缓冲。Flash 回放使用调用方传入的独立 TX 缓冲�?*/
 static uint8_t      txBuffer[BUFFER_SIZE];
 static uint16_t     txPos, txLen;
 
@@ -42,23 +43,27 @@ stkParam_t      stkParam = {{
                 }};
 utilDword_t     stkAddress;
 
-/* 全局变量: 记录上位机下发的器件和项目身份信息。 */
+/* 全局变量: 记录上位机下发的器件和项目身份信息�?*/
 static stkDeviceIdentity_t g_stkDeviceIdentity;
+/* ICSP session-level deviceID precheck flag: reset after each ENTER_PROGMODE_ICSP */
+static uint8_t g_stkIcspDeviceIdChecked;
 
-/* 从小端字节流中读取 16 位数据。 */
+/* 从小端字节流中读�?16 位数据�?*/
 static uint16_t stkGetLe16(const uint8_t *bytes);
-/* 将 16 位数据按小端格式写入字节流。 */
+/* �?16 位数据按小端格式写入字节流�?*/
 static void stkPutLe16(uint8_t *bytes, uint16_t value);
-/* 保存上位机下发的器件和项目身份信息, 后续会写入 Raw 离线包头。 */
+/* 保存上位机下发的器件和项目身份信�? 后续会写�?Raw 离线包头�?*/
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen);
-/* 将当前器件和项目身份信息打包返回给上位机。 */
+/* 将当前器件和项目身份信息打包返回给上位机�?*/
 static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize);
-/* 打包离线包总体信息: 有效包数量、激活包序号、最大包数量。 */
+/* 打包离线包总体信息: 有效包数量、激活包序号、最大包数量�?*/
 static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize);
-/* 打包指定离线包摘要, 供上位机查看 Flash 中的记录内容。 */
+/* 打包指定离线包摘�? 供上位机查看 Flash 中的记录内容�?*/
 static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t index);
+/* ICSP first-write deviceID verification helper. Skip when no valid expected value exists. */
+static uint8_t stkEnsureIcspDeviceIdVerified(void);
 
-/* 保留 AVR-Doper 的 switch 宏风格, 便于和原始协议分发结构对照。 */
+/* 保留 AVR-Doper �?switch 宏风�? 便于和原始协议分发结构对照�?*/
 #define SWITCH_START        switch(cmd){{
 #define SWITCH_CASE(value)  }break; case (value):{
 #define SWITCH_CASE2(v1,v2) }break; case (v1): case(v2):{
@@ -67,7 +72,7 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
 #define SWITCH_DEFAULT      }break; default:{
 #define SWITCH_END          }}
 
-/* 离线模式下的记录状态: 0=空闲(IDLE), 1=记录中 */
+/* 离线模式下的记录状�? 0=空闲(IDLE), 1=记录�?*/
 uint8_t g_stkProgrammerState = STK500_PROGRAM_IDLE;
 
 /* Firmware-upgrade request flag: set after the EEPROM boot-mode flag is written and read back OK. */
@@ -78,20 +83,76 @@ uint8_t stkFwUpgradeRequested(void)
     return g_stkFwUpgradePending;
 }
 
-/* 从小端字节流中读取 16 位数据。 */
+/* 从小端字节流中读�?16 位数据�?*/
 static uint16_t stkGetLe16(const uint8_t *bytes)
 {
     return (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
 }
 
-/* 将 16 位数据按小端格式写入字节流。 */
+/* �?16 位数据按小端格式写入字节流�?*/
 static void stkPutLe16(uint8_t *bytes, uint16_t value)
 {
     bytes[0] = (uint8_t)(value & 0xFFU);
     bytes[1] = (uint8_t)(value >> 8);
 }
 
-/* 保存上位机下发的器件和项目身份信息, 后续会写入 Raw 离线包头。此指令每次编程都要下发 */
+static uint8_t stkEnsureIcspDeviceIdVerified(void)
+{
+    pic_prog_params_t picParams;
+    uint16_t readValue = 0U;
+    uint16_t mask;
+    uint16_t expect;
+
+    if (g_stkIcspDeviceIdChecked != 0U)
+        return STK_STATUS_CMD_OK;
+
+    g_stkIcspDeviceIdChecked = 1U;
+
+    if (g_stkDeviceIdentity.arch != 1U)
+        return STK_STATUS_CMD_OK;
+
+    if (pic8FindDeviceByIndex(g_stkDeviceIdentity.index, &picParams) != 0)
+    {
+        uart1_WriteString("ICSP deviceID check failed: PIC device params not found\r\n");
+        return STK_STATUS_CMD_FAILED;
+    }
+
+    if (picParams.common.deviceid_addr == 0U ||
+        picParams.common.deviceid_expected == 0U)
+    {
+        uart1_WriteString("ICSP deviceID check skipped: no valid expected deviceID\r\n");
+        return STK_STATUS_CMD_OK;
+    }
+
+    if (icspReadSignature(&readValue) != ICSP_OK)
+    {
+        uart1_WriteString("ICSP deviceID read failed\r\n");
+        return STK_STATUS_CMD_FAILED;
+    }
+
+    mask = picParams.common.deviceid_mask;
+    expect = picParams.common.deviceid_expected;
+    if ((readValue & mask) != (expect & mask))
+    {
+        uart1_WriteString("ICSP deviceID mismatch: read=0x");
+        uart1_WriteHex16(readValue);
+        uart1_WriteString(" expect=0x");
+        uart1_WriteHex16(expect);
+        uart1_WriteString(" mask=0x");
+        uart1_WriteHex16(mask);
+        uart1_WriteString("\r\n");
+        return STK_STATUS_CMD_FAILED;
+    }
+
+    uart1_WriteString("ICSP deviceID verified: read=0x");
+    uart1_WriteHex16(readValue);
+    uart1_WriteString(" mask=0x");
+    uart1_WriteHex16(mask);
+    uart1_WriteString("\r\n");
+    return STK_STATUS_CMD_OK;
+}
+
+/* 保存上位机下发的器件和项目身份信�? 后续会写�?Raw 离线包头。此指令每次编程都要下发 */
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
 {
     if (payload == NULL)
@@ -108,10 +169,17 @@ static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
            STK_PARAM_ITEM_DESC_LEN);
     g_stkDeviceIdentity.itemDesc[STK_PARAM_ITEM_DESC_LEN] = '\0';
     offlinePgmerInitWith(&g_stkDeviceIdentity);
+    /* DFM: resolve the PIC device for the ICSP engine (arch 1 = PIC) */
+    if (g_stkDeviceIdentity.arch == 1U) {
+        static pic_prog_params_t picParams;
+        if (pic8FindDeviceByIndex(g_stkDeviceIdentity.index, &picParams) == 0)
+            pic8Init(&picParams);
+    }
+    g_stkIcspDeviceIdChecked = 0U;
     return STK_STATUS_CMD_OK;
 }
 
-/* 将当前器件和项目身份信息打包返回给上位机。 */
+/* 将当前器件和项目身份信息打包返回给上位机�?*/
 static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize)
 {
     uint16_t needLen;
@@ -140,7 +208,7 @@ static void stkPutLe32(uint8_t *bytes, uint32_t value)
     bytes[3] = (uint8_t)((value >> 24) & 0xFFU);
 }
 
-/* 打包离线包总体信息: 有效包数量、激活包序号、最大包数量。 */
+/* 打包离线包总体信息: 有效包数量、激活包序号、最大包数量�?*/
 static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize)
 {
     offline_package_info_t info;
@@ -157,7 +225,7 @@ static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize)
     return 6U;
 }
 
-/* 打包指定离线包摘要, 供上位机查看 Flash 中的记录内容。 */
+/* 打包指定离线包摘�? 供上位机查看 Flash 中的记录内容�?*/
 static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t index)
 {
     offline_package_index_t summary;
@@ -187,7 +255,7 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
     return pos;
 }
 
-/* 根据 STK500 payload 生成完整 TX 帧, 输出到调用方指定的 TX 缓冲。 */
+/* 根据 STK500 payload 生成完整 TX �? 输出到调用方指定�?TX 缓冲�?*/
 static uint16_t stkSetTxMessage(uint8_t *out, uint16_t outSize, uint16_t len, uint8_t seq)
 {
     uint8_t *p;
@@ -239,7 +307,7 @@ static uint8_t getParameter(uint8_t index)
 }
 
 #if DEBUG_HARDWARE_CONFIG
-/* 简洁调试: 数据来源名 */
+/* 简洁调�? 数据来源�?*/
 static const char *stkSourceName(uint8_t src)
 {
     switch (src)
@@ -251,33 +319,30 @@ static const char *stkSourceName(uint8_t src)
     }
 }
 
-static void stkDebugWriteHex8(uint8_t value)
-{
-    static const char hexTable[] = "0123456789ABCDEF";
-    uart1_WriteByte((uint8_t)hexTable[(value >> 4) & 0x0F]);
-    uart1_WriteByte((uint8_t)hexTable[value & 0x0F]);
-}
 
-static void stkDebugWriteDec(uint16_t value)
+static void stkIcspTrace(const char *tag, uint32_t addr, const uint8_t *data, uint16_t n)
 {
-    char buf[6];
-    uint8_t n = 0U;
-    if (value == 0U)
+    uint16_t i;
+    uart1_WriteString(tag);
+    uart1_WriteString(" a=0x");
+    uart1_WriteHex8((uint8_t)(addr >> 24U));
+    uart1_WriteHex8((uint8_t)(addr >> 16U));
+    uart1_WriteHex8((uint8_t)(addr >> 8U));
+    uart1_WriteHex8((uint8_t)addr);
+    if (data != NULL && n != 0U)
     {
-        uart1_WriteByte('0');
-        return;
+        uart1_WriteString(" d:");
+        for (i = 0U; i < n; i++)
+        {
+            uart1_WriteString(" ");
+            uart1_WriteHex8(data[i]);
+        }
     }
-    while (value > 0U && n < sizeof(buf))
-    {
-        buf[n++] = (char)('0' + (value % 10U));
-        value /= 10U;
-    }
-    while (n > 0U)
-        uart1_WriteByte((uint8_t)buf[--n]);
+    uart1_WriteString("\r\n");
 }
 #endif
 
-/* 解析一帧完整 STK500 数据。USB 来源会进入 HID TX, Flash 来源只生成本地 TX 判定结果。 */
+/* 解析一帧完�?STK500 数据。USB 来源会进�?HID TX, Flash 来源只生成本�?TX 判定结果�?*/
 void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
 {
     uint8_t     i, cmd;
@@ -300,12 +365,12 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         return;
 
 #if DEBUG_HARDWARE_CONFIG
-    /* 简洁调试: 只打印数据来源、方向、命令ID、数据包大小。 */
+    /* 简洁调�? 只打印数据来源、方向、命令ID、数据包大小�?*/
     uart1_WriteString(stkSourceName(pDataFrame->source));
     uart1_WriteString(" RX cmd=0x");
-    stkDebugWriteHex8(pRx[STK_TXMSG_START]);
+    uart1_WriteHex8(pRx[STK_TXMSG_START]);
     uart1_WriteString(" len=");
-    stkDebugWriteDec(pDataFrame->frameLen);
+    uart1_WriteDec(pDataFrame->frameLen);
     uart1_WriteString("\r\n");
 #endif
 
@@ -329,18 +394,18 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     
     SWITCH_START
     SWITCH_CASE(STK_CMD_SIGN_ON)
-        /* 获取烧录器标识。 */
-        static const char string[] = {8, 'S', 'T', 'K', '5', '0', '0', '_', '2', 0};
+        /* 获取烧录器标识�?*/
+        static const char string[] = PROGRAMMER_ID_STR;
         memcpy(&pTx[STK_TXMSG_START + 2], string, sizeof(string));
-        len.bytes[0] = 11;
+        len.bytes[0] = (uint8_t)(sizeof(string) + 1U);
     SWITCH_CASE(STK_CMD_SET_WORK_STATE)
-        /* 设置工作模式: 0=simulate, 1=online, 2=record, 3=online+record。开机默认=online */
+        /* 设置工作模式: 0=simulate, 1=online, 2=record, 3=online+record。开机默�?online */
         if (stkSetWorkMode(pRx[STK_TXMSG_START + 1]) == 0U)
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
         else
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
     SWITCH_CASE(STK_CMD_SET_PROG_STATE)
-        /* 设置编程会话状态: 0=STOP_PROG 关闭离线包, 1=START_PROG 创建离线包。-----本指令只在“记录”模式下才会下发---- */
+        /* 设置编程会话状�? 0=STOP_PROG 关闭离线�? 1=START_PROG 创建离线包�?----本指令只在“记录”模式下才会下发---- */
         if (pRx[STK_TXMSG_START + 1] > STK500_PROGRAM_RECORDING)
         {
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
@@ -410,8 +475,8 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 (offlinePgmerSetActivePackage(index) == 0U) ?
                 STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
         }
-    SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* 设置 STK 参数或器件身份信息。 */
-        if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)// 设置器件“身份信息”
+    SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* 设置 STK 参数或器件身份信息�?*/
+        if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)// 设置器件“身份信息�?
         {
             pTx[STK_TXMSG_START + 1] = stkSetDeviceIdentity(
                 &pRx[STK_TXMSG_START + 2],
@@ -449,7 +514,16 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         for(i = 0; i < 4; i++){
             stkAddress.bytes[3 - i] = pRx[STK_TXMSG_START + 1 + i];
         }
-    SWITCH_CASE(STK_CMD_FIRMWARE_UPGRADE)   /* 该命令由上位机在升级固件前发送, 以便烧录器进入升级模式。 */
+#if DEBUG_HARDWARE_CONFIG
+        /* 诊断用：打印上位机每次下发的字地址，确认是否在同一页反复读写�?*/
+        uart1_WriteString("HID LOAD addr=0x");
+        uart1_WriteHex8(stkAddress.bytes[3]);
+        uart1_WriteHex8(stkAddress.bytes[2]);
+        uart1_WriteHex8(stkAddress.bytes[1]);
+        uart1_WriteHex8(stkAddress.bytes[0]);
+        uart1_WriteString("\r\n");
+#endif
+    SWITCH_CASE(STK_CMD_FIRMWARE_UPGRADE)   /* 该命令由上位机在升级固件前发�? 以便烧录器进入升级模式�?*/
         {
             /* Payload must carry the magic bytes: cmd + 0xA5 0x5A. */
             if (payloadLen >= 3U &&
@@ -484,7 +558,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             }
         }
     SWITCH_CASE(STK_CMD_SET_CONTROL_STACK)
-        /* AVR Studio 探测能力时会发送该命令, 这里保持 AVR-Doper 的兼容行为。 */
+        /* AVR Studio 探测能力时会发送该命令, 这里保持 AVR-Doper 的兼容行为�?*/
 #if ENABLE_HVPROG
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_HVSP)
         {
@@ -668,12 +742,27 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 ispProgramMemory(ispParam, 0) : STK_STATUS_CMD_OK;
             uint8_t recStatus = STK_STATUS_CMD_OK;
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
+#if DEBUG_HARDWARE_CONFIG
+            /* 诊断用：打印页写命令实际返回的状态（0=OK）�?*/
+            uart1_WriteString("HID WRITE st=0x");
+            uart1_WriteHex8(pTx[STK_TXMSG_START + 1]);
+            uart1_WriteString("\r\n");
+#endif
         }
     SWITCH_CASE(STK_CMD_READ_FLASH_ISP)
         if (stkIsOnlineMode())
             len.word = 1 + ispReadMemory((stkReadFlashIsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1], 0);
         else
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+#if DEBUG_HARDWARE_CONFIG
+        /* 诊断用：打印读回数据�?4 字节�?xFF 说明目标片没写进去）�?*/
+        uart1_WriteString("HID READ data=");
+        uart1_WriteHex8(pTx[STK_TXMSG_START + 2]);
+        uart1_WriteHex8(pTx[STK_TXMSG_START + 3]);
+        uart1_WriteHex8(pTx[STK_TXMSG_START + 4]);
+        uart1_WriteHex8(pTx[STK_TXMSG_START + 5]);
+        uart1_WriteString("\r\n");
+#endif
     SWITCH_CASE(STK_CMD_PROGRAM_EEPROM_ISP)
         {
             stkProgramFlashIsp_t *ispParam = (stkProgramFlashIsp_t *)param;
@@ -720,95 +809,194 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             len.word = 1 + ispMulti((stkMultiIsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1]);
         else
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
-        /*------------------- PIC ICSP 命令处理开始 -------------------*/
+        /*------------------- PIC ICSP 命令处理开�?-------------------*/
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_ICSP)
         {
-            /* 进入 ICSP 模式时, 上位机下发模式: 0=高压, 1=低压。 */
-            uint8_t recStatus = STK_STATUS_CMD_OK;
+            /* 进入 ICSP 模式�? 上位机下发模�? 0=高压, 1=低压�?*/
             uint8_t onlineStatus = stkIsOnlineMode() ?
                 pic8EnterProgmode((uint8_t)(pRx[STK_TXMSG_START + 1] & 0x01U)) :
                 STK_STATUS_CMD_OK;
-            pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
+            g_stkIcspDeviceIdChecked = 0U;
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP40", 0U, &pRx[STK_TXMSG_START + 1], 4U);
+#endif
+            pTx[STK_TXMSG_START + 1] = (onlineStatus != STK_STATUS_CMD_OK) ?
+                STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
         }
     SWITCH_CASE(STK_CMD_LEAVE_PROGMODE_ICSP)
         {
             if (stkIsOnlineMode())
                 pic8LeaveProgmode();
+            g_stkIcspDeviceIdChecked = 0U;
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP41", stkAddress.dword, NULL, 0U);
+#endif
         }
     SWITCH_CASE(STK_CMD_CHIP_ERASE_ICSP)
-        pTx[STK_TXMSG_START + 1] = stkIsOnlineMode() ?
-            icspBulkErase() : STK_STATUS_CMD_OK;
+        {
+            uint8_t eraseStatus = STK_STATUS_CMD_OK;
+            if (stkIsOnlineMode())
+            {
+                eraseStatus = stkEnsureIcspDeviceIdVerified();
+                if (eraseStatus == STK_STATUS_CMD_OK)
+                    eraseStatus = icspBulkErase();
+            }
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP42", stkAddress.dword, &pRx[STK_TXMSG_START + 1], 2U);
+#endif
+            pTx[STK_TXMSG_START + 1] = (eraseStatus != STK_STATUS_CMD_OK) ?
+                STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
+        }
     SWITCH_CASE(STK_CMD_PROGRAM_FLASH_ICSP)
         {
             stkProgramFlashIcsp_t *icspParam = (stkProgramFlashIcsp_t *)param;
-            uint8_t onlineStatus = stkIsOnlineMode() ?
-                icspProgramMemory(icspParam, 0U) : STK_STATUS_CMD_OK;
+            uint8_t onlineStatus = STK_STATUS_CMD_OK;
+            if (stkIsOnlineMode())
+            {
+                onlineStatus = stkEnsureIcspDeviceIdVerified();
+                if (onlineStatus == STK_STATUS_CMD_OK)
+                    onlineStatus = icspProgramMemory(icspParam, 0U);
+            }
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP43", stkAddress.dword, &pRx[STK_TXMSG_START + 1],
+                         (uint16_t)((payloadLen > 1U) ? (payloadLen - 1U) : 0U));
+#endif
             pTx[STK_TXMSG_START + 1] = onlineStatus;
         }
     SWITCH_CASE(STK_CMD_READ_FLASH_ICSP)
-        if (stkIsOnlineMode())
-            len.word = 1 + icspReadMemory((stkReadFlashIcsp_t *)param,
-                                          (stkReadFlashIcspResult_t *)&pTx[STK_TXMSG_START + 1],
-                                          0U);
-        else
-            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        {
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP44Q", stkAddress.dword, &pRx[STK_TXMSG_START + 1], 3U);
+#endif
+            if (stkIsOnlineMode())
+                len.word = 1 + icspReadMemory((stkReadFlashIcsp_t *)param,
+                                              (stkReadFlashIcspResult_t *)&pTx[STK_TXMSG_START + 1],
+                                              0U);
+            else
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP44A", stkAddress.dword, &pTx[STK_TXMSG_START + 2],
+                         (uint16_t)((len.word > 2U) ? (len.word - 2U) : 0U));
+#endif
+        }
     SWITCH_CASE(STK_CMD_PROGRAM_EEPROM_ICSP)
         {
             stkProgramEepromIcsp_t *icspParam = (stkProgramEepromIcsp_t *)param;
-            uint8_t onlineStatus = stkIsOnlineMode() ?
-                icspProgramMemory((stkProgramFlashIcsp_t *)icspParam, 1U) : STK_STATUS_CMD_OK;
+            uint8_t onlineStatus = STK_STATUS_CMD_OK;
+            if (stkIsOnlineMode())
+            {
+                onlineStatus = stkEnsureIcspDeviceIdVerified();
+                if (onlineStatus == STK_STATUS_CMD_OK)
+                    onlineStatus = icspProgramMemory((stkProgramFlashIcsp_t *)icspParam, 1U);
+            }
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP45", stkAddress.dword, &pRx[STK_TXMSG_START + 1],
+                         (uint16_t)((payloadLen > 1U) ? (payloadLen - 1U) : 0U));
+#endif
             pTx[STK_TXMSG_START + 1] = onlineStatus;
         }
     SWITCH_CASE(STK_CMD_READ_EEPROM_ICSP)
-        if (stkIsOnlineMode())
-            len.word = 1 + icspReadMemory((stkReadFlashIcsp_t *)param,
-                                          (stkReadFlashIcspResult_t *)&pTx[STK_TXMSG_START + 1],
-                                          1U);
-        else
-            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        {
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP46Q", stkAddress.dword, &pRx[STK_TXMSG_START + 1], 3U);
+#endif
+            if (stkIsOnlineMode())
+                len.word = 1 + icspReadMemory((stkReadFlashIcsp_t *)param,
+                                              (stkReadFlashIcspResult_t *)&pTx[STK_TXMSG_START + 1],
+                                              1U);
+            else
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+#if DEBUG_HARDWARE_CONFIG
+            stkIcspTrace("ICSP46A", stkAddress.dword, &pTx[STK_TXMSG_START + 2],
+                         (uint16_t)((len.word > 2U) ? (len.word - 2U) : 0U));
+#endif
+        }
     SWITCH_CASE(STK_CMD_PROGRAM_CONFIG_ICSP)
         {
-            stkProgramConfigIcsp_t *icspParam = (stkProgramConfigIcsp_t *)param;
-            uint16_t cfgValue = stkGetLe16(icspParam->value);
-            uint8_t onlineStatus = stkIsOnlineMode() ?
-                icspProgCfg(icspParam->index, cfgValue) : STK_STATUS_CMD_OK;
-            uint8_t recStatus = STK_STATUS_CMD_OK;
-            pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
+            stkProgramFlashIcsp_t *icspParam = (stkProgramFlashIcsp_t *)param;
+            uint16_t cfgCount = stkGetLe16(icspParam->numWords);
+            uint16_t cfgIdx;
+            uint8_t onlineStatus = STK_STATUS_CMD_OK;
+            if (stkIsOnlineMode())
+            {
+                onlineStatus = stkEnsureIcspDeviceIdVerified();
+                #if DEBUG_HARDWARE_CONFIG
+                uart1_WriteString("ICSP47 raw=");
+                uart1_WriteHex16(stkGetLe16(icspParam->data));
+                uart1_WriteString("\r\n");
+                #endif
+                for (cfgIdx = 0U; cfgIdx < cfgCount && cfgIdx < MAX_CONFIG_WORDS && onlineStatus == STK_STATUS_CMD_OK; cfgIdx++)
+                {
+                    uint16_t cfgValue = stkGetLe16(&icspParam->data[cfgIdx * 2U]);
+                    onlineStatus = (icspProgCfg(cfgIdx, cfgValue) != ICSP_OK) ?
+                                   STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
+                }
+            }
+            pTx[STK_TXMSG_START + 1] = (onlineStatus != STK_STATUS_CMD_OK) ?
+                STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
         }
     SWITCH_CASE(STK_CMD_READ_CONFIG_ICSP)
         {
-            uint16_t value = 0xFFFFU;
+            stkReadFlashIcsp_t *icspParam = (stkReadFlashIcsp_t *)param;
+            uint16_t cfgCount = stkGetLe16(icspParam->numWords);
+            uint16_t cfgIdx;
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
             if (stkIsOnlineMode())
-                value = icspReadCfg(((stkReadConfigIcsp_t *)param)->index);
-            pTx[STK_TXMSG_START + 1] =
-                (stkIsOnlineMode() && value != 0xFFFFU) ? STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
-            stkPutLe16(&pTx[STK_TXMSG_START + 2], value);
-            len.bytes[0] = 4;
+            {
+                for (cfgIdx = 0U; cfgIdx < cfgCount && cfgIdx < MAX_CONFIG_WORDS; cfgIdx++)
+                {
+                    uint16_t cfgValue = icspReadCfg(cfgIdx);
+                    if (cfgValue == 0xFFFFU)
+                    {
+                        pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+                        break;
+                    }
+                    stkPutLe16(&pTx[STK_TXMSG_START + 2 + cfgIdx * 2U], cfgValue);
+                }
+            }
+            else
+            {
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+            }
+            /* cmd echo + status + cfgCount*2 data bytes */
+            len.word = (uint16_t)(2U + cfgCount * 2U);
         }
     SWITCH_CASE(STK_CMD_PROGRAM_USER_ID_ICSP)
         {
-            stkProgramUserIdIcsp_t *icspParam = (stkProgramUserIdIcsp_t *)param;
-            uint16_t value = stkGetLe16(icspParam->value);
-            uint8_t onlineStatus = stkIsOnlineMode() ?
-                icspProgUID(icspParam->index, value) : STK_STATUS_CMD_OK;
-            uint8_t recStatus = STK_STATUS_CMD_OK;
-            pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
+            stkProgramFlashIcsp_t *icspParam = (stkProgramFlashIcsp_t *)param;
+            uint16_t uidCount = stkGetLe16(icspParam->numWords);
+            uint8_t onlineStatus = STK_STATUS_CMD_OK;
+            if (stkIsOnlineMode())
+            {
+                onlineStatus = stkEnsureIcspDeviceIdVerified();
+                if (onlineStatus == STK_STATUS_CMD_OK)
+                    onlineStatus = (icspProgUserIdWords(stkAddress.dword, icspParam->data, uidCount) != ICSP_OK) ?
+                                   STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
+                if (onlineStatus == STK_STATUS_CMD_OK && uidCount != 0U)
+                    stkAddress.dword += uidCount;
+            }
+            pTx[STK_TXMSG_START + 1] = (onlineStatus != STK_STATUS_CMD_OK) ?
+                STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
         }
     SWITCH_CASE(STK_CMD_READ_USER_ID_ICSP)
         {
-            uint16_t value = 0xFFFFU;
+            stkReadFlashIcsp_t *icspParam = (stkReadFlashIcsp_t *)param;
+            uint16_t uidCount = stkGetLe16(icspParam->numWords);
+            uint8_t rdStatus = STK_STATUS_CMD_FAILED;
             if (stkIsOnlineMode())
-                value = icspReadUID(((stkReadUserIdIcsp_t *)param)->index);
-            pTx[STK_TXMSG_START + 1] =
-                (stkIsOnlineMode() && value != 0xFFFFU) ? STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
-            stkPutLe16(&pTx[STK_TXMSG_START + 2], value);
-            len.bytes[0] = 4;
+                rdStatus = (icspReadUserIdWords(stkAddress.dword, (uint8_t *)&pTx[STK_TXMSG_START + 2], uidCount) != ICSP_OK) ?
+                           STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
+            pTx[STK_TXMSG_START + 1] = rdStatus;
+            /* cmd echo + status + uidCount*2 data bytes */
+            len.word = (uint16_t)(2U + uidCount * 2U);
         }
     SWITCH_CASE(STK_CMD_READ_SIGNATURE_ICSP)
         {
             uint16_t value = 0U;
-            pTx[STK_TXMSG_START + 1] = stkIsOnlineMode() ?
-                icspReadSignature(&value) : STK_STATUS_CMD_FAILED;
+            if (stkIsOnlineMode() && icspReadSignature(&value) == ICSP_OK)
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            else
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
             stkPutLe16(&pTx[STK_TXMSG_START + 2], value);
             len.bytes[0] = 4;
         }
@@ -826,12 +1014,17 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         {
             stkWriteOsccalIcsp_t *icspParam = (stkWriteOsccalIcsp_t *)param;
             uint16_t value = stkGetLe16(icspParam->value);
-            uint8_t onlineStatus = stkIsOnlineMode() ?
-                icspWriteOSCCAL(icspParam->index, value) : STK_STATUS_CMD_OK;
-            uint8_t recStatus = STK_STATUS_CMD_OK;
-            pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
+            uint8_t onlineStatus = STK_STATUS_CMD_OK;
+            if (stkIsOnlineMode())
+            {
+                onlineStatus = stkEnsureIcspDeviceIdVerified();
+                if (onlineStatus == STK_STATUS_CMD_OK)
+                    onlineStatus = icspWriteOSCCAL(icspParam->index, value);
+            }
+            pTx[STK_TXMSG_START + 1] = (onlineStatus != STK_STATUS_CMD_OK) ?
+                STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
         }
-    /* PIC ICSP 命令处理结束。 */
+    /* PIC ICSP 命令处理结束�?*/
     SWITCH_DEFAULT
         pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
     SWITCH_END
@@ -850,15 +1043,15 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     {
         uart1_WriteString(stkSourceName(pDataFrame->source));
         uart1_WriteString(" TX cmd=0x");
-        stkDebugWriteHex8(cmd);
+        uart1_WriteHex8(cmd);
         uart1_WriteString(" len=");
-        stkDebugWriteDec(pDataFrame->txFrameLen);
+        uart1_WriteDec(pDataFrame->txFrameLen);
         uart1_WriteString("\r\n");
     }
 #endif
 }
 
-/* USB HID 在线入口: 逐字节组装 STK500 帧并校验 XOR 校验和。 */
+/* USB HID 在线入口: 逐字节组�?STK500 帧并校验 XOR 校验和�?*/
 static uint8_t g_rxSource = STK_DATA_SOURCE_USB_HID;
 static uint8_t g_txSource = STK_DATA_SOURCE_USB_HID;
 static void stkAssemble(uint8_t c);
@@ -945,7 +1138,7 @@ int stkGetTxByte(void)
     return c;
 }
 
-/* 主循环轮询入口: 将 USB RX/TX 缓冲包装成 stkDataFrame_t 后交给协议解析。 */
+/* 主循环轮询入�? �?USB RX/TX 缓冲包装�?stkDataFrame_t 后交给协议解析�?*/
 void stkPoll(void)
 {
     if(rxBlockAvailable){

@@ -6,7 +6,7 @@
 * Version            : V2.2.0
 * Date               : 06/13/2008
 * Description        : All processings related to UsbHidDev Mouse Demo
-*                 : USB HID è±¸?HID ?
+*                 : USB HID è±?HID ?
 ********************************************************************************
 * THE PRESENT FIRMWARE WHICH IS FOR GUIDANCE ONLY AIMS AT PROVIDING CUSTOMERS
 * WITH CODING INFORMATION REGARDING THEIR PRODUCTS IN ORDER FOR THEM TO SAVE TIME.
@@ -69,14 +69,14 @@ DEVICE Device_Table =
 
 DEVICE_PROP Device_Property =
   {
-    UsbHidDev_init,                 /* è±¸? */
-    UsbHidDev_Reset,                /* è±¸Î» */
+    UsbHidDev_init,                 /* è±? */
+    UsbHidDev_Reset,                /* è±¸Î?*/
     UsbHidDev_Status_In,            /* ?? */
     UsbHidDev_Status_Out,           /* ?? */
     UsbHidDev_Data_Setup,           /*  */
     UsbHidDev_NoData_Setup,         /*  */
     UsbHidDev_Get_Interface_Setting,/* ?? */
-    UsbHidDev_GetDeviceDescriptor,  /* ?è±¸ */
+    UsbHidDev_GetDeviceDescriptor,  /* ?è±?*/
     UsbHidDev_GetConfigDescriptor,  /* ? */
     UsbHidDev_GetStringDescriptor,  /* ?? */
 
@@ -92,8 +92,8 @@ USER_STANDARD_REQUESTS User_Standard_Requests =
     UsbHidDev_GetStatus,            /* ??? */
     UsbHidDev_ClearFeature,         /*  */
     UsbHidDev_SetEndPointFeature,   /* ?? */
-    UsbHidDev_SetDeviceFeature,     /* è±¸ */
-    UsbHidDev_SetDeviceAddress      /* è±¸? */
+    UsbHidDev_SetDeviceFeature,     /* è±?*/
+    UsbHidDev_SetDeviceAddress      /* è±? */
   };
 
 static ONE_DESCRIPTOR g_customDesc;
@@ -131,7 +131,7 @@ ONE_DESCRIPTOR String_Descriptor[4] =
     {(u8*)UsbHidDev_StringLangID, USB_HID_DEV_SIZ_STRING_LANGID},
     {(u8*)UsbHidDev_StringVendor, USB_HID_DEV_SIZ_STRING_VENDOR},
     {(u8*)UsbHidDev_StringProduct, USB_HID_DEV_SIZ_STRING_PRODUCT},
-    {0, 0}                                      /* no serial */
+    {(u8*)UsbHidDev_StringSerial, USB_HID_DEV_SIZ_STRING_SERIAL}  /* serial */
                                                 /* Ðº */
   };
 
@@ -169,7 +169,7 @@ static u8 *CDC_SetLineCodingData(u16 Length)
 * Function Name  : UsbHidDev_init.
 *           : UsbHidDev_init
 * Description    : UsbHidDev Mouse init routine.
-*             : USB HID è±¸?
+*             : USB HID è±?
 * Input          : None.
 *             : 
 * Output         : None.
@@ -187,7 +187,7 @@ void UsbHidDev_init(void)
 
   pInformation->Current_Configuration = 0;
   /* Connect the device */
-  /* è±¸ */
+  /* è±?*/
   PowerOn();
   /* USB interrupts initialization */
   /* USB Ð¶?? */
@@ -203,7 +203,7 @@ void UsbHidDev_init(void)
 * Function Name  : UsbHidDev_Reset.
 *           : UsbHidDev_Reset
 * Description    : UsbHidDev Mouse reset routine.
-*             : USB HID è±¸Î»
+*             : USB HID è±¸Î?
 * Input          : None.
 *             : 
 * Output         : None.
@@ -214,7 +214,7 @@ void UsbHidDev_init(void)
 void UsbHidDev_Reset(void)
 {
   /* Set UsbHidDev_DEVICE as not configured */
-  /* è±¸?Î´?? */
+  /* è±?Î´?? */
   pInformation->Current_Configuration = 0;
   pInformation->Current_Interface = 0;/*the default Interface*/
                                       /* ??? */
@@ -271,14 +271,14 @@ void UsbHidDev_Reset(void)
   bDeviceState = ATTACHED;
 
   /* Set this device to response on default address */
-  /* ?è±¸???? 0 */
+  /* ?è±???? 0 */
   SetDeviceAddress(0);
 }
 /*******************************************************************************
 * Function Name  : UsbHidDev_SetConfiguration.
 *           : UsbHidDev_SetConfiguration
 * Description    : Udpade the device state to configured.
-*             : è±¸???
+*             : è±???
 * Input          : None.
 *             : 
 * Output         : None.
@@ -293,7 +293,7 @@ void UsbHidDev_SetConfiguration(void)
   if (pInfo->Current_Configuration != 0)
   {
     /* Device configured */
-    /* è±¸ */
+    /* è±?*/
     bDeviceState = CONFIGURED;
   }
 }
@@ -301,7 +301,7 @@ void UsbHidDev_SetConfiguration(void)
 * Function Name  : UsbHidDev_SetDeviceAddress
 *           : UsbHidDev_SetDeviceAddress
 * Description    : Udpade the device state to addressed.
-*             : è±¸?????
+*             : è±?????
 * Input          : None.
 *             : 
 * Output         : None.
@@ -317,7 +317,7 @@ void UsbHidDev_SetDeviceAddress (void)
 * Function Name  : UsbHidDev_Status_In.
 *           : UsbHidDev_Status_In
 * Description    : UsbHidDev status IN routine.
-*             : USB HID è±¸??
+*             : USB HID è±??
 * Input          : None.
 *             : 
 * Output         : None.
@@ -338,7 +338,7 @@ void UsbHidDev_Status_In(void)
 * Function Name  : UsbHidDev_Status_Out
 *           : UsbHidDev_Status_Out
 * Description    : UsbHidDev status OUT routine.
-*             : USB HID è±¸??
+*             : USB HID è±??
 * Input          : None.
 *             : 
 * Output         : None.
@@ -536,13 +536,13 @@ RESULT UsbHidDev_NoData_Setup(u8 RequestNo)
 * Function Name  : UsbHidDev_GetDeviceDescriptor.
 *           : UsbHidDev_GetDeviceDescriptor
 * Description    : Gets the device descriptor.
-*             : ?è±¸
+*             : ?è±?
 * Input          : Length
 *             : Length = ?
 * Output         : None.
 *             : 
 * Return         : The address of the device descriptor.
-* ?          : è±¸?
+* ?          : è±?
 *******************************************************************************/
 u8 *UsbHidDev_GetDeviceDescriptor(u16 Length)
 {

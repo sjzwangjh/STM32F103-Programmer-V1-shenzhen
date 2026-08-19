@@ -26,6 +26,7 @@
 #include "usb_hid_user.h"
 #include "usb_cdc_user.h"
 #include "usb_winusb_user.h"
+#include "usbPort.h"
 #include "stk500Protocol.h"
 #include "handler.h"
 #include "offLinePgmer.h"

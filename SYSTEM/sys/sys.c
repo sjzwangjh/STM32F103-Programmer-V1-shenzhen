@@ -2,9 +2,6 @@
 #include "Hardware_Config.h"
 //系统时钟初始化
 
-#define APP_TRACE_MARK_ADDR 0x2000FFF0U
-#define APP_TRACE_MARK_APPS 0x41505053U
-
 //设置向量表偏移地址
 //NVIC_VectTab:基址
 //Offset:偏移量			 

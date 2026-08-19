@@ -1,5 +1,5 @@
 /*
- * picDeviceConst.h - PIC10/12/16 器件参数常量表 (共享参数表法)
+ * picDeviceConst.h — PIC10/12/16 器件参数常量表 (共享参数表法)
  *
  * 设计原则:
  *   将 457 个器件的初始化参数压缩存储, 通过共享表 + 器件索引两级结构实现。
@@ -8,14 +8,14 @@
  *
  * 数据组织:
  *   共享参数表 (const, 存 Flash):
- *     g_powerTable[]   - 电源 + LVP 参数
- *     g_seqTable[]     - 编程时序 + 锁存器组合
- *     g_spaceTable[]   - 地址空间布局
- *     g_dcrTable[]     - DCRDef 掩码组
- *     g_subTable[]     - 子结构体字段 (config_shadow/cal_word/boundary)
+ *     g_powerTable[]   — 电源 + LVP 参数
+ *     g_seqTable[]     — 编程时序 + 锁存器组合
+ *     g_spaceTable[]   — 地址空间布局
+ *     g_dcrTable[]     — DCRDef 掩码组
+ *     g_subTable[]     — 子结构体字段 (config_shadow/cal_word/boundary)
  *
  *   器件索引表 (const, 存 Flash):
- *     g_deviceTable[]  - 每个器件 28 字节: 名称 + 4 个共享表索引 + 关键覆盖值
+ *     g_deviceTable[]  — 每个器件 28 字节: 名称 + 4 个共享表索引 + 关键覆盖值
  *
  * API:
  *   pic8GetDeviceList()      获取支持的器件列表
@@ -47,12 +47,12 @@ extern "C" {
 #endif
 
 /* ── 常数: 各共享表条目数 ────────────────────────────────────── */
-#define PIC8_POWER_TABLE_SIZE       26
-#define PIC8_SEQ_TABLE_SIZE         23
-#define PIC8_SPACE_TABLE_SIZE       34
-#define PIC8_DCR_TABLE_SIZE         42
-#define PIC8_SUB_TABLE_SIZE         18
-#define PIC8_DEVICE_TABLE_SIZE               285      // 实际器件数量 (457 个)
+#define PIC8_POWER_TABLE_SIZE       21
+#define PIC8_SEQ_TABLE_SIZE         27
+#define PIC8_SPACE_TABLE_SIZE       32
+#define PIC8_DCR_TABLE_SIZE         25
+#define PIC8_SUB_TABLE_SIZE         6
+#define PIC8_DEVICE_TABLE_SIZE      457      // 实际器件数量 (457 个)
 #define MAX_CONFIG_WORDS            4
 
 typedef enum
@@ -204,31 +204,6 @@ typedef struct
     uint16_t cal_word2;
 } pic_saved_param_t;
 
-typedef enum
-{
-    PIC_SECTION_PROGRAM_MEMORY = 0,
-    PIC_SECTION_DATA_EEPROM,
-    PIC_SECTION_CONFIG_WORDS,
-    PIC_SECTION_USER_ID,
-    PIC_SECTION_DEVICE_ID_EXPECTED,
-    PIC_SECTION_OSCCAL_BACKUP,
-    PIC_SECTION_CALIBRATION_DATA
-} pic_section_type_t;
-
-typedef struct
-{
-    uint16_t section_type;
-    uint16_t section_index;
-    uint32_t target_addr;
-    uint32_t item_count;
-    uint16_t item_width_bits;
-    uint16_t flags;
-    uint32_t payload_offset;
-    uint32_t payload_size;
-    uint32_t expected_value;
-    uint32_t expected_mask;
-    uint32_t crc32;
-} pic8_section_desc_t;
 
 /* ── 共享参数表条目类型 ──────────────────────────────────────── */
 
@@ -257,7 +232,6 @@ typedef struct {
     uint16_t wait_lverase_us;
     /* 算法 */
     uint8_t  erase_algo;
-    uint8_t  tries;
     uint8_t  has_row_erase_cmd;
     /* 行大小 */
     uint8_t  row_pgm_words;
@@ -293,7 +267,7 @@ typedef struct {
     uint8_t  sub_index;     /* 索引到 g_subTable */
 } pic8_space_entry_t;
 
-/** DCRDef 组条目 - 一组配置字 (最多 4 个) */
+/** DCRDef 组条目 — 一组配置字 (最多 4 个) */
 typedef struct {
     uint8_t  dcr_count;
     uint8_t  pad[3];

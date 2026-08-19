@@ -221,6 +221,39 @@ void uart1_WriteString(const char *str)
     }
 }
 
+void uart1_WriteHex8(u8 value)
+{
+    static const char hexTable[] = "0123456789ABCDEF";
+    uart1_WriteByte((u8)hexTable[(value >> 4) & 0x0F]);
+    uart1_WriteByte((u8)hexTable[value & 0x0F]);
+}
+
+void uart1_WriteDec(u16 value)
+{
+    char buf[6];
+    u8 n = 0U;
+    if (value == 0U)
+    {
+        uart1_WriteByte('0');
+        return;
+    }
+    while (value > 0U && n < sizeof(buf))
+    {
+        buf[n++] = (char)('0' + (value % 10U));
+        value /= 10U;
+    }
+    while (n > 0U)
+        uart1_WriteByte((u8)buf[--n]);
+}
+
+void uart1_WriteHex16(u16 value)
+{
+    static const char hexTable[] = "0123456789ABCDEF";
+    uart1_WriteByte((u8)hexTable[(value >> 12) & 0x0F]);
+    uart1_WriteByte((u8)hexTable[(value >> 8) & 0x0F]);
+    uart1_WriteByte((u8)hexTable[(value >> 4) & 0x0F]);
+    uart1_WriteByte((u8)hexTable[value & 0x0F]);
+}
 /* ========== 串口1中断服务程序 ========== */
 
 void USART1_IRQHandler(void)
