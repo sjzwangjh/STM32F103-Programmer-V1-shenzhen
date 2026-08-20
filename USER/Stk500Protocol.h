@@ -410,6 +410,7 @@ void    stkIncrementAddress(void);
 #define STK_STATUS_RDY_BSY_TOUT                 0x81
 #define STK_STATUS_SET_PARAM_MISSING            0x82
 #define STK_STATUS_CMD_FAILED                   0xC0
+#define STK_STATUS_CAL_LOST                     0xE1   /* device calibration lost, cannot erase/reprogram */
 #define STK_STATUS_CKSUM_ERROR                  0xC1
 #define STK_STATUS_CMD_UNKNOWN                  0xC9
 

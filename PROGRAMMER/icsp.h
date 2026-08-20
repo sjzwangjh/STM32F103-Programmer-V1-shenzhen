@@ -110,6 +110,7 @@ uint16_t icspReadData(uint8_t width);
 
 #define ICSP_OK      0
 #define ICSP_ERR     1
+#define ICSP_ERR_CAL_LOST     2   /* OSCCAL (code area) all-zero / entry all-ones: cal not recoverable */
 
 uint8_t icspEnterHV(const pic_prog_params_t *dev);   /* HV 高压进入 */
 uint8_t icspEnterLV(const pic_prog_params_t *dev);   /* LVP 低压进入 */

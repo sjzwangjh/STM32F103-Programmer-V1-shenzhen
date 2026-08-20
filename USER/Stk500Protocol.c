@@ -871,13 +871,20 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             {
                 eraseStatus = stkEnsureIcspDeviceIdVerified();
                 if (eraseStatus == STK_STATUS_CMD_OK)
-                    eraseStatus = icspBulkErase();
+                {
+                    uint8_t icspStatus = icspBulkErase();
+                    if (icspStatus == ICSP_ERR_CAL_LOST)
+                        eraseStatus = STK_STATUS_CAL_LOST;
+                    else if (icspStatus != ICSP_OK)
+                        eraseStatus = STK_STATUS_CMD_FAILED;
+                }
             }
 #if DEBUG_HARDWARE_CONFIG
             stkIcspTrace("ICSP42", stkAddress.dword, &pRx[STK_TXMSG_START + 1], 2U);
 #endif
-            pTx[STK_TXMSG_START + 1] = (eraseStatus != STK_STATUS_CMD_OK) ?
-                STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
+            pTx[STK_TXMSG_START + 1] = (eraseStatus == STK_STATUS_CAL_LOST) ?
+                STK_STATUS_CAL_LOST :
+                ((eraseStatus != STK_STATUS_CMD_OK) ? STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK);
         }
     SWITCH_CASE(STK_CMD_PROGRAM_FLASH_ICSP)
         {

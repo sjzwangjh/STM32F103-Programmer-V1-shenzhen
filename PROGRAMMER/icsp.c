@@ -532,6 +532,31 @@ static void icspClearSavedParam(void)
  *         备份成功后设置 g_picSavedParamValid = 1
  * @return ICSP_OK=成功, ICSP_ERR=备份失败 (器件异常)
  */
+/* OSCCAL erase pre-check helpers:
+ * - OSCCAL inside the code area can be hidden by code protection (reads 0x0000)
+ *   or missing at the MCU entry (reads all-ones); erasing would lose the factory
+ *   calibration permanently, so such devices are rejected before the erase.
+ * - "in code area": address before config_space_base (baseline has none).
+ * - "entry word": baseline parts keep OSCCAL at the Reset Vector; 14-bit parts
+ *   when OSCCAL sits at code_end-1 (e.g. 12F629/675 at 0x3FF). */
+static uint8_t icspIsOsccalInCodeArea(uint32_t osccalAddr)
+{
+    if (icsp_pdev == NULL || osccalAddr == 0U)
+        return 0U;
+    if (icsp_pdev->common.config_space_base == 0U)
+        return 1U;
+    return (osccalAddr < icsp_pdev->common.config_space_base) ? 1U : 0U;
+}
+
+static uint8_t icspIsOsccalEntryWord(uint32_t osccalAddr)
+{
+    if (icsp_pdev == NULL || osccalAddr == 0U)
+        return 0U;
+    if (ICSP_IS_BASELINE_FAST())
+        return 1U;
+    return (osccalAddr == (icsp_pdev->common.code_end_addr - 1U)) ? 1U : 0U;
+}
+
 static uint8_t icspBackupCriticalWords(void)
 {
     uint8_t idx;
@@ -555,6 +580,13 @@ static uint8_t icspBackupCriticalWords(void)
         if (value == 0xFFFFU)
             return ICSP_ERR;
         *slot = value;
+        #if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("ICSP bak cfg idx=");
+        uart1_WriteDec(idx);
+        uart1_WriteString(" val=0x");
+        uart1_WriteHex16(*slot);
+        uart1_WriteString("\r\n");
+        #endif
     }
 
     /* 备份 OSCCAL 校准字 */
@@ -564,7 +596,34 @@ static uint8_t icspBackupCriticalWords(void)
         value = icspReadOSCCAL(0U);
         if (slot == NULL || value == 0xFFFFU)
             return ICSP_ERR;
+        {
+            uint32_t osccalAddr = 0U;
+            if (icspGetOsccalAddressByIndex(0U, &osccalAddr) == ICSP_OK &&
+                icspIsOsccalInCodeArea(osccalAddr))
+            {
+                if (value == 0x0000U)
+                {
+                    #if DEBUG_HARDWARE_CONFIG
+                    uart1_WriteString("ICSP CAL: OSCCAL all-zero (code-protected), device invalid\r\n");
+                    #endif
+                    return ICSP_ERR_CAL_LOST;
+                }
+                if (icspIsOsccalEntryWord(osccalAddr) &&
+                    value == icspGetBitMask(g_picDataWidth))
+                {
+                    #if DEBUG_HARDWARE_CONFIG
+                    uart1_WriteString("ICSP CAL: OSCCAL entry all-ones (missing factory content), device invalid\r\n");
+                    #endif
+                    return ICSP_ERR_CAL_LOST;
+                }
+            }
+        }
         *slot = value;
+        #if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("ICSP bak osccal val=0x");
+        uart1_WriteHex16(value);
+        uart1_WriteString("\r\n");
+        #endif
     }
 
     /* 备份额外校准数据 */
@@ -579,6 +638,15 @@ static uint8_t icspBackupCriticalWords(void)
         if (icspReadWordByAbsoluteAddress(targetAddr, &value) != ICSP_OK)
             return ICSP_ERR;
         *slot = value;
+        #if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("ICSP bak cal idx=");
+        uart1_WriteDec(idx);
+        uart1_WriteString(" addr=0x");
+        uart1_WriteHex16((uint16_t)targetAddr);
+        uart1_WriteString(" val=0x");
+        uart1_WriteHex16(value);
+        uart1_WriteString("\r\n");
+        #endif
     }
 
     g_picSavedParamValid = 1U;
@@ -603,14 +671,16 @@ static uint8_t icspRestoreCriticalWords(void)
         return ICSP_ERR;
 
     /* 恢复所有配置字 */
-    /* Config word is NOT rewritten after erase:
-     * flash programming can only clear bits, so restoring a code-protected
-     * (CP/CPD = 0) config would re-lock the chip and all program reads would
-     * return 0x0000. The host programs config words last anyway.
-     * Keep the post-erase read for debug to confirm the erase cleared it. */
+    /* Restore only the bits OUTSIDE impl_mask after erase (calibration/factory
+     * content); impl bits stay all-ones (erased) so a code-protected
+     * (CP/CPD = 0) config is NOT re-enabled and program reads stay open.
+     * The host programs config words last anyway. */
     count = icspGetConfigWordCountEffective();
     for (idx = 0U; idx < count && idx < MAX_CONFIG_WORDS; idx++)
     {
+        uint16_t implMask;
+        uint16_t restore;
+
         slot = icspGetSavedConfigSlot(idx);
         if (slot == NULL)
             return ICSP_ERR;
@@ -618,9 +688,34 @@ static uint8_t icspRestoreCriticalWords(void)
             return ICSP_ERR;
         if (icspReadWordByAbsoluteAddress(targetAddr, &value) != ICSP_OK)
             return ICSP_ERR;
+
+        /* Restore only the bits outside impl_mask (calibration/factory content);
+         * impl bits stay all-ones (erased) so code protection is not re-enabled;
+         * the host programs config words last anyway. */
+        implMask = icsp_pdev->common.config_dcr[idx].impl_mask;
+        restore = (uint16_t)((*slot & (uint16_t)~implMask) | implMask);
+        if (implMask != 0U && restore != value)
+        {
+            if (ICSP_IS_BASELINE_FAST())
+            {
+                if (icspEnsureBaselineAtConfig() != ICSP_OK)
+                    return ICSP_ERR;
+                if (icspWriteProgramWordAt(targetAddr, restore,
+                                          icsp_pdev->common.wait_cfg_us) != ICSP_OK)
+                    return ICSP_ERR;
+            }
+            else
+            {
+                if (icspWriteConfigWordAt(targetAddr, restore,
+                                         icsp_pdev->common.wait_cfg_us) != ICSP_OK)
+                    return ICSP_ERR;
+            }
+        }
         #if DEBUG_HARDWARE_CONFIG
         uart1_WriteString("ICSP erase cfg back=0x");
         uart1_WriteHex16(*slot);
+        uart1_WriteString(" rest=0x");
+        uart1_WriteHex16(restore);
         uart1_WriteString(" post=0x");
         uart1_WriteHex16(value);
         uart1_WriteString("\r\n");
@@ -639,6 +734,13 @@ static uint8_t icspRestoreCriticalWords(void)
                 return ICSP_ERR;
             if (icspIsCalWordErased(value))
             {
+                #if DEBUG_HARDWARE_CONFIG
+                uart1_WriteString("ICSP rst osccal post=0x");
+                uart1_WriteHex16(value);
+                uart1_WriteString(" w=0x");
+                uart1_WriteHex16(*slot);
+                uart1_WriteString("\r\n");
+                #endif
                 if (icspWriteWordByAbsoluteAddress(targetAddr, *slot, icsp_pdev->common.wait_cfg_us) != ICSP_OK)
                     return ICSP_ERR;
             }
@@ -657,6 +759,17 @@ static uint8_t icspRestoreCriticalWords(void)
             return ICSP_ERR;
         if (icspIsCalWordErased(value))
         {
+            #if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("ICSP rst cal idx=");
+            uart1_WriteDec(idx);
+            uart1_WriteString(" addr=0x");
+            uart1_WriteHex16((uint16_t)targetAddr);
+            uart1_WriteString(" post=0x");
+            uart1_WriteHex16(value);
+            uart1_WriteString(" w=0x");
+            uart1_WriteHex16(*slot);
+            uart1_WriteString("\r\n");
+            #endif
             if (icspWriteWordByAbsoluteAddress(targetAddr, *slot, icsp_pdev->common.wait_cfg_us) != ICSP_OK)
                 return ICSP_ERR;
         }
@@ -1339,8 +1452,14 @@ uint8_t icspReadSignature(uint16_t *sig)
 uint8_t icspBulkErase(void)
 {
     if (icsp_pdev == NULL) return ICSP_ERR;
-    if (icspBackupCriticalWords() != ICSP_OK)
-        return ICSP_ERR;
+    {
+        uint8_t st = icspBackupCriticalWords();
+        if (st != ICSP_OK)
+            return st;
+    }
+    #if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ICSP erase begin\r\n");
+    #endif
 
     if (icsp_pdev->common.core_family == PIC8_CORE_BASELINE_12BIT)
     {
@@ -1364,6 +1483,9 @@ uint8_t icspBulkErase(void)
         g_picCurrentArea = ICSP_AREA_CONFIG;
         g_picCurrentAddress = icsp_pdev->common.config_space_base;
     }
+    #if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ICSP erase done\r\n");
+    #endif
 
     /*
      * Baseline 器件: Bulk Erase 后状态较为特殊,
@@ -1666,6 +1788,24 @@ uint8_t icspProgCfg(uint8_t idx, uint16_t val)
     uint32_t targetAddr;
 
     if (icsp_pdev == NULL) return ICSP_ERR;
+    /* Merge impl bits: the host usually sends only the implemented fuses.
+     * Fill the other bits per DCRDef (unimpl_val=1 -> all-ones, which never
+     * clears calibration/factory content because programming only clears bits). */
+    if (idx < MAX_CONFIG_WORDS)
+    {
+        uint16_t implMask = icsp_pdev->common.config_dcr[idx].impl_mask;
+        if (implMask != 0U)
+        {
+            uint16_t widthMask = icspGetBitMask(g_picDataWidth);
+            uint16_t unimplFill;
+            if (icsp_pdev->common.config_dcr[idx].unimpl_val != 0U)
+                unimplFill = (uint16_t)((uint16_t)~implMask & widthMask);
+            else
+                unimplFill = (uint16_t)(icsp_pdev->common.config_dcr[idx].default_value &
+                                        (uint16_t)~implMask & widthMask);
+            val = (uint16_t)((val & implMask) | unimplFill);
+        }
+    }
     if (icspGetConfigAddressByIndex(idx, &targetAddr) != ICSP_OK)
         return ICSP_ERR;
 
