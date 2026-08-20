@@ -50,6 +50,7 @@
 /* DAT 操作 */
 #define ICSP_DAT_H()            PORT_OUT(HWPIN_ICSP_DAT) = 1
 #define ICSP_DAT_L()            PORT_OUT(HWPIN_ICSP_DAT) = 0
+#define ICSP_DAT_W(v)           PORT_OUT(HWPIN_ICSP_DAT) = (v)
 #define ICSP_DAT_R()            (PORT_IN(HWPIN_ICSP_DAT))
 #define ICSP_DAT_OUT()          DUT_PIN4_SET_OUTPUT
 #define ICSP_DAT_IN()           DUT_PIN4_SET_INPUT
@@ -63,7 +64,29 @@
 /* 微秒延时 */
 void icspDelayUs(uint32_t us);
 #define ICSP_DELAY_US(n)        icspDelayUs((uint32_t)(n))
-#define ICSP_CLK_DELAY          ICSP_DELAY_US(1)
+/*
+ * ICSP 位时钟速度控制 (运行时相位填充)
+ *
+ * ICSP_CLK_FAST = 1 : 相位延时为空, 发送全速 (~8-9MHz)
+ * ICSP_CLK_FAST = 0 : 每个时钟相位插入 g_icspPhasePad 个填充单位,
+ *                     由 icspSetIcspClock(Hz) 运行时设定 (最快约 4.5MHz)
+ * 每个填充单位约 4 个 CPU 周期 (~55ns @72MHz), 读/写时序同步生效
+ */
+#ifndef ICSP_CLK_FAST
+#define ICSP_CLK_FAST           0
+#endif
+
+#if ICSP_CLK_FAST
+#define ICSP_CLK_DELAY
+#else
+extern uint16_t g_icspPhasePad;                  /* 相位填充单位数, 0=最快 */
+uint32_t icspSetIcspClock(uint32_t hz);          /* 设定目标位时钟, 返回实际近似值 */
+#define ICSP_CLK_DEFAULT_HZ     4000000UL        /* pic8Init 时的默认位时钟 */
+
+/* armcc __nop() 内在函数确保填充循环不被优化删除 */
+#define ICSP_CLK_DELAY          do { uint32_t icspPadN_ = g_icspPhasePad; \
+                                     while (icspPadN_--) { __nop(); } } while (0)
+#endif
 
 /* ================================================================= */
 /* B层: ICSP 时序位操作层                                              */

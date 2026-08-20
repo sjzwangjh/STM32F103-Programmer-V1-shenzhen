@@ -306,6 +306,30 @@ static uint8_t getParameter(uint8_t index)
     return stkParam.bytes[index];
 }
 
+/* ---- avrdude -B 编程速度 -> ICSP 位时钟挡位 ----
+ * 上位机 -B 经 STK500 公式编码为 STK_PARAM_SCK_DURATION(0x98) 挡位值 d:
+ *   d=0:最快  d=1:4M  d=2:2M  d=3:1M  d>=4:一律 500K(封底不再降低)
+ * 0xFF = 本会话未下发 -B, 保持 pic8Init 默认 4MHz。
+ * 注意: -B 参数在 avrdude open 阶段先于器件身份下发, 不能在 setParameter
+ * 里立即应用(会被 pic8Init 的默认档覆盖), 统一延迟到 ENTER_PROGMODE_ICSP 生效。 */
+#define STK_SCK_TIER_IDX        (STK_PARAM_SCK_DURATION & 0x1fU)
+#define STK_SCK_TIER_UNSET      0xFFU
+
+static void stkApplyIcspSckTier(uint8_t tier)
+{
+    uint32_t hz;
+
+    switch (tier)
+    {
+    case 0U: hz = 4500000UL; break;         /* 最快 */
+    case 1U: hz = 4000000UL; break;
+    case 2U: hz = 2000000UL; break;
+    case 3U: hz = 1000000UL; break;
+    default: hz = 500000UL;  break;         /* >=4 封底 500K */
+    }
+    (void)icspSetIcspClock(hz);
+}
+
 #if DEBUG_HARDWARE_CONFIG
 /* 简洁调�? 数据来源�?*/
 static const char *stkSourceName(uint8_t src)
@@ -380,7 +404,8 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     param = (void *)(pRx + STK_TXMSG_START + 1);
 
     if ((pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
-         pDataFrame->source == STK_DATA_SOURCE_USB_CDC) &&
+         pDataFrame->source == STK_DATA_SOURCE_USB_CDC ||
+         pDataFrame->source == STK_DATA_SOURCE_USB_WINUSB) &&
         stkIsRecordMode() &&
         g_stkProgrammerState == STK500_PROGRAM_RECORDING &&
         cmd != STK_CMD_FIRMWARE_UPGRADE &&
@@ -394,6 +419,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     
     SWITCH_START
     SWITCH_CASE(STK_CMD_SIGN_ON)
+        stkParam.bytes[STK_SCK_TIER_IDX] = STK_SCK_TIER_UNSET;  /* 新会话: -B 挡位待下发 */
         /* 获取烧录器标识�?*/
         static const char string[] = PROGRAMMER_ID_STR;
         memcpy(&pTx[STK_TXMSG_START + 2], string, sizeof(string));
@@ -812,6 +838,12 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         /*------------------- PIC ICSP 命令处理开�?-------------------*/
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_ICSP)
         {
+            /* avrdude -B: 挡位在进入编程模式前生效 (仅在线模式有副作用) */
+            if (stkIsOnlineMode() &&
+                stkParam.bytes[STK_SCK_TIER_IDX] != STK_SCK_TIER_UNSET)
+            {
+                stkApplyIcspSckTier(stkParam.bytes[STK_SCK_TIER_IDX]);
+            }
             /* 进入 ICSP 模式�? 上位机下发模�? 0=高压, 1=低压�?*/
             uint8_t onlineStatus = stkIsOnlineMode() ?
                 pic8EnterProgmode((uint8_t)(pRx[STK_TXMSG_START + 1] & 0x01U)) :

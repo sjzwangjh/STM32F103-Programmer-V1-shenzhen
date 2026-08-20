@@ -120,7 +120,7 @@ static uint32_t     g_picCurrentAddress;           /* 当前PC地址值 */
 #define ICSP_SUPPORTS_LVP_FAST() \
     (icsp_pdev != NULL && icsp_pdev->common.lvp_mode != PIC8_LVP_NONE)
 
-#define ICSP_CMD_GAP_FAST()      ICSP_DELAY_US(1)
+#define ICSP_CMD_GAP_FAST()      //ICSP_DELAY_US(1)
 #define ICSP_LOAD_PROG_CMD_FAST() (ICSP_IS_BASELINE_FAST() ? CMD12_LOAD_PROG : CMD_LOAD_PROG)
 #define ICSP_READ_PROG_CMD_FAST() (ICSP_IS_BASELINE_FAST() ? CMD12_READ_PROG : CMD_READ_PROG)
 #define ICSP_INC_ADDR_CMD_FAST()  (ICSP_IS_BASELINE_FAST() ? CMD12_INC_ADDR : CMD_INC_ADDR)
@@ -173,6 +173,33 @@ void icspDelayUs(uint32_t us)
     {
     }
 }
+
+/* ---- 运行时位时钟速度控制 (说明见 icsp.h 的 ICSP_CLK_DELAY) ---- */
+#if !ICSP_CLK_FAST
+uint16_t g_icspPhasePad = 0U;
+
+/*
+ * 设定 ICSP 位时钟 (读/写时序同步生效)
+ * 每 bit 周期 ≈ 16 + 8*pad 个 CPU 周期 (72MHz 下约 222ns + 111ns*pad),
+ * 常数为反汇编标定估值, 如需精确可用示波器实测后微调
+ * @param  hz  目标位时钟 (Hz), 过快自动落到最快档, 过慢钳位到最慢档 (~35kHz)
+ * @return 实际达到的近似频率 (Hz)
+ */
+uint32_t icspSetIcspClock(uint32_t hz)
+{
+    uint32_t per;                       /* 目标 bit 周期 (CPU 周期数) */
+    uint32_t pad;
+
+    if (hz == 0UL)
+        hz = 1UL;
+    per = 72000000UL / hz;
+    pad = (per > 16UL) ? ((per - 12UL) >> 3) : 0UL;   /* +4 舍入 */
+    if (pad > 255UL)
+        pad = 255UL;
+    g_icspPhasePad = (uint16_t)pad;
+    return 72000000UL / (16UL + (pad << 3));
+}
+#endif
 
 
 /* ================================================================= */
@@ -965,28 +992,88 @@ static uint8_t icspReadConfigWordAt(uint32_t targetAddr, uint16_t *value)
 }
 
 
+
+
+/* 时序敏感代码段: 局部提升优化等级, 使 BSRR 字常量与地址缓存在寄存器,
+ * 消除逐 bit 的字面量加载; 段外恢复工程默认优化等级 */
+#pragma push
+#pragma O2
+/*
+ * ---- 性能优化: BSRR 合并发送 ----
+ *
+ * ICSPCLK(PB3) 与 ICSPDAT(PB4) 同在 GPIOB, 发送时序改为:
+ *   高相位: 一次 BSRR 写同时输出 CLK=1 与 DAT=本位值
+ *   低相位: 一次 BSRR 写仅拉低 CLK, DAT 保持到下降沿被锁存
+ * 相比原来每 bit 3 次位带写 (ICSP_CLK_H/ICSP_DAT_W/ICSP_CLK_L):
+ *   - 位带写在总线矩阵中被翻译为对 ODR 的读-改-写, 单次开销更大
+ *   - BSRR 为普通 32-bit 存储, 且 CLK/DAT 合并少一次总线写
+ *   - 配合循环全展开, 消除循环控制开销
+ *
+ * 注意:
+ *   1. 本方案要求 CLK 与 DAT 引脚同属一个 GPIO 端口 (当前均为 GPIOB),
+ *      若日后引脚分属不同端口, 需退回位带写实现
+ *   2. BSRR 的 set 区 (bit0..15) 优先级高于 reset 区 (bit16..31),
+ *      因此 "置位DAT|复位DAT" 组合字等效于 DAT=1, 可用算术直接生成
+ *   3. ICSP_CLK_DELAY 为运行时可调相位填充 (见 icsp.h 的 icspSetIcspClock)
+ */
+#define ICSP_BSRR_SET(pin)      (1UL << (pin))
+#define ICSP_BSRR_RESET(pin)    (1UL << ((pin) + 16UL))
+
+/* 两级展开: 先把 "B,3" 拆出端口 B, 再拼出 GPIOB */
+#define ICSP_TX_GPIO_(_port)    STM_IO_GPIO(_port)
+#define ICSP_TX_GPIO            ICSP_TX_GPIO_(GET_PORT_FROM(HWPIN_ICSP_CLK))
+#define ICSP_TX_CLK_PIN         GET_PIN_FROM(HWPIN_ICSP_CLK)
+#define ICSP_TX_DAT_PIN         GET_PIN_FROM(HWPIN_ICSP_DAT)
+
+/* 高相位字: CLK=1, DAT 按本位值置位/复位 */
+#define ICSP_TX_BSRR_HI(_p)     (ICSP_BSRR_SET(ICSP_TX_CLK_PIN) | \
+                                 ICSP_BSRR_RESET(ICSP_TX_DAT_PIN) | \
+                                 ((uint32_t)((_p) & 1UL) << ICSP_TX_DAT_PIN))
+/* 低相位字: 仅 CLK=0, DAT 保持 */
+#define ICSP_TX_BSRR_LO()       (ICSP_BSRR_RESET(ICSP_TX_CLK_PIN))
+
+/* 发送 1 bit: 高相位(CLK+DAT 同步) + TDLY + 低相位 + TDLY */
+#define ICSP_TX_BIT(_p)         do { \
+                                    ICSP_TX_GPIO->BSRR = ICSP_TX_BSRR_HI(_p); \
+                                    ICSP_CLK_DELAY; \
+                                    ICSP_TX_GPIO->BSRR = ICSP_TX_BSRR_LO(); \
+                                    ICSP_CLK_DELAY; \
+                                } while (0)
+
 /**
  * @brief  发送6位命令 (LSB first)
- *         时序: 设置数据位→CLK↑→TDLY→CLK↓→TDLY
+ *         时序: 高相位(CLK=1与DAT同步输出)→TDLY→低相位(CLK=0,DAT保持)→TDLY
  *         命令间至少 1us (TDLY1)
  * @param  cmd  6-bit 命令码
  */
 void icspLoadCmd(uint8_t cmd)
 {
     uint8_t i;
+
+    /*
+     * 固定 6-bit 命令逐位全展开 (g_picCmdWidth 恒为 6),
+     * 消除循环控制开销; 位宽异常时回退通用循环保证兼容
+     */
     ICSP_DAT_OUT();
-    for (i = 0; i < g_picCmdWidth; i++)
+    if (g_picCmdWidth == 6U)
     {
-        if (cmd & (1U << i))
-            ICSP_DAT_H();
-        else
-            ICSP_DAT_L();
-        ICSP_CLK_H();                /* 上升沿 */
-        ICSP_CLK_DELAY;             /* TDLY2 */
-        ICSP_CLK_L();                /* 下降沿——数据锁存 */
-        ICSP_CLK_DELAY;             /* TDLY1 */
+        ICSP_TX_BIT(cmd); cmd >>= 1U;
+        ICSP_TX_BIT(cmd); cmd >>= 1U;
+        ICSP_TX_BIT(cmd); cmd >>= 1U;
+        ICSP_TX_BIT(cmd); cmd >>= 1U;
+        ICSP_TX_BIT(cmd); cmd >>= 1U;
+        ICSP_TX_BIT(cmd);
     }
-    ICSP_DAT_L();                   /* 发送完毕后拉低数据线 */
+    else
+    {
+        for (i = 0U; i < g_picCmdWidth; i++)
+        {
+            ICSP_TX_BIT(cmd);
+            cmd >>= 1U;
+        }
+    }
+    ICSP_DAT_L();                   /* 发送完成后数据线拉低 */
+    ICSP_DAT_IN();                  /* 数据线重新切换为输入 */
 }
 
 /**
@@ -998,27 +1085,40 @@ void icspLoadCmd(uint8_t cmd)
  */
 void icspLoadData(uint16_t data, uint8_t width)
 {
-    uint8_t  i;
+    uint16_t pattern;
+
+    /*
+     * 预先一次性构造出16位发送序列 (LSB first):
+     *   bit0          = 0                  (前导位)
+     *   bit1..bitN    = data 位             (N = width)
+     *   bitN+1..bit15 = 0                  (剩余时钟周期补0)
+     * 16 个时钟周期为固定帧长, 逐位全展开消除循环开销
+     */
+    pattern = (uint16_t)((uint16_t)(data << 1U) &
+                         (uint16_t)((1U << (width + 1U)) - 1U));
 
     ICSP_DAT_OUT();
-    for (i = 0; i < 16; i++)
-    {
-        uint8_t bit;
-        if (i == 0)
-            bit = 0;                        /* 第1个时钟：输出0（前导） */
-        else if (i <= width)
-            bit = (uint8_t)((data >> (i - 1U)) & 1U); /* data bit, LSB first */
-        else
-            bit = 0;                        /* 剩余时钟补0 */
-
-        if (bit) ICSP_DAT_H(); else ICSP_DAT_L();
-        ICSP_CLK_H();
-        ICSP_CLK_DELAY;
-        ICSP_CLK_L();
-        ICSP_CLK_DELAY;
-    }
-    ICSP_DAT_L();                           /* 发送完毕后拉低数据线 */
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);  pattern >>= 1U;
+    ICSP_TX_BIT(pattern);
+    ICSP_DAT_L();                    /* 发送结束, 数据线拉低 */
+    ICSP_DAT_IN();                   /* 发送完成后切换为输入 */
 }
+#pragma pop
+
 
 /**
  * @brief  接收数据字，固定16个时钟周期
@@ -1029,23 +1129,30 @@ void icspLoadData(uint16_t data, uint8_t width)
  */
 uint16_t icspReadData(uint8_t width)
 {
-    uint8_t  i;
     uint16_t val = 0;
+    uint8_t  i;
+    uint8_t  nbits;                       /* 实际有效数据位数 */
+
+    /*
+     * 16 时钟帧: 前导(1个) + 数据位(最多15个), 故实际有效数据位数为:
+     *   nbits = min(width, 15)
+     * 循环内不做"当前时钟是否有效"的判断, 16 个时钟全部右移累积读取
+     * (bit0 为前导位, 无效), 循环结束后一次性 移位+掩码 消除前导/补位
+     */
+    nbits = (width < 16U) ? width : 15U;
 
     ICSP_DAT_IN();
     for (i = 0; i < 16; i++)
     {
         ICSP_CLK_H();
         ICSP_CLK_DELAY;
-        if (i > 0 && i <= width)         /* 第2~width+1个时钟读取数据 */
-        {
-            if (ICSP_DAT_R())
-                val |= (1UL << (i - 1U));/* LSB first */
-        }
+        val >>= 1U;                       /* 已有位右移腾位 */
+        if (ICSP_DAT_R())
+            val |= 0x8000U;               /* 新位进最高位, LSB first */
         ICSP_CLK_L();
         ICSP_CLK_DELAY;
     }
-    return val;
+    return (uint16_t)((val >> 1U) & ((1U << nbits) - 1U)); /* 消除前导/补位 */
 }
 
 /* ================================================================= */
@@ -1326,6 +1433,7 @@ uint16_t icspReadWord(void)
 uint8_t icspProgRow(const uint16_t *buf, uint32_t cnt)
 {
     uint32_t i;
+    uint16_t row;
     if (buf == NULL || icsp_pdev == NULL) return ICSP_ERR;
 
     if (icsp_pdev->common.has_row_erase_cmd != 0U &&
@@ -1335,30 +1443,56 @@ uint8_t icspProgRow(const uint16_t *buf, uint32_t cnt)
         (void)icspRowEraseCurrentAddress();
     }
 
-    for (i = 0; i < cnt; i++)
+    row = icsp_pdev->common.row_pgm_words;
+    i = 0U;
+
+    /* Block programming: fill the whole row (Load Data + Increment)
+     * first, then issue ONE Begin Programming command for the row. */
+    if (row >= 2U && row <= 8U)
+    {
+        /* head: single words until the PC is row-aligned */
+        while (i < cnt && (g_picCurrentAddress % row) != 0U)
+        {
+            icspLoadCmd(ICSP_LOAD_PROG_CMD_FAST());
+            ICSP_CMD_GAP_FAST();
+            icspLoadData(buf[i], g_picDataWidth);
+            ICSP_BEGIN_PROGRAM_FAST(icsp_pdev->common.wait_pgm_us);
+            i++;
+            if (i < cnt)
+                ICSP_INCREMENT_ADDRESS_FAST();
+        }
+
+        /* aligned rows: fill row words, one Begin, one trailing increment */
+        while (i + row <= cnt)
+        {
+            uint16_t k;
+            for (k = 0U; k < row; k++)
+            {
+                icspLoadCmd(ICSP_LOAD_PROG_CMD_FAST());
+                ICSP_CMD_GAP_FAST();
+                icspLoadData(buf[i + k], g_picDataWidth);
+                if (k + 1U < row)
+                    ICSP_INCREMENT_ADDRESS_FAST();
+            }
+            ICSP_BEGIN_PROGRAM_FAST(icsp_pdev->common.wait_pgm_us);
+            ICSP_INCREMENT_ADDRESS_FAST();
+            i += row;
+        }
+    }
+
+    /* tail (and the whole block when row programming is not active) */
+    for (; i < cnt; i++)
     {
         icspLoadCmd(ICSP_LOAD_PROG_CMD_FAST());
         ICSP_CMD_GAP_FAST();
         icspLoadData(buf[i], g_picDataWidth);
         ICSP_BEGIN_PROGRAM_FAST(icsp_pdev->common.wait_pgm_us);
-
-        if (i < cnt - 1)
-        {
-            /*
-             * ICSP_INCREMENT_ADDRESS_FAST 内部已包含 g_picCurrentAddress++,
-             * 此处不需要额外更新。
-             */
+        if (i + 1U < cnt)
             ICSP_INCREMENT_ADDRESS_FAST();
-        }
     }
-    /*
-     * 循环结束后, g_picCurrentAddress 指向最后一个编程的地址
-     * (如果是 cnt>0, g_picCurrentAddress 在循环中递增了 cnt-1 次,
-     *  起始时为 addr, 结束时为 addr + cnt - 1)
-     * 注意: 最后一个字编程后没有 Increment, 因此无需额外处理。
-     */
     return ICSP_OK;
 }
+
 
 /**
  * @brief  将程序存储器PC定位到指定逻辑地址 (智能寻址)
@@ -1725,6 +1859,10 @@ void pic8Init(const pic_prog_params_t *dev)
      */
     g_picCurrentArea = ICSP_AREA_NONE;
     g_picCurrentAddress = 0U;
+
+#if !ICSP_CLK_FAST
+    icspSetIcspClock(ICSP_CLK_DEFAULT_HZ);  /* 默认位时钟, 可按器件调用调整 */
+#endif
 }
 
 /**
