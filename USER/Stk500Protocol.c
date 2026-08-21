@@ -47,6 +47,8 @@ utilDword_t     stkAddress;
 static stkDeviceIdentity_t g_stkDeviceIdentity;
 /* ICSP session-level deviceID precheck flag: reset after each ENTER_PROGMODE_ICSP */
 static uint8_t g_stkIcspDeviceIdChecked;
+/* ISP session flag: set after successful ENTER_PROGMODE_ISP, cleared on LEAVE. */
+static uint8_t g_stkIspEntered;
 
 /* 从小端字节流中读�?16 位数据�?*/
 static uint16_t stkGetLe16(const uint8_t *bytes);
@@ -306,12 +308,12 @@ static uint8_t getParameter(uint8_t index)
     return stkParam.bytes[index];
 }
 
-/* ---- avrdude -B 编程速度 -> ICSP 位时钟挡位 ----
- * 上位机 -B 经 STK500 公式编码为 STK_PARAM_SCK_DURATION(0x98) 挡位值 d:
- *   d=0:最快  d=1:4M  d=2:2M  d=3:1M  d>=4:一律 500K(封底不再降低)
- * 0xFF = 本会话未下发 -B, 保持 pic8Init 默认 4MHz。
- * 注意: -B 参数在 avrdude open 阶段先于器件身份下发, 不能在 setParameter
- * 里立即应用(会被 pic8Init 的默认档覆盖), 统一延迟到 ENTER_PROGMODE_ICSP 生效。 */
+/* ---- avrdude -B 编程速度 -> ICSP 位时钟挡�?----
+ * 上位�?-B �?STK500 公式编码�?STK_PARAM_SCK_DURATION(0x98) 挡位�?d:
+ *   d=0:最�? d=1:4M  d=2:2M  d=3:1M  d>=4:一�?500K(封底不再降低)
+ * 0xFF = 本会话未下发 -B, 保持 pic8Init 默认 4MHz�?
+ * 注意: -B 参数�?avrdude open 阶段先于器件身份下发, 不能�?setParameter
+ * 里立即应�?会被 pic8Init 的默认档覆盖), 统一延迟�?ENTER_PROGMODE_ICSP 生效�?*/
 #define STK_SCK_TIER_IDX        (STK_PARAM_SCK_DURATION & 0x1fU)
 #define STK_SCK_TIER_UNSET      0xFFU
 
@@ -321,7 +323,7 @@ static void stkApplyIcspSckTier(uint8_t tier)
 
     switch (tier)
     {
-    case 0U: hz = 4500000UL; break;         /* 最快 */
+    case 0U: hz = 4500000UL; break;         /* 最�?*/
     case 1U: hz = 4000000UL; break;
     case 2U: hz = 2000000UL; break;
     case 3U: hz = 1000000UL; break;
@@ -339,6 +341,7 @@ static const char *stkSourceName(uint8_t src)
     case STK_DATA_SOURCE_USB_HID:    return "HID";
     case STK_DATA_SOURCE_USB_CDC:    return "CDC";
     case STK_DATA_SOURCE_USB_WINUSB: return "WINUSB";
+    case STK_DATA_SOURCE_FLASH_RECORD: return "FLASH";
     default:                         return "?";
     }
 }
@@ -419,17 +422,25 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     
     SWITCH_START
     SWITCH_CASE(STK_CMD_SIGN_ON)
-        stkParam.bytes[STK_SCK_TIER_IDX] = STK_SCK_TIER_UNSET;  /* 新会话: -B 挡位待下发 */
+        stkParam.bytes[STK_SCK_TIER_IDX] = STK_SCK_TIER_UNSET;  /* 新会�? -B 挡位待下�?*/
         /* 获取烧录器标识�?*/
         static const char string[] = PROGRAMMER_ID_STR;
         memcpy(&pTx[STK_TXMSG_START + 2], string, sizeof(string));
         len.bytes[0] = (uint8_t)(sizeof(string) + 1U);
     SWITCH_CASE(STK_CMD_SET_WORK_STATE)
         /* 设置工作模式: 0=simulate, 1=online, 2=record, 3=online+record。开机默�?online */
-        if (stkSetWorkMode(pRx[STK_TXMSG_START + 1]) == 0U)
-            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        if (pRx[STK_TXMSG_START + 1] == STK500_WORK_MODE_ONLINE ||
+            pRx[STK_TXMSG_START + 1] == STK500_WORK_MODE_RECORD)
+        {
+            if (stkSetWorkMode(pRx[STK_TXMSG_START + 1]) == 0U)
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+            else
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+        }
         else
-            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+        {
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        }
     SWITCH_CASE(STK_CMD_SET_PROG_STATE)
         /* 设置编程会话状�? 0=STOP_PROG 关闭离线�? 1=START_PROG 创建离线包�?----本指令只在“记录”模式下才会下发---- */
         if (pRx[STK_TXMSG_START + 1] > STK500_PROGRAM_RECORDING)
@@ -438,14 +449,19 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         }
         else if (pRx[STK_TXMSG_START + 1] == STK500_PROGRAM_RECORDING)
         {
-            if (offlinePgmerRawBegin(&g_stkDeviceIdentity) == 0U)
+            if (g_stkProgrammerState == STK500_PROGRAM_RECORDING)
             {
-                g_stkProgrammerState = STK500_PROGRAM_RECORDING;
+                /* Idempotent: already recording, keep current package. */
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            }
+            else if (offlinePgmerRawBegin(&g_stkDeviceIdentity) != 0U)
+            {
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
             }
             else
             {
-                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+                g_stkProgrammerState = STK500_PROGRAM_RECORDING;
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
             }
         }
         else
@@ -542,7 +558,8 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         }
 #if DEBUG_HARDWARE_CONFIG
         /* 诊断用：打印上位机每次下发的字地址，确认是否在同一页反复读写�?*/
-        uart1_WriteString("HID LOAD addr=0x");
+        uart1_WriteString(stkSourceName(pDataFrame->source));
+        uart1_WriteString(" LOAD addr=0x");
         uart1_WriteHex8(stkAddress.bytes[3]);
         uart1_WriteHex8(stkAddress.bytes[2]);
         uart1_WriteHex8(stkAddress.bytes[1]);
@@ -749,14 +766,22 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_ISP)
         {
             uint8_t recStatus = STK_STATUS_CMD_OK;
-            uint8_t onlineStatus = stkIsOnlineMode() ?
-                ispEnterProgmode((stkEnterProgIsp_t *)param) : STK_STATUS_CMD_OK;
+            uint8_t onlineStatus = STK_STATUS_CMD_OK;
+            if (stkIsOnlineMode() && g_stkIspEntered == 0U)
+            {
+                onlineStatus = ispEnterProgmode((stkEnterProgIsp_t *)param);
+                if (onlineStatus == STK_STATUS_CMD_OK)
+                    g_stkIspEntered = 1U;
+            }
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
         }
     SWITCH_CASE(STK_CMD_LEAVE_PROGMODE_ISP)
         {
-            if (stkIsOnlineMode())
+            if (stkIsOnlineMode() && g_stkIspEntered)
+            {
                 ispLeaveProgmode((stkLeaveProgIsp_t *)param);
+                g_stkIspEntered = 0U;
+            }
         }
     SWITCH_CASE(STK_CMD_CHIP_ERASE_ISP)
         pTx[STK_TXMSG_START + 1] = stkIsOnlineMode() ?
@@ -770,7 +795,8 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
 #if DEBUG_HARDWARE_CONFIG
             /* 诊断用：打印页写命令实际返回的状态（0=OK）�?*/
-            uart1_WriteString("HID WRITE st=0x");
+            uart1_WriteString(stkSourceName(pDataFrame->source));
+            uart1_WriteString(" WRITE st=0x");
             uart1_WriteHex8(pTx[STK_TXMSG_START + 1]);
             uart1_WriteString("\r\n");
 #endif
@@ -779,10 +805,20 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         if (stkIsOnlineMode())
             len.word = 1 + ispReadMemory((stkReadFlashIsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1], 0);
         else
-            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        {
+            stkReadFlashIsp_t *rdParam = (stkReadFlashIsp_t *)param;
+            uint16_t numBytes = ((uint16_t)rdParam->numBytes[0] << 8) | rdParam->numBytes[1];
+            uint16_t got = offlinePgmerRawReadBack(STK_CMD_READ_FLASH_ISP, stkAddress.dword,
+                                                   pRx, &pTx[STK_TXMSG_START + 2], numBytes);
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            if (got < numBytes)
+                memset(&pTx[STK_TXMSG_START + 2 + got], 0xFF, numBytes - got);
+            len.word = (uint16_t)(numBytes + 2U);
+        }
 #if DEBUG_HARDWARE_CONFIG
         /* 诊断用：打印读回数据�?4 字节�?xFF 说明目标片没写进去）�?*/
-        uart1_WriteString("HID READ data=");
+        uart1_WriteString(stkSourceName(pDataFrame->source));
+        uart1_WriteString(" READ data=");
         uart1_WriteHex8(pTx[STK_TXMSG_START + 2]);
         uart1_WriteHex8(pTx[STK_TXMSG_START + 3]);
         uart1_WriteHex8(pTx[STK_TXMSG_START + 4]);
@@ -801,7 +837,16 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         if (stkIsOnlineMode())
             len.word = 1 + ispReadMemory((stkReadFlashIsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1], 1);
         else
-            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        {
+            stkReadFlashIsp_t *rdParam = (stkReadFlashIsp_t *)param;
+            uint16_t numBytes = ((uint16_t)rdParam->numBytes[0] << 8) | rdParam->numBytes[1];
+            uint16_t got = offlinePgmerRawReadBack(STK_CMD_READ_EEPROM_ISP, stkAddress.dword,
+                                                   pRx, &pTx[STK_TXMSG_START + 2], numBytes);
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            if (got < numBytes)
+                memset(&pTx[STK_TXMSG_START + 2 + got], 0xFF, numBytes - got);
+            len.word = (uint16_t)(numBytes + 2U);
+        }
     SWITCH_CASE(STK_CMD_PROGRAM_FUSE_ISP)
         {
             stkProgramFuseIsp_t *ispParam = (stkProgramFuseIsp_t *)param;
@@ -818,8 +863,41 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         }
         else
         {
-            pTx[STK_TXMSG_START + 2] = 0xFF;
-            pTx[STK_TXMSG_START + 3] = STK_STATUS_CMD_FAILED;
+            uint8_t rdValue = 0xFFU;
+            if (cmd == STK_CMD_READ_FUSE_ISP || cmd == STK_CMD_READ_LOCK_ISP)
+            {
+                /* Record mode: reply with the value recorded by the matching
+                 * PROGRAM_FUSE/LOCK frame on the board flash. */
+                if (offlinePgmerRawReadBack(cmd, 0U, pRx, &rdValue, 1U) != 0U)
+                    pTx[STK_TXMSG_START + 2] = rdValue;
+                else
+                    pTx[STK_TXMSG_START + 2] = 0xFFU;
+                pTx[STK_TXMSG_START + 3] = STK_STATUS_CMD_OK;
+            }
+            else if (cmd == STK_CMD_READ_SIGNATURE_ISP)
+            {
+                /* Record mode: report the signature from the AVR device table
+                 * resolved via the DEVICE_IDENTITY set by the host. */
+                if (g_activeDeviceParams.device_arch == STK_MCU_ARCH_AVR)
+                {
+                    stkReadFuseIsp_t *rdParam = (stkReadFuseIsp_t *)param;
+                    uint8_t idx = (uint8_t)(rdParam->cmd[2] & 0x0FU);
+                    if (idx < 3U)
+                        rdValue = g_activeDeviceParams.device_params.avrParam.signature[idx];
+                    pTx[STK_TXMSG_START + 2] = rdValue;
+                    pTx[STK_TXMSG_START + 3] = STK_STATUS_CMD_OK;
+                }
+                else
+                {
+                    pTx[STK_TXMSG_START + 2] = 0xFFU;
+                    pTx[STK_TXMSG_START + 3] = STK_STATUS_CMD_FAILED;
+                }
+            }
+            else /* STK_CMD_READ_OSCCAL_ISP: not simulated */
+            {
+                pTx[STK_TXMSG_START + 2] = 0xFFU;
+                pTx[STK_TXMSG_START + 3] = STK_STATUS_CMD_FAILED;
+            }
         }
         len.bytes[0] = 4;
     SWITCH_CASE(STK_CMD_PROGRAM_LOCK_ISP)
@@ -838,7 +916,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         /*------------------- PIC ICSP 命令处理开�?-------------------*/
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_ICSP)
         {
-            /* avrdude -B: 挡位在进入编程模式前生效 (仅在线模式有副作用) */
+            /* avrdude -B: 挡位在进入编程模式前生效 (仅在线模式有副作�? */
             if (stkIsOnlineMode() &&
                 stkParam.bytes[STK_SCK_TIER_IDX] != STK_SCK_TIER_UNSET)
             {

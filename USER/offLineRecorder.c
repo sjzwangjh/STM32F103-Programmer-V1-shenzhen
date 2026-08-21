@@ -51,6 +51,9 @@ static struct {
     offline_raw_package_header_t header;
 } g_rawCapture;
 
+/* Record-mode read-back scratch buffer for parsing the on-going package. */
+static uint8_t g_readbackFrame[BUFFER_SIZE];
+
 /* STK500 当前工作模式, 由协议层命令设置。 */
 uint8_t g_stkWorkMode = STK500_WORK_MODE_ONLINE;
 
@@ -81,10 +84,12 @@ static uint32_t offlineCalcSum32(const uint8_t *data, uint16_t len)
 }
 
 /* 将地址向上对齐到 SPI Flash 扇区边界。 */
+#if !OFFLINE_SINGLE_PACKET_MODE
 static uint32_t offlineAlignSector(uint32_t addr)
 {
     return (addr + FLASH_SECTOR_SIZE - 1UL) & ~(FLASH_SECTOR_SIZE - 1UL);
 }
+#endif
 
 /* 从 SPI Flash 加载 raw 离线包索引表, 同一次运行中只加载一次。 */
 static void offlineRawLoadIndex(void)
@@ -120,6 +125,15 @@ static uint8_t offlineRawIsValidIndex(uint16_t index)
 /* 为新的 raw 离线包分配一个索引槽。 */
 static uint16_t offlineRawAllocIndex(void)
 {
+#if OFFLINE_SINGLE_PACKET_MODE
+    /* Single-package debug mode: always reuse slot 0. */
+    offlineRawLoadIndex();
+    memset(&g_offlinePackageIndex[0], 0, sizeof(g_offlinePackageIndex[0]));
+    g_offlinePackageIndex[0].used = 1U;
+    g_offlinePackageIndex[0].package_state = OFFLINE_PACKAGE_WRITING;
+    g_offlinePackageIndex[0].package_index = 0U;
+    return 0U;
+#else
     uint16_t i;
 
     offlineRawLoadIndex();
@@ -137,11 +151,16 @@ static uint16_t offlineRawAllocIndex(void)
     }
 
     return 0xFFFFU;
+#endif
 }
 
 /* 为新的 raw 离线包分配 SPI Flash 起始地址。 */
 static uint32_t offlineRawAllocFlashAddr(void)
 {
+#if OFFLINE_SINGLE_PACKET_MODE
+    /* Single-package debug mode: always overwrite the fixed data area. */
+    return OFFLINE_RAW_DATA_START_ADDR;
+#else
     uint16_t i;
     uint32_t end;
     uint32_t max_end = OFFLINE_RAW_DATA_START_ADDR;
@@ -159,6 +178,7 @@ static uint32_t offlineRawAllocFlashAddr(void)
     }
 
     return offlineAlignSector(max_end);
+#endif
 }
 
 /* 写入 raw 包数据前按需擦除覆盖到的 SPI Flash 扇区。 */
@@ -224,7 +244,7 @@ void offlinePgmerInitWith(stkDeviceIdentity_t* di)
 /* 设置 STK500 扩展工作模式。 */
 uint8_t stkSetWorkMode(uint8_t mode)
 {
-    if (mode > STK500_WORK_MODE_ONLINE_RECORD)
+    if (mode > STK500_WORK_MODE_REPLAY)
         return 0U;
 
     g_stkWorkMode = mode;
@@ -246,7 +266,7 @@ uint8_t stkGetWorkMode(void)
 uint8_t stkIsOnlineMode(void)
 {
     return (g_stkWorkMode == STK500_WORK_MODE_ONLINE ||
-            g_stkWorkMode == STK500_WORK_MODE_ONLINE_RECORD) ? 1U : 0U;
+            g_stkWorkMode == STK500_WORK_MODE_REPLAY) ? 1U : 0U;
 }
 
 
@@ -256,8 +276,7 @@ uint8_t stkIsOnlineMode(void)
  */
 uint8_t stkIsRecordMode(void)
 {
-    return (g_stkWorkMode == STK500_WORK_MODE_RECORD ||
-            g_stkWorkMode == STK500_WORK_MODE_ONLINE_RECORD) ? 1U : 0U;
+    return (g_stkWorkMode == STK500_WORK_MODE_RECORD) ? 1U : 0U;
 }
 
 
@@ -391,6 +410,104 @@ uint8_t offlinePgmerRawEnd(void)
     return 0U;
 }
 
+/*
+ * Record-mode read-back: parse the in-progress offline package stored on the
+ * board flash and return the data recorded by the matching PROGRAM frame.
+ * readCmd   : STK_CMD_READ_FLASH_ISP / READ_EEPROM_ISP / READ_FUSE_ISP / READ_LOCK_ISP
+ * addr      : current LOAD_ADDRESS value (used for flash/eeprom)
+ * readFrame : the incoming READ STK500 frame (used for fuse/lock slot match)
+ * out/outCap: destination buffer and capacity
+ * Returns the number of bytes filled (0 = no matching record, caller fills 0xFF). */
+uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr,
+                                  const uint8_t *readFrame,
+                                  uint8_t *out, uint16_t outCap)
+{
+    uint32_t cursor;
+    uint32_t end;
+    uint32_t curAddr = 0U;
+    offline_raw_packet_header_t ph;
+
+    if (!g_rawCapture.active || readFrame == 0 || out == 0 || outCap == 0U)
+        return 0U;
+
+    end = g_rawCapture.file_addr + g_rawCapture.write_offset;
+    cursor = g_rawCapture.file_addr + sizeof(offline_raw_package_header_t);
+
+    while ((end - cursor) >= sizeof(ph))
+    {
+        uint8_t cmd;
+        uint16_t frameLen;
+
+        SPI_Flash_Read((uint8_t *)&ph, cursor, sizeof(ph));
+        if (ph.frame_len < 6U || ph.frame_len > BUFFER_SIZE ||
+            (end - cursor - sizeof(ph)) < ph.frame_len)
+            break;
+
+        SPI_Flash_Read(g_readbackFrame, cursor + sizeof(ph), ph.frame_len);
+        frameLen = ph.frame_len;
+        cmd = ph.cmd;
+
+        if (cmd == STK_CMD_LOAD_ADDRESS && frameLen >= 10U)
+        {
+            curAddr = ((uint32_t)g_readbackFrame[6] << 24) |
+                      ((uint32_t)g_readbackFrame[7] << 16) |
+                      ((uint32_t)g_readbackFrame[8] << 8) |
+                      g_readbackFrame[9];
+        }
+        else if (cmd == STK_CMD_PROGRAM_FLASH_ISP && readCmd == STK_CMD_READ_FLASH_ISP)
+        {
+            uint16_t n = ((uint16_t)g_readbackFrame[6] << 8) | g_readbackFrame[7];
+            if (curAddr == addr && n != 0U && (uint16_t)(15U + n) <= frameLen)
+            {
+                uint16_t cp = (n > outCap) ? outCap : n;
+                memcpy(out, &g_readbackFrame[15], cp);
+                return cp;
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_EEPROM_ISP && readCmd == STK_CMD_READ_EEPROM_ISP)
+        {
+            uint16_t n = ((uint16_t)g_readbackFrame[6] << 8) | g_readbackFrame[7];
+            if (curAddr == addr && n != 0U && (uint16_t)(15U + n) <= frameLen)
+            {
+                uint16_t cp = (n > outCap) ? outCap : n;
+                memcpy(out, &g_readbackFrame[15], cp);
+                return cp;
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_FUSE_ISP && readCmd == STK_CMD_READ_FUSE_ISP)
+        {
+            /* AVR program-fuse opcode: 0xAC A0/A8/A4 <x> <data>. The data bits
+             * ("i" in the avrdude opcode) live in the 4th byte. avrdude verifies
+             * with its bitmask, so returning byte 3 works for 8-bit fuses and
+             * small-bitmask parts (efuse) alike. */
+            uint8_t wslot = (uint8_t)((g_readbackFrame[7] == 0xA0U) ? 1U :
+                              (g_readbackFrame[7] == 0xA8U) ? 2U :
+                              (g_readbackFrame[7] == 0xA4U) ? 3U : 0U);
+            uint8_t rslot = 0U;
+            if (readFrame[7] == 0x50U && readFrame[8] == 0x00U) rslot = 1U;
+            else if (readFrame[7] == 0x58U && readFrame[8] == 0x08U) rslot = 2U;
+            else if (readFrame[7] == 0x50U && readFrame[8] == 0x08U) rslot = 3U;
+            if (wslot != 0U && wslot == rslot)
+            {
+                out[0] = g_readbackFrame[9];
+                return 1U;
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_LOCK_ISP && readCmd == STK_CMD_READ_LOCK_ISP)
+        {
+            if (g_readbackFrame[6] == 0xACU && g_readbackFrame[7] == 0xE0U)
+            {
+                out[0] = g_readbackFrame[9];
+                return 1U;
+            }
+        }
+
+        cursor += sizeof(ph) + frameLen;
+    }
+
+    return 0U;
+}
+
 /* 获取 raw 离线包总体信息, 供上位机查询当前 Flash 中已有多少个离线包。 */
 uint8_t offlinePgmerGetOfflineInfo(offline_package_info_t *info)
 {
@@ -460,10 +577,15 @@ uint8_t offlinePgmerSetActivePackage(uint16_t index)
 /* 从 EEPROM 读取当前激活包编号。 */
 uint8_t offlinePgmerGetActivePackage(uint16_t *index)
 {
-    offline_active_record_t rec;
-
     if (index == 0)
         return 1U;
+
+#if OFFLINE_SINGLE_PACKET_MODE
+    /* Single-package debug mode: the one package is always active. */
+    *index = 0U;
+    return 0U;
+#else
+    offline_active_record_t rec;
 
     SPI_EEPROM_Read(OFFLINE_ACTIVE_EEPROM_ADDR,
                     (uint8_t *)&rec,
@@ -477,6 +599,7 @@ uint8_t offlinePgmerGetActivePackage(uint16_t *index)
 
     *index = rec.active_index;
     return 0U;
+#endif
 }
 
 

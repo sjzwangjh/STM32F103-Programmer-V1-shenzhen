@@ -87,6 +87,7 @@
 #define HW_DUT_PIN8_DAT             E,5
 
 /* -------- HANDLER -------- */
+#define HW_HANDLER_PARAM_EEPROM_START_ADDR  0x0400
 #define HW_HANDLER_OK               C,6
 #define HW_HANDLER_NG               C,7
 #define HW_HANDLER_BUSY             A,8

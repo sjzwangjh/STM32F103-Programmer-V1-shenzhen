@@ -32,11 +32,18 @@
 #include "offLinePgmer.h"
 #include "debugBin.h"
 
+/* Offline replay result record in SPI EEPROM (0x0040, 4 bytes):
+ * byte0 magic 0xA5, byte1 version 1, byte2-3 last failed packet no (u16 BE).
+ * All-0xFF means no failure recorded. */
+#define OFFLINE_REPLAY_RESULT_MAGIC     0xA5U
+#define OFFLINE_REPLAY_RESULT_VER       1U
+#define OFFLINE_REPLAY_RESULT_ADDR      0x0040UL
+
 /// USB 口对应的MCU引脚定义
 #define HW_USB_DP_PORT  A,12
 
-/// @brief 设置USB“使能”状态
-/// @param enable = 0：关闭；1：使能
+/// @brief 设置USB“使能”状�?
+/// @param enable = 0：关闭；1：使�?
 void usb_port_set(u8 enable)
 {
     RCC->APB2ENR|=1<<2;
@@ -49,7 +56,7 @@ void usb_port_set(u8 enable)
     }
 }
 
-/// @brief MCU主函数入口
+/// @brief MCU主函数入�?
 /// @param  
 /// @return 
 int main(void)
@@ -77,7 +84,7 @@ int main(void)
     Set_USBClock();
     USB_Init();
 
-    /* 保留 SWD，关闭 JTAG 即可，避免误关 SWD 调试口。 */
+    /* 保留 SWD，关�?JTAG 即可，避免误�?SWD 调试口�?*/
     Disable_JTAG_Keep_SWD();
     DutBus_Init();
 
@@ -98,28 +105,28 @@ int main(void)
     timerInit();
     Adc_Init();             // ADC + DMA1_Channel1
 
-    /* EEPROM 当前仅提供轮询版 SPI 读写接口，无需 DMA 初始化。 */
+    /* EEPROM 当前仅提供轮询版 SPI 读写接口，无需 DMA 初始化�?*/
     SPI_EEPROM_Init();
 
-    /* Flash 默认读写接口也是轮询版。
-     * 只有在后续明确调用 SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
-     * 时，才需要打开 SPI_Flash_DMA_Init()。
+    /* Flash 默认读写接口也是轮询版�?
+     * 只有在后续明确调�?SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
+     * 时，才需要打开 SPI_Flash_DMA_Init()�?
      */
     SPI_Flash_Init();
     /* SPI_Flash_DMA_Init(); */
 
-    /* FatFs / diskio 当前走的是 SD_ReadSingleBlock()/SD_ReadBlocks()
-     * 这条轮询路径，不会自动使用 SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()。
-     * 因此默认只初始化 SDIO 本体；若后续切换到底层 DMA 接口，
-     * 再在 SD_Init() 成功后补做 SD_DMA_Init()。
+    /* FatFs / diskio 当前走的�?SD_ReadSingleBlock()/SD_ReadBlocks()
+     * 这条轮询路径，不会自动使�?SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()�?
+     * 因此默认只初始化 SDIO 本体；若后续切换到底�?DMA 接口�?
+     * 再在 SD_Init() 成功后补�?SD_DMA_Init()�?
      */
     if(SD_Init() == SD_OK)
     {
         /* SD_DMA_Init(); */
     }
-		/* 初始化 Handler */
+		/* 初始�?Handler */
     Handler_Task_Init();
-	HandlerTask(1,1);   // 初始化发送一个失效信号
+	HandlerTask(1,1);   // 初始化发送一个失效信�?
     /* 离线编程器初始化 */
     offlinePgmer_init();
     debugBin_Init();
@@ -140,10 +147,32 @@ int main(void)
         CDC_Task();     /* USB CDC: RX drain + TX flush (EP3)         */
         HID_Task();     /* USB HID: RX drain + TX flush (EP1)         */
         WinUSB_Task();  /* USB WinUSB Bulk: RX drain + TX flush (EP4) */
-        /* 机械手信号读取 */
-        handlerKey = HandlerTask(1,0);
+        /* 机械手信号读�?*/
+        handlerKey = HandlerTask(0xFF,0);  /* free-run handler state machine */
         if(handlerKey>0){
-            offlinePgmer();
+            uint16_t replayResult = offlinePgmer();
+            if (replayResult == 0U)
+            {
+                /* PASS: short beep + ACTIVE LED blink, clear fail record. */
+                BEEP = 1; delay_ms(60); BEEP = 0;
+                LED_ACTIVE = 1; delay_ms(100); LED_ACTIVE = 0;
+                delay_ms(80);
+                LED_ACTIVE = 1; delay_ms(100); LED_ACTIVE = 0;
+                LED_RESET = 0;
+                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR, 0xFFU);
+            }
+            else
+            {
+                /* FAIL: long beep + RESET LED on, record failed packet no. */
+                BEEP = 1; delay_ms(400); BEEP = 0;
+                LED_RESET = 1;
+                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 0U, OFFLINE_REPLAY_RESULT_MAGIC);
+                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 1U, OFFLINE_REPLAY_RESULT_VER);
+                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 2U, (uint8_t)(replayResult >> 8U));
+                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 3U, (uint8_t)(replayResult & 0xFFU));
+            }
+            /* Report PASS/FAIL to the handler after the offline test. */
+            HandlerSetBin((uint8_t)(replayResult == 0U ? 0U : 1U));
         }
         if(stkFwUpgradeRequested())
         {

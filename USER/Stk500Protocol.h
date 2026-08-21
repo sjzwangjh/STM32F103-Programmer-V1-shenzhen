@@ -1,4 +1,4 @@
-﻿/*
+/*
  * STK500?????????????????????- ?????????????????/???????????????????????????????
  */
 
@@ -22,7 +22,7 @@
  * External called from main loop: stkPoll()
  */
 
-/* Boot/App 公共契约：EEPROM 启动模式标志等，与 Boot 工程共用同一来源 */
+/* Boot/App �?共�?�约：EEPROM �?动模式标志等，与 Boot 工程共用同一来源 */
 #include "bootAppCommon.h"
 
 #define BUFFER_SIZE     281 /* results in 275 bytes max body size */
@@ -438,12 +438,6 @@ void    stkIncrementAddress(void);
 /* =================== [ STK answer constants ] =================== */
 #define STK_ANSWER_CKSUM_ERROR                  0xB0
 
-/* =================== [ DFM programmer work modes ] =================== */
-#define STK_WORK_MODE_SIMULATE                  0
-#define STK_WORK_MODE_ONLINE                    1
-#define STK_WORK_MODE_RECORD                    2
-#define STK_WORK_MODE_ONLINE_RECORD             3
-
 /* =================== [ Frame constants ] =================== */
 #define STK_STX     27
 #define STK_TOKEN   14
@@ -460,13 +454,13 @@ void    stkIncrementAddress(void);
 #define STK_MCU_PROGRAM_WITH_ICSP       3
 #define STK_MCU_PROGRAM_WITH_JTAG       4
 
-/* 上位机下发指令 STK_CMD_SET_PARAMETER -> STK_PARAM_DEVICE_IDENTITY 对应的结构体 */
+/* 上位机下发指�? STK_CMD_SET_PARAMETER -> STK_PARAM_DEVICE_IDENTITY 对应的结构体 */
 typedef struct
 {
-    uint8_t arch;     // 器件类型：0= AVR, 1 = PIC
+    uint8_t arch;     // 器件类型�?0= AVR, 1 = PIC
     uint16_t index;     // 器件索引 (0~65535)
-    uint8_t itemId[STK_PARAM_ITEM_ID_LEN];     // 项目ID, 用于唯一标识一个项目（一个烧录任务）
-    char itemDesc[STK_PARAM_ITEM_DESC_LEN + 1];// 项目描述, 用于显示项目的信息
+    uint8_t itemId[STK_PARAM_ITEM_ID_LEN];     // 项目ID, 用于�?一标识一�?项目（一�?烧录任务�?
+    char itemDesc[STK_PARAM_ITEM_DESC_LEN + 1];// 项目描述, 用于显示项目的信�?
 } stkDeviceIdentity_t;
 
 

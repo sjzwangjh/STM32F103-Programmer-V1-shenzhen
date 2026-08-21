@@ -15,10 +15,10 @@
  */
 
 /* STK500 扩展工作模式。 */
-#define STK500_WORK_MODE_SIMULATE       0U      /* 模拟模式: 只解析协议, 不操作目标芯片, 不记录数据 */
+#define STK500_WORK_MODE_SIMULATE       0U      /* deprecated: no longer accepted from host */
 #define STK500_WORK_MODE_ONLINE         1U      /* 在线模式: 直接按上位机命令烧录目标芯片 */
-#define STK500_WORK_MODE_RECORD         2U      /* 记录模式: 只记录上位机数据包, 不执行目标芯片烧录 */
-#define STK500_WORK_MODE_ONLINE_RECORD  3U      /* 在线+记录模式: 在线烧录的同时记录离线数据包 */
+#define STK500_WORK_MODE_RECORD         2U      /* record: host commands stored to board flash, no target I/O */
+#define STK500_WORK_MODE_REPLAY         3U      /* replay: handler-triggered, program target from board flash package */
 
 /* 一次编程会话的记录状态, 由 CMD_SET_PROG_STATE 控制。 */
 #define STK500_PROGRAM_IDLE             0U      /* 空闲: 当前没有打开离线包文件 */
@@ -32,6 +32,10 @@
 #define OFFLINE_ACTIVE_MAGIC    0x43414C4FUL  /* "OLAC" */
 #define OFFLINE_RAW_VERSION     1U
 #define OFFLINE_MAX_PACKAGES    32U
+
+/* Debug mode: keep only one package (slot 0), overwrite it on next recording.
+ * Set to 0 to restore multi-package recording. */
+#define OFFLINE_SINGLE_PACKET_MODE  1U
 
 /* SPI Flash 索引表中的离线包状态。 */
 #define OFFLINE_PACKAGE_EMPTY   0U
@@ -136,6 +140,7 @@ uint8_t stkIsRecordMode(void);
 uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity);
 uint8_t offlinePgmerRawAppendRxPacket(const uint8_t *frame, uint16_t frameLen);
 uint8_t offlinePgmerRawEnd(void);
+uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr, const uint8_t *readFrame, uint8_t *out, uint16_t outCap);
 uint8_t offlinePgmerGetOfflineInfo(offline_package_info_t *info);
 uint8_t offlinePgmerGetPackageSummary(uint16_t index, offline_package_index_t *summary);
 uint8_t offlinePgmerSetActivePackage(uint16_t index);

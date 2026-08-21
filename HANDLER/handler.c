@@ -25,14 +25,13 @@
 #include "flash.h"
 #include "delay.h"
 #include "timer.h"
+#include "eeprom.h"
 #include <string.h>
 
 /* ── 模块内全局变量 ───────────────────────────────────────────── */
-static HandlerConfigerType usedHandler = {1, 1, 1, 1, 1, 10, 100};
+static HandlerConfigerType usedHandler = {1, 1, 1, 1, 1, 10, 3000};
 statisticsType usedStatistics = {0, 0, 0, 0, 0, 0};
 
-static uint32_t handlerTickStart;                /* 延时计数器起点 (ms) */
-static char     handlerCfgFileName[20] = "HandlerCfg.bin";
 static uint8_t  handlerCfgBuff[16];
 
 /*
@@ -45,16 +44,6 @@ static uint8_t  handlerCfgBuff[16];
  * 此处提供一个本地实现, 使用 volatile 全局变量 g_msTick (需在 timer.c 中声明)。
  * 若实际项目中无此变量, 可用 PORT_RCC_CLK + delay_us 近似, 但精度差。
  */
-static uint32_t HandlerGetMsTick(void)
-{
-    /* 
-     * 方案A: 若 sys.c 中有 g_sysTick (全局 SysTick 计数器)
-     * 方案B: 若 timer.c 中有 timerMsTick 用于定时器延时
-     * 当前使用 delay_ms 不提供返回值, 因此用一个本地静态变量模拟。
-     * 实际集成时, 需要将 timer.c 中的 TIM6 ISR 递增一个全局 uint32_t msCounter。
-     */
-    return handlerTickStart; /* 占位: 集成时替换为实际的毫秒计数器 */
-}
 
 /* ── 配置读写 ─────────────────────────────────────────────────── */
 
@@ -105,16 +94,8 @@ void HandlerUpdateFlash(void)
     handlerCfgBuff[7] = (uint8_t)usedHandler.delayMsMinTestTime;
     handlerCfgBuff[8] = (uint8_t)(usedHandler.delayMsMinTestTime >> 8);
 
-    /* 
-     * TODO: 集成 SPI_Flash_Mount / SPI_Flash_Write / SPI_Flash_DisMount
-     * 当前项目中已实现 SPI_Flash_Mount(0), SPI_Flash_Write(filename, buf, len), 
-     * SPI_Flash_DisMount(), 但需要确认这些函数的头文件位置。
-     *
-     * 示例调用:
-     *   SPI_Flash_Mount(0);
-     *   SPI_Flash_Write(handlerCfgFileName, handlerCfgBuff, 10);
-     *   SPI_Flash_DisMount();
-     */
+    /* 写入 SPI EEPROM */
+     SPI_EEPROM_Write(HW_HANDLER_PARAM_EEPROM_START_ADDR, handlerCfgBuff, 10);
 }
 
 /**
@@ -123,7 +104,6 @@ void HandlerUpdateFlash(void)
  */
 void HandlerReadConfig(uint8_t* pByteBuff)
 {
-    uint8_t result;
 
     /* 
      * TODO: 集成 SPI_Flash_Read
@@ -134,14 +114,15 @@ void HandlerReadConfig(uint8_t* pByteBuff)
      *
      * 当前先用默认值代替
      */
-    (void)pByteBuff;
-    (void)result;
-
-    /* 若寄存器中读取成功, 填充 usedHandler */
-#if 0  /* --- 以下为集成后启用 --- */
-    SPI_Flash_Mount(0);
-    result = SPI_Flash_Read(handlerCfgFileName, handlerCfgBuff, 10);
-    if (result == 10)
+    /* Read the 10-byte handler config from SPI EEPROM; fall back to defaults
+     * when the area is all 0x00 or all 0xFF (erased / never written). */
+    SPI_EEPROM_Read(HW_HANDLER_PARAM_EEPROM_START_ADDR, handlerCfgBuff, 10);
+    if (handlerCfgBuff[0] != 0 && handlerCfgBuff[1] != 0 && handlerCfgBuff[2] != 0 &&
+        handlerCfgBuff[3] != 0 && handlerCfgBuff[4] != 0 && handlerCfgBuff[5] != 0 &&
+        handlerCfgBuff[6] != 0 && handlerCfgBuff[7] != 0 && handlerCfgBuff[8] != 0 &&
+        handlerCfgBuff[0] != 0xFF && handlerCfgBuff[1] != 0xFF && handlerCfgBuff[2] != 0xFF &&
+        handlerCfgBuff[3] != 0xFF && handlerCfgBuff[4] != 0xFF && handlerCfgBuff[5] != 0xFF &&
+        handlerCfgBuff[6] != 0xFF && handlerCfgBuff[7] != 0xFF && handlerCfgBuff[8] != 0xFF)
     {
         usedHandler.sotLevel         = handlerCfgBuff[0];
         usedHandler.eotLevel         = handlerCfgBuff[1];
@@ -150,14 +131,10 @@ void HandlerReadConfig(uint8_t* pByteBuff)
         usedHandler.ngLevel          = handlerCfgBuff[4];
         usedHandler.delayMsBinToEot  = (handlerCfgBuff[5]) | (handlerCfgBuff[6] << 8);
         usedHandler.delayMsMinTestTime = (handlerCfgBuff[7]) | (handlerCfgBuff[8] << 8);
-
-        if (pByteBuff != NULL)
-        {
-            memcpy(pByteBuff, handlerCfgBuff, 10);
-        }
     }
-    SPI_Flash_DisMount();
-#endif
+
+    if (pByteBuff != NULL)
+        memcpy(pByteBuff, handlerCfgBuff, 10);
 }
 
 /* ── 统计函数 ──────────────────────────────────────────────────── */
@@ -207,6 +184,8 @@ void Handler_Task_Init(void)
     PORT_RCC_CLK(HW_HANDLER_NG);
     PORT_RCC_CLK(HW_HANDLER_BUSY);
     PORT_RCC_CLK(HW_HANDLER_UD);
+    PORT_RCC_CLK(HW_HANDLER_START);
+    PORT_SET_DIR_IN_PD(HW_HANDLER_START);   /* SOT input, idle low (sotLevel=1 high-active) */
 
     /* 2. 从非易失存储读取配置 (当前为占位, 使用默认值) */
     HandlerReadConfig(NULL);
@@ -216,6 +195,7 @@ void Handler_Task_Init(void)
     HANDLER_NG_INIT;
     HANDLER_BUSY_INIT;
     HANDLER_EOT_INIT;
+    HANDLER_UD_INIT;
     
     /* 4. 设置所有输出信号到默认状态 */
     SET_BIN_TO_DEFAULT;
@@ -267,7 +247,6 @@ uint16_t HandlerTask(uint8_t stateIndex, uint8_t bin)
     uint16_t _return = 0;
 
     static uint8_t  handler_task_Step_index = 0;     /* 当前状态索引 */
-    static uint16_t hanlerStatsHasSet = 0;            /* 输出信号已复位标志 */
 
     /* 强制设置新状态 (外部调用) */
     if (stateIndex != 0xFF)
@@ -277,58 +256,39 @@ uint16_t HandlerTask(uint8_t stateIndex, uint8_t bin)
 
     switch (handler_task_Step_index)
     {
-    case 0:     /* ── 初始化 → 转等待 SOT ── */
+    case 0:     /* INIT: default signals, latch current SOT level */
         SET_BIN_TO_DEFAULT;
         HANDLER_EOT_CLR;
+        oldSot = HANDLER_SOT_GET;
         handler_task_Step_index = 1;
         break;
 
-    case 1:     /* ── 等待 SOT 信号有效 ── */
+    case 1:     /* WAIT_SOT: trigger offline test on SOT active edge */
         nowSot = HANDLER_SOT_GET;
-        /* 检测 SOT 有效:
-         *   SOT 设定为高有效 且 当前为高, 或者
-         *   SOT 设定为低有效 且 当前为低 */
-        if ((nowSot && usedHandler.sotLevel == 1) ||
-            (nowSot == 0 && usedHandler.sotLevel == 0))
+        if (nowSot != oldSot)               /* level change: detect edge */
         {
-            handler_task_Step_index = 2;
             oldSot = nowSot;
-
-            /* 每片芯片的开始, 先发 BUSY, 清除输出信号 */
-            if (hanlerStatsHasSet == 0)
+            if ((nowSot && usedHandler.sotLevel == 1) ||
+                (nowSot == 0 && usedHandler.sotLevel == 0))
             {
+                /* Trigger: BUSY=1, return 1 to start the offline test */
                 HANDLER_BUSY_SET;
                 HANDLER_EOT_CLR;
                 HANDLER_OK_CLR;
                 HANDLER_NG_CLR;
+                _return = 1;
+                handler_task_Step_index = 2;
             }
         }
-
-        /* 过滤抖动: 最短测试时间内, 未检测到 SOT 但先拉 BUSY */
-        if (hanlerStatsHasSet == 0 &&
-            (HandlerGetMsTick() - handlerTickStart) > usedHandler.delayMsMinTestTime)
-        {
-            HANDLER_BUSY_SET;
-            HANDLER_EOT_CLR;
-            HANDLER_OK_CLR;
-            HANDLER_NG_CLR;
-            hanlerStatsHasSet = 1;
-        }
         break;
 
-    case 2:     /* ── 等待 SOT 结束 (芯片脱离) ── */
-        nowSot = HANDLER_SOT_GET;
-        if (nowSot != oldSot)
-        {
-            handler_task_Step_index = 3;
-            _return = 1;
-        }
+    case 2:     /* TEST_RUN: offline test in progress (BUSY stays 1),
+                 * result arrives via HandlerSetBin() -> forced state 3 */
         break;
 
-    case 3:     /* ── 输出 BIN 结果 (PASS或FAIL) ── */
+    case 3:     /* SEND_BIN: output PASS(OK)/FAIL(NG), hold, then BUSY clear */
         if (bin == 0)
         {
-            /* 良品: OK=有效, NG=无效 */
             HANDLER_OK_SET;
             HANDLER_NG_CLR;
             usedStatistics.realPassed++;
@@ -336,38 +296,31 @@ uint16_t HandlerTask(uint8_t stateIndex, uint8_t bin)
         }
         else
         {
-            /* 不良品: OK=无效, NG=有效 */
             HANDLER_OK_CLR;
             HANDLER_NG_SET;
             usedStatistics.realFaild++;
             usedStatistics.logicFaild++;
         }
 
-        /* 更新统计 */
         usedStatistics.realTotal++;
         usedStatistics.logicTotal++;
 
-        /* BIN 判决 → EOT 的稳定延时 (毫秒级忙等) */
+        /* Hold BIN for the configured delay, then clear BUSY and set EOT */
         delay_ms(usedHandler.delayMsBinToEot);
 
-        /* BIN 稳定后, 清除 BUSY, 拉高 EOT, 通知机械手取走芯片 */
         HANDLER_BUSY_CLR;
         HANDLER_EOT_SET;
 
-        /* 重置延时计数器, 准备下一片 */
-        hanlerStatsHasSet = 0;
-        handlerTickStart = HandlerGetMsTick();
-
-        /* 每 5 片自动保存一次统计到非易失存储 */
+        /* Auto-save statistics every 5 parts (reserved) */
         if ((usedStatistics.logicTotal % 5) == 0)
         {
-            /* TODO: SPI_FlashSaveStatistics(); */
+            /* TODO: statistics persistence */
         }
 
         handler_task_Step_index = 1;
         break;
 
-    default:    /* ── 错误状态: 回到 INIT ── */
+    default:    /* unknown state: back to INIT */
         handler_task_Step_index = 0;
         break;
     }

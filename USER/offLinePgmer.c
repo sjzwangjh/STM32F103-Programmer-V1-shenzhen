@@ -20,6 +20,7 @@
 #include "Stk500Protocol.h"
 #include "isp.h"
 #include "flash.h"
+#include "usart.h"
 #include <string.h>
 
 /* 回放缓冲区大小（接收帧与发送帧均使用 BUFFER_SIZE） */
@@ -69,8 +70,10 @@ static uint32_t offlineFrameSum32(const uint8_t *data, uint16_t len)
 {
     uint32_t sum = 0U;
 
+    /* Must match the record-side offlineCalcSum32() checksum exactly:
+     * sum = (sum << 5) + sum + byte. */
     while (len-- != 0U)
-        sum += *data++;
+        sum = (sum << 5) + sum + *data++;
     return sum;
 }
 
@@ -214,7 +217,9 @@ static uint8_t offlineIsDeferredRead(uint8_t cmd)
     return (cmd == STK_CMD_READ_FLASH_ISP ||
             cmd == STK_CMD_READ_EEPROM_ISP ||
             cmd == STK_CMD_READ_FUSE_ISP ||
-            cmd == STK_CMD_READ_LOCK_ISP) ? 1U : 0U;
+            cmd == STK_CMD_READ_LOCK_ISP ||
+            cmd == STK_CMD_READ_SIGNATURE_ISP ||
+            cmd == STK_CMD_READ_OSCCAL_ISP) ? 1U : 0U;
 }
 
 /**
@@ -281,7 +286,14 @@ static uint16_t offlineReplayProgramPass(void)
         uint8_t status;
 
         if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
+        {
+#if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("REPLAY pgm readfail pkt=");
+            uart1_WriteDec(i);
+            uart1_WriteString("\r\n");
+#endif
             return (uint16_t)(i + 1U);
+        }
 
         cmd = packetHeader.cmd;
         /* 跳过延迟读取（留给第 2 道工序校验）和锁定位编程（留给第 3 道工序） */
@@ -293,7 +305,16 @@ static uint16_t offlineReplayProgramPass(void)
 
         status = offlineExecuteFrame(packetHeader.frame_len);
         if (status != STK_STATUS_CMD_OK)
+        {
+#if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("REPLAY pgm execfail pkt=");
+            uart1_WriteDec(i);
+            uart1_WriteString(" cmd=0x");
+            uart1_WriteHex8(cmd);
+            uart1_WriteString("\r\n");
+#endif
             return (uint16_t)(i + 1U);
+        }
     }
     return 0U;
 }
@@ -323,7 +344,14 @@ static uint16_t offlineReplayVerifyPass(void)
         void *param;
 
         if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
+        {
+#if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("REPLAY vfy readfail pkt=");
+            uart1_WriteDec(i);
+            uart1_WriteString("\r\n");
+#endif
             return (uint16_t)(i + 1U);
+        }
 
         cmd = packetHeader.cmd;
         param = &g_replayFrame[STK_TXMSG_START + 1U];
@@ -335,19 +363,42 @@ static uint16_t offlineReplayVerifyPass(void)
         case STK_CMD_ENTER_PROGMODE_ISP:
             /* 重放地址/控制上下文命令 */
             if (offlineExecuteFrame(packetHeader.frame_len) != STK_STATUS_CMD_OK)
+            {
+#if DEBUG_HARDWARE_CONFIG
+                uart1_WriteString("REPLAY vfy execfail pkt=");
+                uart1_WriteDec(i);
+                uart1_WriteString(" cmd=0x");
+                uart1_WriteHex8(cmd);
+                uart1_WriteString("\r\n");
+#endif
                 return (uint16_t)(i + 1U);
+            }
             break;
 
         case STK_CMD_PROGRAM_FLASH_ISP:
             /* 将 Flash 编程替换为读回校验 */
             if (ispVerifyMemory((stkProgramFlashIsp_t *)param, 0U) != 0U)
+            {
+#if DEBUG_HARDWARE_CONFIG
+                uart1_WriteString("REPLAY vfy flash mismatch pkt=");
+                uart1_WriteDec(i);
+                uart1_WriteString("\r\n");
+#endif
                 return (uint16_t)(i + 1U);
+            }
             break;
 
         case STK_CMD_PROGRAM_EEPROM_ISP:
             /* 将 EEPROM 编程替换为读回校验 */
             if (ispVerifyMemory((stkProgramFlashIsp_t *)param, 1U) != 0U)
+            {
+#if DEBUG_HARDWARE_CONFIG
+                uart1_WriteString("REPLAY vfy eeprom mismatch pkt=");
+                uart1_WriteDec(i);
+                uart1_WriteString("\r\n");
+#endif
                 return (uint16_t)(i + 1U);
+            }
             break;
 
         case STK_CMD_PROGRAM_FUSE_ISP:
@@ -377,9 +428,43 @@ static uint16_t offlineReplayVerifyPass(void)
                     break;  /* 编程前的熔丝读取不是校验项，直接跳过 */
 
                 actual = ispReadFuse(readParam);
-                if (actual != expectedFuse.value[(uint8_t)slot])
+                /* Fuse data bits live only in the recorded opcode (cmd[3]); bits
+                 * set to 1 must still read back 1 after programming. Bits set to
+                 * 0 (programmed) are not checked here, matching the "never
+                 * re-program a 1 back to 0" fuse semantics. */
+                if ((actual & expectedFuse.value[(uint8_t)slot]) !=
+                    expectedFuse.value[(uint8_t)slot])
+                {
+#if DEBUG_HARDWARE_CONFIG
+                    uart1_WriteString("REPLAY vfy fuse mismatch pkt=");
+                    uart1_WriteDec(i);
+                    uart1_WriteString(" slot=");
+                    uart1_WriteDec(slot);
+                    uart1_WriteString(" got=0x");
+                    uart1_WriteHex8(actual);
+                    uart1_WriteString(" want=0x");
+                    uart1_WriteHex8(expectedFuse.value[(uint8_t)slot]);
+                    uart1_WriteString("\r\n");
+#endif
                     return (uint16_t)(i + 1U);
+                }
                 expectedFuse.verified[(uint8_t)slot] = 1U;
+            }
+            break;
+
+        case STK_CMD_READ_SIGNATURE_ISP:
+        case STK_CMD_READ_OSCCAL_ISP:
+            /* Replay the read command and require a valid reply. */
+            if (offlineExecuteFrame(packetHeader.frame_len) != STK_STATUS_CMD_OK)
+            {
+#if DEBUG_HARDWARE_CONFIG
+                uart1_WriteString("REPLAY vfy execfail pkt=");
+                uart1_WriteDec(i);
+                uart1_WriteString(" cmd=0x");
+                uart1_WriteHex8(cmd);
+                uart1_WriteString("\r\n");
+#endif
+                return (uint16_t)(i + 1U);
             }
             break;
 
@@ -467,12 +552,20 @@ uint8_t offlinePgmer_init(void)
 
     /* 获取当前激活的离线包索引 */
     if (offlinePgmerGetActivePackage(&activeIndex) != 0U)
+    {
+#if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("REPLAY init: no active package\r\n");
+#endif
         return 1U;
+    }
     /* 获取离线包的摘要信息 */
     if (offlinePgmerGetPackageSummary(activeIndex, &summary) != 0U ||
         summary.used == 0U ||
         summary.package_state != OFFLINE_PACKAGE_VALID)
     {
+#if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("REPLAY init: invalid summary\r\n");
+#endif
         return 1U;
     }
 
@@ -486,6 +579,9 @@ uint8_t offlinePgmer_init(void)
         g_replay.header.packet_count != summary.packet_count ||
         g_replay.header.crc32 != summary.crc32)
     {
+#if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("REPLAY init: invalid header\r\n");
+#endif
         memset(&g_replay, 0, sizeof(g_replay));
         return 1U;
     }
@@ -513,21 +609,51 @@ uint16_t offlinePgmer(void)
     uint16_t result;
     uint8_t savedWorkMode;
 
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("REPLAY enter, initialized=");
+    uart1_WriteDec(g_replay.initialized);
+    uart1_WriteString("\r\n");
+#endif
+
     if (!g_replay.initialized && offlinePgmer_init() != 0U)
         return 1U;
 
     /* 保存当前工作模式，切换为在线模式以执行回放 */
     savedWorkMode = stkGetWorkMode();
-    (void)stkSetWorkMode(STK500_WORK_MODE_ONLINE);
+    (void)stkSetWorkMode(STK500_WORK_MODE_REPLAY);
 
     /* 三道工序依次执行，前一道成功才继续下一道 */
     result = offlineReplayProgramPass();
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("REPLAY program=");
+    uart1_WriteDec(result);
+    uart1_WriteString("\r\n");
+#endif
     if (result == 0U)
+    {
         result = offlineReplayVerifyPass();
+#if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("REPLAY verify=");
+        uart1_WriteDec(result);
+        uart1_WriteString("\r\n");
+#endif
+    }
     if (result == 0U)
+    {
         result = offlineReplayLockAndLeavePass();
+#if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("REPLAY lockleave=");
+        uart1_WriteDec(result);
+        uart1_WriteString("\r\n");
+#endif
+    }
 
     /* 恢复原始工作模式 */
     (void)stkSetWorkMode(savedWorkMode);
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("REPLAY done=");
+    uart1_WriteDec(result);
+    uart1_WriteString("\r\n");
+#endif
     return result;
 }

@@ -36,6 +36,7 @@
 /* 读取 SOT (Start of Test) 信号: PD1 */
 #define HANDLER_SOT_GET           PORT_IN(HW_HANDLER_START)
 
+#define HANDLER_UD_INIT  do{ STM_IO_SET_DIR_PP(HW_HANDLER_UD); }while(0)
 /* SOT 上拉 (PD0=0)：SOT 空闲时�??拉到低电�?*/
 #define HANDLER_SOT_SET_UP_LOAD   do{ PORT_OUT(HW_HANDLER_UD)=0; }while(0)
 /* SOT 下拉 (PD0=1)：SOT 空闲时�??拉到高电�?*/
