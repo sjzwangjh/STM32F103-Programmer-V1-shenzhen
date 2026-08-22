@@ -210,6 +210,27 @@ static void stkPutLe32(uint8_t *bytes, uint32_t value)
     bytes[3] = (uint8_t)((value >> 24) & 0xFFU);
 }
 
+/* PIC flash/userid erase to (1<<inst_bits)-1: 14-bit -> 0x3FFF, 12-bit -> 0x0FFF. */
+static uint16_t icspErasedWordValue(void)
+{
+    uint8_t bits = g_activeDeviceParams.device_params.picParam.common.inst_bits;
+    if (bits == 0U)
+        bits = 14U;
+    return (uint16_t)((1U << bits) - 1U);
+}
+
+/* Fill a word buffer with the device erased-word pattern (record-mode base). */
+static void icspFillErasedWords(uint8_t *buf, uint16_t words)
+{
+    uint16_t ev = icspErasedWordValue();
+    uint16_t w;
+    for (w = 0U; w < words; w++)
+    {
+        buf[w * 2U] = (uint8_t)(ev & 0xFFU);
+        buf[w * 2U + 1U] = (uint8_t)(ev >> 8);
+    }
+}
+
 /* 打包离线包总体信息: 有效包数量、激活包序号、最大包数量�?*/
 static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize)
 {
@@ -1054,7 +1075,16 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                                               (stkReadFlashIcspResult_t *)&pTx[STK_TXMSG_START + 1],
                                               0U);
             else
-                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+            {
+                stkReadFlashIcsp_t *rdParam = (stkReadFlashIcsp_t *)param;
+                uint16_t numWords = stkGetLe16(rdParam->numWords);
+                uint16_t numBytes = (uint16_t)(numWords * 2U);
+                icspFillErasedWords(&pTx[STK_TXMSG_START + 2], numWords);
+                (void)offlinePgmerRawReadBack(STK_CMD_READ_FLASH_ICSP, stkAddress.dword, pRx,
+                                              &pTx[STK_TXMSG_START + 2], numBytes);
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+                len.word = (uint16_t)(numBytes + 2U);
+            }
 #if DEBUG_HARDWARE_CONFIG
             stkIcspTrace("ICSP44A", stkAddress.dword, &pTx[STK_TXMSG_START + 2],
                          (uint16_t)((len.word > 2U) ? (len.word - 2U) : 0U));
@@ -1086,7 +1116,15 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                                               (stkReadFlashIcspResult_t *)&pTx[STK_TXMSG_START + 1],
                                               1U);
             else
-                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+            {
+                stkReadFlashIcsp_t *rdParam = (stkReadFlashIcsp_t *)param;
+                uint16_t numBytes = stkGetLe16(rdParam->numWords);
+                memset(&pTx[STK_TXMSG_START + 2], 0xFF, numBytes);
+                (void)offlinePgmerRawReadBack(STK_CMD_READ_EEPROM_ICSP, stkAddress.dword, pRx,
+                                              &pTx[STK_TXMSG_START + 2], numBytes);
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+                len.word = (uint16_t)(numBytes + 2U);
+            }
 #if DEBUG_HARDWARE_CONFIG
             stkIcspTrace("ICSP46A", stkAddress.dword, &pTx[STK_TXMSG_START + 2],
                          (uint16_t)((len.word > 2U) ? (len.word - 2U) : 0U));
@@ -1137,7 +1175,11 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             }
             else
             {
-                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+                uint16_t cfgBytes = (uint16_t)(cfgCount * 2U);
+                memset(&pTx[STK_TXMSG_START + 2], 0xFF, cfgBytes);
+                (void)offlinePgmerRawReadBack(STK_CMD_READ_CONFIG_ICSP, 0U, pRx,
+                                              &pTx[STK_TXMSG_START + 2], cfgBytes);
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
             }
             /* cmd echo + status + cfgCount*2 data bytes */
             len.word = (uint16_t)(2U + cfgCount * 2U);
@@ -1165,8 +1207,18 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             uint16_t uidCount = stkGetLe16(icspParam->numWords);
             uint8_t rdStatus = STK_STATUS_CMD_FAILED;
             if (stkIsOnlineMode())
+            {
                 rdStatus = (icspReadUserIdWords(stkAddress.dword, (uint8_t *)&pTx[STK_TXMSG_START + 2], uidCount) != ICSP_OK) ?
                            STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
+            }
+            else
+            {
+                uint16_t uidBytes = (uint16_t)(uidCount * 2U);
+                icspFillErasedWords(&pTx[STK_TXMSG_START + 2], uidCount);
+                (void)offlinePgmerRawReadBack(STK_CMD_READ_USER_ID_ICSP, stkAddress.dword, pRx,
+                                              &pTx[STK_TXMSG_START + 2], uidBytes);
+                rdStatus = STK_STATUS_CMD_OK;
+            }
             pTx[STK_TXMSG_START + 1] = rdStatus;
             /* cmd echo + status + uidCount*2 data bytes */
             len.word = (uint16_t)(2U + uidCount * 2U);
@@ -1176,6 +1228,13 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             uint16_t value = 0U;
             if (stkIsOnlineMode() && icspReadSignature(&value) == ICSP_OK)
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            else if (!stkIsOnlineMode() &&
+                     g_activeDeviceParams.device_arch == STK_MCU_ARCH_PIC)
+            {
+                /* Record mode: report the expected deviceID from the table. */
+                value = g_activeDeviceParams.device_params.picParam.common.deviceid_expected;
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            }
             else
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
             stkPutLe16(&pTx[STK_TXMSG_START + 2], value);

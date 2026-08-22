@@ -359,6 +359,18 @@ uint8_t offlinePgmerRawAppendRxPacket(const uint8_t *frame, uint16_t frameLen)
     ph.seq = g_rawCapture.packet_count;
     ph.crc32 = offlineCalcSum32(frame, frameLen);
 
+    /* The host sends SET_PARAMETER(DEVICE_IDENTITY) after SET_PROG_STATE,
+     * so the package identity captured at Begin may still be stale.
+     * Refresh it from the recorded identity frame so replay dispatches
+     * to the correct AVR/PIC group. */
+    if (ph.cmd == STK_CMD_SET_PARAMETER && frameLen >= 12U &&
+        frame[6] == STK_PARAM_DEVICE_IDENTITY)
+    {
+        g_rawCapture.header.identity.arch = frame[7];
+        g_rawCapture.header.identity.index = (uint16_t)frame[8] |
+                                             ((uint16_t)frame[9] << 8);
+    }
+
     write_addr = g_rawCapture.file_addr + g_rawCapture.write_offset;
     offlineRawEraseForWrite(write_addr, (uint32_t)sizeof(ph) + frameLen);
     SPI_Flash_Write((const uint8_t *)&ph, write_addr, sizeof(ph));
@@ -430,6 +442,7 @@ uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr,
 
     if (!g_rawCapture.active || readFrame == 0 || out == 0 || outCap == 0U)
         return 0U;
+
 
     end = g_rawCapture.file_addr + g_rawCapture.write_offset;
     cursor = g_rawCapture.file_addr + sizeof(offline_raw_package_header_t);
@@ -565,6 +578,71 @@ uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr,
         {
             out[0] = g_readbackFrame[7];
             return 1U;
+        }
+        else if (cmd == STK_CMD_PROGRAM_FLASH_ICSP && readCmd == STK_CMD_READ_FLASH_ICSP)
+        {
+            /* ICSP flash: word LOAD_ADDRESS like ISP; data starts at frame[10]. */
+            uint16_t n = (uint16_t)g_readbackFrame[6] | ((uint16_t)g_readbackFrame[7] << 8);
+            if (n != 0U && curAddr >= addr && (uint16_t)(10U + n * 2U) <= frameLen)
+            {
+                uint32_t wordOff = curAddr - addr;
+                if (wordOff < (outCap / 2U))
+                {
+                    uint16_t cpWords = (uint16_t)((n > (outCap / 2U - (uint16_t)wordOff)) ?
+                                                  (outCap / 2U - (uint16_t)wordOff) : n);
+                    uint16_t cpBytes = (uint16_t)(cpWords * 2U);
+                    memcpy(&out[(uint16_t)wordOff * 2U], &g_readbackFrame[10], cpBytes);
+                    if ((uint16_t)((uint16_t)wordOff * 2U + cpBytes) > filled)
+                        filled = (uint16_t)((uint16_t)wordOff * 2U + cpBytes);
+                }
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_EEPROM_ICSP && readCmd == STK_CMD_READ_EEPROM_ICSP)
+        {
+            /* ICSP EEPROM: byte addresses, data starts at frame[10]. */
+            uint16_t n = (uint16_t)g_readbackFrame[6] | ((uint16_t)g_readbackFrame[7] << 8);
+            if (n != 0U && curAddr >= addr && (uint16_t)(10U + n) <= frameLen)
+            {
+                uint32_t byteOff = curAddr - addr;
+                if (byteOff < outCap)
+                {
+                    uint16_t cp = (uint16_t)((n > (outCap - (uint16_t)byteOff)) ?
+                                              (outCap - (uint16_t)byteOff) : n);
+                    memcpy(&out[byteOff], &g_readbackFrame[10], cp);
+                    if ((uint16_t)(byteOff + cp) > filled)
+                        filled = (uint16_t)(byteOff + cp);
+                }
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_USER_ID_ICSP && readCmd == STK_CMD_READ_USER_ID_ICSP)
+        {
+            /* ICSP userid: word LOAD_ADDRESS, data starts at frame[10]. */
+            uint16_t n = (uint16_t)g_readbackFrame[6] | ((uint16_t)g_readbackFrame[7] << 8);
+            if (n != 0U && curAddr >= addr && (uint16_t)(10U + n * 2U) <= frameLen)
+            {
+                uint32_t wordOff = curAddr - addr;
+                if (wordOff < (outCap / 2U))
+                {
+                    uint16_t cpWords = (uint16_t)((n > (outCap / 2U - (uint16_t)wordOff)) ?
+                                                  (outCap / 2U - (uint16_t)wordOff) : n);
+                    uint16_t cpBytes = (uint16_t)(cpWords * 2U);
+                    memcpy(&out[(uint16_t)wordOff * 2U], &g_readbackFrame[10], cpBytes);
+                    if ((uint16_t)((uint16_t)wordOff * 2U + cpBytes) > filled)
+                        filled = (uint16_t)((uint16_t)wordOff * 2U + cpBytes);
+                }
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_CONFIG_ICSP && readCmd == STK_CMD_READ_CONFIG_ICSP)
+        {
+            /* ICSP config is index-addressed; copy the recorded words in order. */
+            uint16_t n = (uint16_t)g_readbackFrame[6] | ((uint16_t)g_readbackFrame[7] << 8);
+            if (n != 0U && (uint16_t)(10U + n * 2U) <= frameLen)
+            {
+                uint16_t cpBytes = (uint16_t)((n * 2U > outCap) ? outCap : n * 2U);
+                memcpy(out, &g_readbackFrame[10], cpBytes);
+                if (cpBytes > filled)
+                    filled = cpBytes;
+            }
         }
 
         cursor += sizeof(ph) + frameLen;
