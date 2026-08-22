@@ -24,6 +24,7 @@
 #include "timer.h"
 #include "isp.h"
 #include "dutBus.h"
+#include "usart.h"
 
 /* ------------------------------------------------------------------------- */
 /* Static variables (mirror of AVR-Doper) */
@@ -202,6 +203,21 @@ uint8_t ispEnterProgmode(stkEnterProgIsp_t *param)
     ispAttachToDevice(stkParam.s.sckDuration, param->stabDelay);
     timerMsDelay(param->cmdExeDelay);
 
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ISP ENTER sck=");
+    uart1_WriteDec(stkParam.s.sckDuration);
+    uart1_WriteString(" pollIdx=");
+    uart1_WriteDec(param->pollIndex);
+    uart1_WriteString(" pollVal=0x");
+    uart1_WriteHex8(param->pollValue);
+    uart1_WriteString(" cmd=");
+    uart1_WriteHex8(param->cmd[0]);
+    uart1_WriteHex8(param->cmd[1]);
+    uart1_WriteHex8(param->cmd[2]);
+    uart1_WriteHex8(param->cmd[3]);
+    uart1_WriteString("\r\n");
+#endif
+
     /* Sync loop: send programming enable command until device responds.
      * avrdude often sends synchLoops == 0, so we use a fixed count of 32. */
     for (i = 0; i<32; i++)
@@ -209,6 +225,13 @@ uint8_t ispEnterProgmode(stkEnterProgIsp_t *param)
         rval = ispBlockTransfer(param->cmd, param->pollIndex);
         if (param->pollIndex < 4)
             ispBlockTransfer(param->cmd + param->pollIndex, 4 - param->pollIndex);
+#if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("ISP ENTER try=");
+        uart1_WriteDec(i);
+        uart1_WriteString(" rval=0x");
+        uart1_WriteHex8(rval);
+        uart1_WriteString("\r\n");
+#endif
         if (rval == param->pollValue){   /* success: we are in sync */
             return STK_STATUS_CMD_OK;
         }

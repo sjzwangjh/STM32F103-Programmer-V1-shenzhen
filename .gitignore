@@ -1,5 +1,8 @@
 # Keil MDK Build Artifacts
 OBJ/
+OBJ_0000/
+OBJ_C000/
+*.sct
 *.o
 *.d
 *.lst

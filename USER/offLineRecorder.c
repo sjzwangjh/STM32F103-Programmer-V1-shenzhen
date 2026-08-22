@@ -425,6 +425,7 @@ uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr,
     uint32_t cursor;
     uint32_t end;
     uint32_t curAddr = 0U;
+    uint16_t filled = 0U;
     offline_raw_packet_header_t ph;
 
     if (!g_rawCapture.active || readFrame == 0 || out == 0 || outCap == 0U)
@@ -456,22 +457,38 @@ uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr,
         }
         else if (cmd == STK_CMD_PROGRAM_FLASH_ISP && readCmd == STK_CMD_READ_FLASH_ISP)
         {
+            /* Flash LOAD_ADDRESS is a word address; byte offset = words * 2.
+             * avrdude may read back a large block spanning several pages, so
+             * splice every matching page into the caller buffer. */
             uint16_t n = ((uint16_t)g_readbackFrame[6] << 8) | g_readbackFrame[7];
-            if (curAddr == addr && n != 0U && (uint16_t)(15U + n) <= frameLen)
+            if (n != 0U && curAddr >= addr && (uint16_t)(15U + n) <= frameLen)
             {
-                uint16_t cp = (n > outCap) ? outCap : n;
-                memcpy(out, &g_readbackFrame[15], cp);
-                return cp;
+                uint32_t byteOff = (curAddr - addr) * 2U;
+                if (byteOff < outCap)
+                {
+                    uint16_t cp = (uint16_t)((n > (outCap - (uint16_t)byteOff)) ?
+                                              (outCap - (uint16_t)byteOff) : n);
+                    memcpy(&out[byteOff], &g_readbackFrame[15], cp);
+                    if ((uint16_t)(byteOff + cp) > filled)
+                        filled = (uint16_t)(byteOff + cp);
+                }
             }
         }
         else if (cmd == STK_CMD_PROGRAM_EEPROM_ISP && readCmd == STK_CMD_READ_EEPROM_ISP)
         {
+            /* EEPROM uses byte addresses. */
             uint16_t n = ((uint16_t)g_readbackFrame[6] << 8) | g_readbackFrame[7];
-            if (curAddr == addr && n != 0U && (uint16_t)(15U + n) <= frameLen)
+            if (n != 0U && curAddr >= addr && (uint16_t)(15U + n) <= frameLen)
             {
-                uint16_t cp = (n > outCap) ? outCap : n;
-                memcpy(out, &g_readbackFrame[15], cp);
-                return cp;
+                uint32_t byteOff = curAddr - addr;
+                if (byteOff < outCap)
+                {
+                    uint16_t cp = (uint16_t)((n > (outCap - (uint16_t)byteOff)) ?
+                                              (outCap - (uint16_t)byteOff) : n);
+                    memcpy(&out[byteOff], &g_readbackFrame[15], cp);
+                    if ((uint16_t)(byteOff + cp) > filled)
+                        filled = (uint16_t)(byteOff + cp);
+                }
             }
         }
         else if (cmd == STK_CMD_PROGRAM_FUSE_ISP && readCmd == STK_CMD_READ_FUSE_ISP)
@@ -501,11 +518,59 @@ uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr,
                 return 1U;
             }
         }
+        else if (cmd == STK_CMD_PROGRAM_FLASH_HVSP && readCmd == STK_CMD_READ_FLASH_HVSP)
+        {
+            /* HVSP flash: word LOAD_ADDRESS like ISP; data starts at frame[10]. */
+            uint16_t n = ((uint16_t)g_readbackFrame[6] << 8) | g_readbackFrame[7];
+            if (n != 0U && curAddr >= addr && (uint16_t)(10U + n) <= frameLen)
+            {
+                uint32_t byteOff = (curAddr - addr) * 2U;
+                if (byteOff < outCap)
+                {
+                    uint16_t cp = (uint16_t)((n > (outCap - (uint16_t)byteOff)) ?
+                                              (outCap - (uint16_t)byteOff) : n);
+                    memcpy(&out[byteOff], &g_readbackFrame[10], cp);
+                    if ((uint16_t)(byteOff + cp) > filled)
+                        filled = (uint16_t)(byteOff + cp);
+                }
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_EEPROM_HVSP && readCmd == STK_CMD_READ_EEPROM_HVSP)
+        {
+            /* HVSP EEPROM: byte addresses, data starts at frame[10]. */
+            uint16_t n = ((uint16_t)g_readbackFrame[6] << 8) | g_readbackFrame[7];
+            if (n != 0U && curAddr >= addr && (uint16_t)(10U + n) <= frameLen)
+            {
+                uint32_t byteOff = curAddr - addr;
+                if (byteOff < outCap)
+                {
+                    uint16_t cp = (uint16_t)((n > (outCap - (uint16_t)byteOff)) ?
+                                              (outCap - (uint16_t)byteOff) : n);
+                    memcpy(&out[byteOff], &g_readbackFrame[10], cp);
+                    if ((uint16_t)(byteOff + cp) > filled)
+                        filled = (uint16_t)(byteOff + cp);
+                }
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_FUSE_HVSP && readCmd == STK_CMD_READ_FUSE_HVSP)
+        {
+            /* HVSP fuse: [6]=fuseAddress(0=lfuse,1=hfuse,2=efuse), [7]=value. */
+            if (g_readbackFrame[6] == readFrame[6])
+            {
+                out[0] = g_readbackFrame[7];
+                return 1U;
+            }
+        }
+        else if (cmd == STK_CMD_PROGRAM_LOCK_HVSP && readCmd == STK_CMD_READ_LOCK_HVSP)
+        {
+            out[0] = g_readbackFrame[7];
+            return 1U;
+        }
 
         cursor += sizeof(ph) + frameLen;
     }
 
-    return 0U;
+    return filled;
 }
 
 /* 获取 raw 离线包总体信息, 供上位机查询当前 Flash 中已有多少个离线包。 */

@@ -416,6 +416,16 @@
               <FilePath>..\USER\offLinePgmer.c</FilePath>
             </File>
             <File>
+              <FileName>offLineReplayAvr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USER\offLineReplayAvr.c</FilePath>
+            </File>
+            <File>
+              <FileName>offLineReplayPic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USER\offLineReplayPic.c</FilePath>
+            </File>
+            <File>
               <FileName>avrDude指令集.md</FileName>
               <FileType>5</FileType>
               <FilePath>..\USER\avrDude指令集.md</FilePath>
@@ -1122,6 +1132,16 @@
               <FileName>offLinePgmer.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\USER\offLinePgmer.c</FilePath>
+            </File>
+            <File>
+              <FileName>offLineReplayAvr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USER\offLineReplayAvr.c</FilePath>
+            </File>
+            <File>
+              <FileName>offLineReplayPic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\USER\offLineReplayPic.c</FilePath>
             </File>
             <File>
               <FileName>avrDude指令集.md</FileName>

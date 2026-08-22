@@ -27,6 +27,7 @@ HVSR  Pin,
 #include "timer.h"
 #include "dutBus.h"
 #include "hvproc.h"
+#include "delay.h"
 
 /* control lines for high voltage serial (and parallel) programming */
 #define HVCTL_PAGEL (1 << 0)
@@ -76,33 +77,26 @@ HVSR  Pin,
 static uint8_t progModeIsPp;
 static uint8_t hvPollTimeout;
 
+/* Microsecond delay for HVSP serial timing (same tick base as ISP bit-bang). */
+void hvspDelayUs(uint32_t us)
+{
+    delay_us((uint16_t)us);
+}
+
+
 /* forward declaration */
 static uint8_t hvReadFuseInternal(uint8_t highLow);
 
-#define HVSP_DELAY()            timerTicksDelay(1)
-#define HVSP_SCI_OUT(value)     (PORT_OUT(HWPIN_HVSP_SCI) = ((value) ? 1 : 0))
-#define HVSP_SII_OUT(value)     (PORT_OUT(HWPIN_HVSP_SII) = ((value) ? 1 : 0))
-#define HVSP_SDI_OUT(value)     (PORT_OUT(HWPIN_HVSP_SDI) = ((value) ? 1 : 0))
-#define HVSP_SDO_IN()           (PORT_IN(HWPIN_HVSP_SDO) ? 1 : 0)
-
-#define HVSP_RESET_RELEASE()    do { PORT_OUT(HWPIN_HVSP_RESET) = 0; } while(0)
-#define HVSP_RESET_ASSERT()     do { PORT_OUT(HWPIN_HVSP_RESET) = 1; } while(0)
-#define HVSP_HV_OFF()           do { PORT_OUT(HWPIN_HVSP_HVRESET) = 0; } while(0)
-#define HVSP_HV_ON()            do { PORT_OUT(HWPIN_HVSP_HVRESET) = 1; } while(0)
-#define HVSP_VDD_ON()           DUT_VDD_SET_VDD
-#define HVSP_VDD_OFF()          DUT_VDD_SET_FLOAT
-
-#define HVSP_BUS_IDLE()         do { HVSP_SCI_OUT(0); HVSP_SII_OUT(0); HVSP_SDI_OUT(0); } while(0)
 
 static void hvspBusConfig(void)
 {
     /* Match AVR-Doper direction roles:
      * SDO is target -> programmer input, SDI/SII/SCI are programmer outputs.
      */
-    DUT_PIN4_SET_INPUT;
-    DUT_PIN5_SET_OUTPUT;
-    DUT_PIN6_SET_OUTPUT;
-    DUT_PIN7_SET_OUTPUT;
+    HVSP_SDO_INPUT();
+    HVSP_SCI_OUTPUT();
+    HVSP_SDI_OUTPUT();
+    HVSP_SII_OUTPUT();
     HVSP_BUS_IDLE();
 }
 
@@ -112,9 +106,9 @@ static uint8_t hvspExecute(uint8_t ctlLines, uint8_t data)
     uint8_t r = 0;
 
     HVSP_BUS_IDLE();
-    HVSP_SCI_OUT(1);
-    HVSP_DELAY();
-    HVSP_SCI_OUT(0);
+    HVSP_SCI_H();
+    HVSP_DELAY_US(5);
+    HVSP_SCI_L();
 
     for (cnt = 0; cnt < 8; cnt++)
     {
@@ -125,9 +119,9 @@ static uint8_t hvspExecute(uint8_t ctlLines, uint8_t data)
         HVSP_SDI_OUT((data & 0x80) != 0);
         HVSP_SII_OUT((ctlLines & 0x80) != 0);
 
-        HVSP_SCI_OUT(1);
-        HVSP_DELAY();
-        HVSP_SCI_OUT(0);
+        HVSP_SCI_H();
+        HVSP_DELAY_US(5);
+        HVSP_SCI_L();
 
         HVSP_SII_OUT(0);
         HVSP_SDI_OUT(0);
@@ -135,21 +129,25 @@ static uint8_t hvspExecute(uint8_t ctlLines, uint8_t data)
         data <<= 1;
     }
 
-    HVSP_SCI_OUT(1);
-    HVSP_DELAY();
-    HVSP_SCI_OUT(0);
-    HVSP_DELAY();
-    HVSP_SCI_OUT(1);
-    HVSP_DELAY();
-    HVSP_SCI_OUT(0);
+    HVSP_SCI_H();
+    HVSP_DELAY_US(5);
+    HVSP_SCI_L();
+    HVSP_DELAY_US(5);
+    HVSP_SCI_H();
+    HVSP_DELAY_US(5);
+    HVSP_SCI_L();
 
     return r;
 }
 
 static uint8_t hvSetControlAndData(uint8_t ctlLines, uint8_t data)
 {
+    uint8_t r;
+
     (void)progModeIsPp;
-    return hvspExecute(ctlLines, data);
+    r = hvspExecute(ctlLines, data);
+
+    return r;
 }
 
 static uint8_t hvspPoll(void)
@@ -187,29 +185,34 @@ void hvspEnterProgmode(stkEnterProgHvsp_t *param)
      * 5. apply high voltage to RESET
      * 6. release SDO back to input
      */
-    HVSP_HV_OFF();
-    HVSP_RESET_RELEASE();
+    HVSP_HVOFF();
     HVSP_VDD_OFF();
     timerMsDelay(param->powerOffDelay);
 
-    HVSP_RESET_RELEASE();
+    HVSP_HVOFF();
     HVSP_VDD_ON();
     if (param->stabDelay)
         timerMsDelay(param->stabDelay);
 
-    DUT_PIN4_SET_OUTPUT;
-    PORT_OUT(HWPIN_HVSP_SDO) = 0;
-    delay_us(param->resetDelay1 ? param->resetDelay1 : 40);
+    /* Prog_enable = 000: drive SDI/SII/SDO low before HV is applied (Table 17-11).
+     * SDO is released to input after the HV signature is latched. */
+    HVSP_SDO_OUTPUT();
+    HVSP_SDO_OUT(0);
+    delay_ms(param->resetDelay1 ? param->resetDelay1 : 1);
 
-    HVSP_RESET_ASSERT();
-    HVSP_HV_ON();
-    delay_us(param->resetDelay2 ? param->resetDelay2 : 15);
+    HVSP_HVGND();                                           /* RESET=0 before HV (17.7.1 step 1/4) */
+    HVSP_HVON();
+    delay_us(100);                                           /* 100us: HV signature latch (>=10us), avoid long SDO contention */
 
-    DUT_PIN4_SET_INPUT;
+    HVSP_SDO_INPUT();
     delay_us(300);
 
     if (param->cmdExeDelay)
         timerMsDelay(param->cmdExeDelay);
+
+    /* Sync the HVSP state machine after entering programming mode, so the
+     * very first read (e.g. signature right after ENTER) does not return 0xFF. */
+    hvSetControlAndData(HVCTL(HV_CMD, HV_LOW, HV_NORW), HVCMD_NOP);
 }
 
 void hvspLeaveProgmode(stkLeaveProgHvsp_t *param)
@@ -217,11 +220,11 @@ void hvspLeaveProgmode(stkLeaveProgHvsp_t *param)
     if (param->stabDelay)
         timerMsDelay(param->stabDelay);
 
-    HVSP_HV_OFF();
+    HVSP_HVGND();
     if (param->resetDelay)
         timerMsDelay(param->resetDelay);
 
-    HVSP_RESET_RELEASE();
+    HVSP_HVOFF();
     HVSP_BUS_IDLE();
     HVSP_VDD_OFF();
     DUT_BUS_SET_INPUT;
@@ -500,7 +503,7 @@ uint8_t hvspReadFuse(stkReadFuseHvsp_t *param)
     if(param->fuseAddress == 0){
         highLow = HV_LOW;
     }else if(param->fuseAddress == 1){
-        highLow = HV_EXT2;
+        highLow = HV_HIGH;   /* high fuse: match hvspProgramFuse()/hvspVerifyFuse() */
     }else if(param->fuseAddress == 2){
         highLow = HV_EXT;
     }else{
@@ -511,15 +514,18 @@ uint8_t hvspReadFuse(stkReadFuseHvsp_t *param)
 
 uint8_t hvspReadLock(void)
 {
-    return hvReadFuseInternal(HV_HIGH);
+    return hvReadFuseInternal(HV_EXT2);   /* lock bits: BS1|BS2 */
 }
 
 static uint8_t hvReadSignatureInternal(uint8_t addr, uint8_t highLow)
 {
+    uint8_t r;
+
     hvSetControlAndData(HVCTL(HV_CMD, HV_LOW, HV_NORW), HVCMD_READ_SIGCAL);
     hvSetControlAndData(HVCTL(HV_ADDR, HV_LOW, HV_NORW), addr);
     hvSetControlAndData(HVCTL(HV_NONE, highLow, HV_READ), 0);
-    return hvSetControlAndData(HVCTL(HV_NONE, highLow, HV_NORW), 0);
+    r = hvSetControlAndData(HVCTL(HV_NONE, highLow, HV_NORW), 0);
+    return r;
 }
 
 uint8_t hvspReadSignature(stkReadFuseHvsp_t *param)

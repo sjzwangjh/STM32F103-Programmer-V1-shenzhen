@@ -422,6 +422,13 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     
     SWITCH_START
     SWITCH_CASE(STK_CMD_SIGN_ON)
+        /* Reset to online only for host USB sessions; never during flash replay. */
+        if (pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
+            pDataFrame->source == STK_DATA_SOURCE_USB_CDC ||
+            pDataFrame->source == STK_DATA_SOURCE_USB_WINUSB)
+        {
+            (void)stkSetWorkMode(STK500_WORK_MODE_ONLINE);
+        }
         stkParam.bytes[STK_SCK_TIER_IDX] = STK_SCK_TIER_UNSET;  /* 新会�? -B 挡位待下�?*/
         /* 获取烧录器标识�?*/
         static const char string[] = PROGRAMMER_ID_STR;
@@ -630,7 +637,15 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         if (stkIsOnlineMode())
             len.word = 1 + hvspReadMemory((stkReadFlashHvsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1], 0);
         else
-            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        {
+            stkReadFlashHvsp_t *rdParam = (stkReadFlashHvsp_t *)param;
+            uint16_t numBytes = ((uint16_t)rdParam->numBytes[0] << 8) | rdParam->numBytes[1];
+            memset(&pTx[STK_TXMSG_START + 2], 0xFF, numBytes);
+            (void)offlinePgmerRawReadBack(STK_CMD_READ_FLASH_HVSP, stkAddress.dword,
+                                          pRx, &pTx[STK_TXMSG_START + 2], numBytes);
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            len.word = (uint16_t)(numBytes + 2U);
+        }
     SWITCH_CASE(STK_CMD_PROGRAM_EEPROM_HVSP)
         {
             stkProgramFlashHvsp_t *hvParam = (stkProgramFlashHvsp_t *)param;
@@ -643,7 +658,15 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         if (stkIsOnlineMode())
             len.word = 1 + hvspReadMemory((stkReadFlashHvsp_t *)param, (void *)&pTx[STK_TXMSG_START + 1], 1);
         else
-            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        {
+            stkReadFlashHvsp_t *rdParam = (stkReadFlashHvsp_t *)param;
+            uint16_t numBytes = ((uint16_t)rdParam->numBytes[0] << 8) | rdParam->numBytes[1];
+            memset(&pTx[STK_TXMSG_START + 2], 0xFF, numBytes);
+            (void)offlinePgmerRawReadBack(STK_CMD_READ_EEPROM_HVSP, stkAddress.dword,
+                                          pRx, &pTx[STK_TXMSG_START + 2], numBytes);
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            len.word = (uint16_t)(numBytes + 2U);
+        }
     SWITCH_CASE(STK_CMD_PROGRAM_FUSE_HVSP)
         {
             stkProgramFuseHvsp_t *hvParam = (stkProgramFuseHvsp_t *)param;
@@ -653,10 +676,20 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
         }
     SWITCH_CASE(STK_CMD_READ_FUSE_HVSP)
-        pTx[STK_TXMSG_START + 2] = stkIsOnlineMode() ?
-            hvspReadFuse((stkReadFuseHvsp_t *)param) : 0xFFU;
-        pTx[STK_TXMSG_START + 1] = stkIsOnlineMode() ?
-            STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
+        if (stkIsOnlineMode())
+        {
+            pTx[STK_TXMSG_START + 2] = hvspReadFuse((stkReadFuseHvsp_t *)param);
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+        }
+        else
+        {
+            uint8_t rdValue = 0xFFU;
+            if (offlinePgmerRawReadBack(STK_CMD_READ_FUSE_HVSP, 0U, pRx, &rdValue, 1U) != 0U)
+                pTx[STK_TXMSG_START + 2] = rdValue;
+            else
+                pTx[STK_TXMSG_START + 2] = 0xFFU;
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+        }
         len.bytes[0] = 3;
     SWITCH_CASE(STK_CMD_PROGRAM_LOCK_HVSP)
         {
@@ -667,15 +700,46 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
         }
     SWITCH_CASE(STK_CMD_READ_LOCK_HVSP)
-        pTx[STK_TXMSG_START + 2] = stkIsOnlineMode() ? hvspReadLock() : 0xFFU;
-        pTx[STK_TXMSG_START + 1] = stkIsOnlineMode() ?
-            STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
+        if (stkIsOnlineMode())
+        {
+            pTx[STK_TXMSG_START + 2] = hvspReadLock();
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+        }
+        else
+        {
+            uint8_t rdValue = 0xFFU;
+            if (offlinePgmerRawReadBack(STK_CMD_READ_LOCK_HVSP, 0U, pRx, &rdValue, 1U) != 0U)
+                pTx[STK_TXMSG_START + 2] = rdValue;
+            else
+                pTx[STK_TXMSG_START + 2] = 0xFFU;
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+        }
         len.bytes[0] = 3;
     SWITCH_CASE(STK_CMD_READ_SIGNATURE_HVSP)
-        pTx[STK_TXMSG_START + 2] = stkIsOnlineMode() ?
-            hvspReadSignature((stkReadFuseHvsp_t *)param) : 0xFFU;
-        pTx[STK_TXMSG_START + 1] = stkIsOnlineMode() ?
-            STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
+        if (stkIsOnlineMode())
+        {
+            pTx[STK_TXMSG_START + 2] = hvspReadSignature((stkReadFuseHvsp_t *)param);
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+        }
+        else
+        {
+            /* Record mode: report the signature from the AVR device table. */
+            uint8_t rdValue = 0xFFU;
+            if (g_activeDeviceParams.device_arch == STK_MCU_ARCH_AVR)
+            {
+                stkReadFuseHvsp_t *rdParam = (stkReadFuseHvsp_t *)param;
+                uint8_t idx = (uint8_t)(rdParam->fuseAddress & 0x0FU);
+                if (idx < 3U)
+                    rdValue = g_activeDeviceParams.device_params.avrParam.signature[idx];
+                pTx[STK_TXMSG_START + 2] = rdValue;
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            }
+            else
+            {
+                pTx[STK_TXMSG_START + 2] = 0xFFU;
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+            }
+        }
         len.bytes[0] = 3;
     SWITCH_CASE(STK_CMD_READ_OSCCAL_HVSP)
         pTx[STK_TXMSG_START + 2] = stkIsOnlineMode() ? hvspReadOsccal() : 0xFFU;
@@ -808,11 +872,12 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         {
             stkReadFlashIsp_t *rdParam = (stkReadFlashIsp_t *)param;
             uint16_t numBytes = ((uint16_t)rdParam->numBytes[0] << 8) | rdParam->numBytes[1];
-            uint16_t got = offlinePgmerRawReadBack(STK_CMD_READ_FLASH_ISP, stkAddress.dword,
-                                                   pRx, &pTx[STK_TXMSG_START + 2], numBytes);
+            /* Record mode read-back: start from all-0xFF, then splice the
+             * recorded pages within the requested address range. */
+            memset(&pTx[STK_TXMSG_START + 2], 0xFF, numBytes);
+            (void)offlinePgmerRawReadBack(STK_CMD_READ_FLASH_ISP, stkAddress.dword,
+                                          pRx, &pTx[STK_TXMSG_START + 2], numBytes);
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
-            if (got < numBytes)
-                memset(&pTx[STK_TXMSG_START + 2 + got], 0xFF, numBytes - got);
             len.word = (uint16_t)(numBytes + 2U);
         }
 #if DEBUG_HARDWARE_CONFIG
@@ -840,11 +905,10 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         {
             stkReadFlashIsp_t *rdParam = (stkReadFlashIsp_t *)param;
             uint16_t numBytes = ((uint16_t)rdParam->numBytes[0] << 8) | rdParam->numBytes[1];
-            uint16_t got = offlinePgmerRawReadBack(STK_CMD_READ_EEPROM_ISP, stkAddress.dword,
-                                                   pRx, &pTx[STK_TXMSG_START + 2], numBytes);
+            memset(&pTx[STK_TXMSG_START + 2], 0xFF, numBytes);
+            (void)offlinePgmerRawReadBack(STK_CMD_READ_EEPROM_ISP, stkAddress.dword,
+                                          pRx, &pTx[STK_TXMSG_START + 2], numBytes);
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
-            if (got < numBytes)
-                memset(&pTx[STK_TXMSG_START + 2 + got], 0xFF, numBytes - got);
             len.word = (uint16_t)(numBytes + 2U);
         }
     SWITCH_CASE(STK_CMD_PROGRAM_FUSE_ISP)

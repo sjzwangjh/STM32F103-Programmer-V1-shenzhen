@@ -15,6 +15,8 @@
  */
 
 #include "offLinePgmer.h"
+#include "offLineReplayAvr.h"
+#include "offLineReplayPic.h"
 #include "offLineRecorder.h"
 #include "offLineRecorder.h"
 #include "Stk500Protocol.h"
@@ -30,33 +32,10 @@
 #define OFFLINE_INVALID_PACKET      0xFFFFU
 
 /* 熔丝位槽位索引（仅在单个包回放过程中使用的序号定义） */
-#define OFFLINE_FUSE_LOW            0U   /* 低位熔丝 */
-#define OFFLINE_FUSE_HIGH           1U   /* 高位熔丝 */
-#define OFFLINE_FUSE_EXT            2U   /* 扩展熔丝 */
-#define OFFLINE_FUSE_COUNT          3U   /* 熔丝总数 */
-
-/** @brief 回放上下文结构体 */
-typedef struct
-{
-    uint8_t initialized;                        /* 初始化标志 */
-    uint16_t active_index;                      /* 当前激活的离线包索引 */
-    uint32_t package_addr;                      /* SPI Flash 中的包基地址 */
-    offline_raw_package_header_t header;        /* 包头部信息副本 */
-} offline_replay_context_t;
-
-/** @brief 熔丝位预期值记录结构（用于校验阶段比对） */
-typedef struct
-{
-    uint8_t valid[OFFLINE_FUSE_COUNT];          /* 该槽位是否有编程操作 */
-    uint8_t verified[OFFLINE_FUSE_COUNT];       /* 该槽位是否已被校验通过 */
-    uint8_t value[OFFLINE_FUSE_COUNT];          /* 编程时写入的熔丝值 */
-    uint16_t program_packet[OFFLINE_FUSE_COUNT]; /* 编程操作所在的数据包序号 */
-} offline_fuse_expected_t;
-
 /* 全局回放上下文 */
-static offline_replay_context_t g_replay;
+offline_replay_context_t g_replay;
 /* 接收帧缓冲区（存储从 SPI Flash 读取的原始 STK500 帧） */
-static uint8_t g_replayFrame[OFFLINE_REPLAY_FRAME_SIZE];
+uint8_t g_replayFrame[OFFLINE_REPLAY_FRAME_SIZE];
 /* 发送帧缓冲区（存储执行命令后生成的应答帧） */
 static uint8_t g_replayTx[OFFLINE_REPLAY_TX_SIZE];
 
@@ -120,7 +99,7 @@ static uint8_t offlineHeaderIsValid(const offline_raw_package_header_t *header,
  *   6. 检查 STK500 帧格式（STX、TOKEN、命令等）
  *   7. 更新游标位置，指向下一个数据包
  */
-static uint8_t offlineReadPacket(uint32_t *cursor,
+uint8_t offlineReadPacket(uint32_t *cursor,
                                  uint32_t packetNo,
                                  offline_raw_packet_header_t *packetHeader)
 {
@@ -186,7 +165,7 @@ static uint8_t offlineReadPacket(uint32_t *cursor,
  * 将已加载到 g_replayFrame 中的命令帧提交给 STK500 协议栈处理，
  * 并返回应答帧中的状态字节。
  */
-static uint8_t offlineExecuteFrame(uint16_t frameLen)
+uint8_t offlineExecuteFrame(uint16_t frameLen)
 {
     stkDataFrame_t dataFrame;
 
@@ -212,329 +191,28 @@ static uint8_t offlineExecuteFrame(uint16_t frameLen)
  * 延迟读取包括 Flash 读取、EEPROM 读取、熔丝读取和锁定位读取。
  * 这些读取操作在第 2 道校验工序中由专门的校验函数替代执行。
  */
-static uint8_t offlineIsDeferredRead(uint8_t cmd)
-{
-    return (cmd == STK_CMD_READ_FLASH_ISP ||
-            cmd == STK_CMD_READ_EEPROM_ISP ||
-            cmd == STK_CMD_READ_FUSE_ISP ||
-            cmd == STK_CMD_READ_LOCK_ISP ||
-            cmd == STK_CMD_READ_SIGNATURE_ISP ||
-            cmd == STK_CMD_READ_OSCCAL_ISP) ? 1U : 0U;
-}
-
-/**
- * @brief 从编程熔丝命令参数中解析出熔丝槽位
- * @param param 编程熔丝命令参数
- * @return 熔丝槽位索引（OFFLINE_FUSE_LOW/HIGH/EXT）或 -1（无效）
- *
- * 标准 AVR ISP 熔丝写入命令格式：
- *   AC A0 - 低位熔丝
- *   AC A8 - 高位熔丝
- *   AC A4 - 扩展熔丝
- */
-static int8_t offlineProgramFuseSlot(const stkProgramFuseIsp_t *param)
-{
-    if (param->cmd[0] != 0xACU)
-        return -1;
-    if (param->cmd[1] == 0xA0U)
-        return OFFLINE_FUSE_LOW;
-    if (param->cmd[1] == 0xA8U)
-        return OFFLINE_FUSE_HIGH;
-    if (param->cmd[1] == 0xA4U)
-        return OFFLINE_FUSE_EXT;
-    return -1;
-}
-
-/**
- * @brief 从读取熔丝命令参数中解析出熔丝槽位
- * @param param 读取熔丝命令参数
- * @return 熔丝槽位索引（OFFLINE_FUSE_LOW/HIGH/EXT）或 -1（无效）
- *
- * 标准 AVR ISP 熔丝读取命令格式：
- *   50 00 - 低位熔丝
- *   58 08 - 高位熔丝
- *   50 08 - 扩展熔丝
- */
-static int8_t offlineReadFuseSlot(const stkReadFuseIsp_t *param)
-{
-    if (param->cmd[0] == 0x50U && param->cmd[1] == 0x00U)
-        return OFFLINE_FUSE_LOW;
-    if (param->cmd[0] == 0x58U && param->cmd[1] == 0x08U)
-        return OFFLINE_FUSE_HIGH;
-    if (param->cmd[0] == 0x50U && param->cmd[1] == 0x08U)
-        return OFFLINE_FUSE_EXT;
-    return -1;
-}
-
-/**
- * @brief 第 1 道工序：编程回放
- * @return 0-成功 / 非 0-失败的数据包序号（从 1 开始）
- *
- * 遍历所有已记录的数据包，执行除"延迟读取"和"编程锁定位"之外的
- * 所有命令（主要包括：参数设置、地址加载、进入编程模式、
- * Flash/EEPROM 编程、熔丝编程等）。
- */
+/* Dispatch to the AVR or PIC replay group by package architecture. */
 static uint16_t offlineReplayProgramPass(void)
 {
-    uint32_t cursor = g_replay.header.packet_area_offset;
-    uint32_t i;
-    offline_raw_packet_header_t packetHeader;
-
-    for (i = 0U; i < g_replay.header.packet_count; i++)
-    {
-        uint8_t cmd;
-        uint8_t status;
-
-        if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
-        {
-#if DEBUG_HARDWARE_CONFIG
-            uart1_WriteString("REPLAY pgm readfail pkt=");
-            uart1_WriteDec(i);
-            uart1_WriteString("\r\n");
-#endif
-            return (uint16_t)(i + 1U);
-        }
-
-        cmd = packetHeader.cmd;
-        /* 跳过延迟读取（留给第 2 道工序校验）和锁定位编程（留给第 3 道工序） */
-        if (offlineIsDeferredRead(cmd) ||
-            cmd == STK_CMD_PROGRAM_LOCK_ISP)
-        {
-            continue;
-        }
-
-        status = offlineExecuteFrame(packetHeader.frame_len);
-        if (status != STK_STATUS_CMD_OK)
-        {
-#if DEBUG_HARDWARE_CONFIG
-            uart1_WriteString("REPLAY pgm execfail pkt=");
-            uart1_WriteDec(i);
-            uart1_WriteString(" cmd=0x");
-            uart1_WriteHex8(cmd);
-            uart1_WriteString("\r\n");
-#endif
-            return (uint16_t)(i + 1U);
-        }
-    }
-    return 0U;
+    if (g_replay.header.identity.arch == STK_MCU_ARCH_PIC)
+        return picReplayProgramPass();
+    return avrReplayProgramPass();
 }
 
-/**
- * @brief 第 2 道工序：校验回放
- * @return 0-成功 / 非 0-失败的数据包序号（从 1 开始）
- *
- * 本道工序专注于数据校验：
- *   - 重放地址加载和控制上下文命令（SET_PARAMETER、LOAD_ADDRESS、ENTER_PROGMODE）
- *   - 将 Flash/EEPROM 编程命令替换为 ispVerifyMemory() 进行读回校验
- *   - 记录熔丝编程操作的期望值，并在后续的 READ_FUSE_ISP 命令中比对实际值
- *   - 跳过擦除、正常读取、锁定位编程和退出编程模式等命令
- */
 static uint16_t offlineReplayVerifyPass(void)
 {
-    uint32_t cursor = g_replay.header.packet_area_offset;
-    uint32_t i;
-    offline_raw_packet_header_t packetHeader;
-    offline_fuse_expected_t expectedFuse;
-
-    memset(&expectedFuse, 0, sizeof(expectedFuse));
-
-    for (i = 0U; i < g_replay.header.packet_count; i++)
-    {
-        uint8_t cmd;
-        void *param;
-
-        if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
-        {
-#if DEBUG_HARDWARE_CONFIG
-            uart1_WriteString("REPLAY vfy readfail pkt=");
-            uart1_WriteDec(i);
-            uart1_WriteString("\r\n");
-#endif
-            return (uint16_t)(i + 1U);
-        }
-
-        cmd = packetHeader.cmd;
-        param = &g_replayFrame[STK_TXMSG_START + 1U];
-
-        switch (cmd)
-        {
-        case STK_CMD_SET_PARAMETER:
-        case STK_CMD_LOAD_ADDRESS:
-        case STK_CMD_ENTER_PROGMODE_ISP:
-            /* 重放地址/控制上下文命令 */
-            if (offlineExecuteFrame(packetHeader.frame_len) != STK_STATUS_CMD_OK)
-            {
-#if DEBUG_HARDWARE_CONFIG
-                uart1_WriteString("REPLAY vfy execfail pkt=");
-                uart1_WriteDec(i);
-                uart1_WriteString(" cmd=0x");
-                uart1_WriteHex8(cmd);
-                uart1_WriteString("\r\n");
-#endif
-                return (uint16_t)(i + 1U);
-            }
-            break;
-
-        case STK_CMD_PROGRAM_FLASH_ISP:
-            /* 将 Flash 编程替换为读回校验 */
-            if (ispVerifyMemory((stkProgramFlashIsp_t *)param, 0U) != 0U)
-            {
-#if DEBUG_HARDWARE_CONFIG
-                uart1_WriteString("REPLAY vfy flash mismatch pkt=");
-                uart1_WriteDec(i);
-                uart1_WriteString("\r\n");
-#endif
-                return (uint16_t)(i + 1U);
-            }
-            break;
-
-        case STK_CMD_PROGRAM_EEPROM_ISP:
-            /* 将 EEPROM 编程替换为读回校验 */
-            if (ispVerifyMemory((stkProgramFlashIsp_t *)param, 1U) != 0U)
-            {
-#if DEBUG_HARDWARE_CONFIG
-                uart1_WriteString("REPLAY vfy eeprom mismatch pkt=");
-                uart1_WriteDec(i);
-                uart1_WriteString("\r\n");
-#endif
-                return (uint16_t)(i + 1U);
-            }
-            break;
-
-        case STK_CMD_PROGRAM_FUSE_ISP:
-            {
-                /* 记录熔丝编程的期望值，留待后续 READ_FUSE_ISP 验证 */
-                int8_t slot = offlineProgramFuseSlot((stkProgramFuseIsp_t *)param);
-                if (slot >= 0)
-                {
-                    expectedFuse.valid[(uint8_t)slot] = 1U;
-                    expectedFuse.value[(uint8_t)slot] =
-                        ((stkProgramFuseIsp_t *)param)->cmd[3];
-                    expectedFuse.program_packet[(uint8_t)slot] = (uint16_t)i;
-                }
-            }
-            break;
-
-        case STK_CMD_READ_FUSE_ISP:
-            {
-                /* 通过先前记录的 READ_FUSE_ISP 命令读取实际熔丝值并与期望值比对 */
-                stkReadFuseIsp_t *readParam = (stkReadFuseIsp_t *)param;
-                int8_t slot = offlineReadFuseSlot(readParam);
-                uint8_t actual;
-
-                if (slot < 0)
-                    return (uint16_t)(i + 1U);
-                if (!expectedFuse.valid[(uint8_t)slot])
-                    break;  /* 编程前的熔丝读取不是校验项，直接跳过 */
-
-                actual = ispReadFuse(readParam);
-                /* Fuse data bits live only in the recorded opcode (cmd[3]); bits
-                 * set to 1 must still read back 1 after programming. Bits set to
-                 * 0 (programmed) are not checked here, matching the "never
-                 * re-program a 1 back to 0" fuse semantics. */
-                if ((actual & expectedFuse.value[(uint8_t)slot]) !=
-                    expectedFuse.value[(uint8_t)slot])
-                {
-#if DEBUG_HARDWARE_CONFIG
-                    uart1_WriteString("REPLAY vfy fuse mismatch pkt=");
-                    uart1_WriteDec(i);
-                    uart1_WriteString(" slot=");
-                    uart1_WriteDec(slot);
-                    uart1_WriteString(" got=0x");
-                    uart1_WriteHex8(actual);
-                    uart1_WriteString(" want=0x");
-                    uart1_WriteHex8(expectedFuse.value[(uint8_t)slot]);
-                    uart1_WriteString("\r\n");
-#endif
-                    return (uint16_t)(i + 1U);
-                }
-                expectedFuse.verified[(uint8_t)slot] = 1U;
-            }
-            break;
-
-        case STK_CMD_READ_SIGNATURE_ISP:
-        case STK_CMD_READ_OSCCAL_ISP:
-            /* Replay the read command and require a valid reply. */
-            if (offlineExecuteFrame(packetHeader.frame_len) != STK_STATUS_CMD_OK)
-            {
-#if DEBUG_HARDWARE_CONFIG
-                uart1_WriteString("REPLAY vfy execfail pkt=");
-                uart1_WriteDec(i);
-                uart1_WriteString(" cmd=0x");
-                uart1_WriteHex8(cmd);
-                uart1_WriteString("\r\n");
-#endif
-                return (uint16_t)(i + 1U);
-            }
-            break;
-
-        default:
-            /* 擦除、正常读取、熔丝写入、锁定位编程和退出编程模式等
-             * 命令在本次校验工序中不重复处理。
-             */
-            break;
-        }
-    }
-
-    /* 检查所有已编程的熔丝槽位是否都已通过校验 */
-    for (i = 0U; i < OFFLINE_FUSE_COUNT; i++)
-    {
-        if (expectedFuse.valid[i] && !expectedFuse.verified[i])
-            return (uint16_t)(expectedFuse.program_packet[i] + 1U);
-    }
-    return 0U;
+    if (g_replay.header.identity.arch == STK_MCU_ARCH_PIC)
+        return picReplayVerifyPass();
+    return avrReplayVerifyPass();
 }
 
-/**
- * @brief 第 3 道工序：锁定位编程与退出编程模式
- * @return 0-成功 / 非 0-失败的数据包序号（从 1 开始）
- *
- * 本道工序在所有编程和校验完成后执行：
- *   - 执行所有 PROGRAM_LOCK_ISP 命令（烧录锁定位）
- *   - 将最后一条 LEAVE_PROGMODE_ISP 命令记录下来，在循环结束后统一执行
- */
 static uint16_t offlineReplayLockAndLeavePass(void)
 {
-    uint32_t cursor = g_replay.header.packet_area_offset;
-    uint32_t i;
-    uint16_t leavePacket = OFFLINE_INVALID_PACKET;
-    uint16_t leaveFrameLen = 0U;
-    uint8_t leaveFrame[32];
-    offline_raw_packet_header_t packetHeader;
-
-    for (i = 0U; i < g_replay.header.packet_count; i++)
-    {
-        if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
-            return (uint16_t)(i + 1U);
-
-        if (packetHeader.cmd == STK_CMD_PROGRAM_LOCK_ISP)
-        {
-            /* 执行锁定位编程 */
-            stkProgramFuseIsp_t *param =
-                (stkProgramFuseIsp_t *)&g_replayFrame[STK_TXMSG_START + 1U];
-            if (ispProgramFuse(param) != STK_STATUS_CMD_OK)
-                return (uint16_t)(i + 1U);
-        }
-        else if (packetHeader.cmd == STK_CMD_LEAVE_PROGMODE_ISP &&
-                 packetHeader.frame_len <= sizeof(leaveFrame))
-        {
-            /* 暂存退出编程模式命令，留待最后执行 */
-            memcpy(leaveFrame, g_replayFrame, packetHeader.frame_len);
-            leaveFrameLen = packetHeader.frame_len;
-            leavePacket = (uint16_t)i;
-        }
-    }
-
-    /* 执行退出编程模式命令 */
-    if (leavePacket != OFFLINE_INVALID_PACKET)
-    {
-        memcpy(g_replayFrame, leaveFrame, leaveFrameLen);
-        if (offlineExecuteFrame(leaveFrameLen) != STK_STATUS_CMD_OK)
-            return (uint16_t)(leavePacket + 1U);
-    }
-
-    return 0U;
+    if (g_replay.header.identity.arch == STK_MCU_ARCH_PIC)
+        return picReplayLockAndLeavePass();
+    return avrReplayLockAndLeavePass();
 }
+
 
 /**
  * @brief 初始化离线回放模块
@@ -609,14 +287,15 @@ uint16_t offlinePgmer(void)
     uint16_t result;
     uint8_t savedWorkMode;
 
+    /* Always re-read the active package so a re-recorded package is used. */
+    if (offlinePgmer_init() != 0U)
+        return 1U;
+
 #if DEBUG_HARDWARE_CONFIG
     uart1_WriteString("REPLAY enter, initialized=");
     uart1_WriteDec(g_replay.initialized);
     uart1_WriteString("\r\n");
 #endif
-
-    if (!g_replay.initialized && offlinePgmer_init() != 0U)
-        return 1U;
 
     /* 保存当前工作模式，切换为在线模式以执行回放 */
     savedWorkMode = stkGetWorkMode();
@@ -638,12 +317,15 @@ uint16_t offlinePgmer(void)
         uart1_WriteString("\r\n");
 #endif
     }
-    if (result == 0U)
     {
-        result = offlineReplayLockAndLeavePass();
+        /* Always run the lock/leave pass so the target is powered down
+         * even when an earlier pass failed. */
+        uint16_t lockResult = offlineReplayLockAndLeavePass();
+        if (result == 0U && lockResult != 0U)
+            result = lockResult;
 #if DEBUG_HARDWARE_CONFIG
         uart1_WriteString("REPLAY lockleave=");
-        uart1_WriteDec(result);
+        uart1_WriteDec(lockResult);
         uart1_WriteString("\r\n");
 #endif
     }
