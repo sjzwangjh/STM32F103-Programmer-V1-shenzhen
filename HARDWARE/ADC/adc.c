@@ -3,6 +3,10 @@
 
 u16 adcScanRecodeBuff[ADC_SCAN_BUF_SIZE];
 
+static u16 Adc_GetLatestSamplePos(u8 ch);
+static u32 Adc_ConvertDividerToMv(u16 adcValue, u16 rtUpX10, u16 rtDownX10);
+static u32 Adc_ConvertCurrentToMa(u16 adcValue);
+
 static void Adc_GPIO_Init(void)
 {
     RCC->APB2ENR |= (1 << 2) | (1 << 4);
@@ -61,7 +65,7 @@ void Adc_Init(void)
     ADC1->SMPR2 |= (7 << 21);
     ADC1->SMPR1 |= (7 << 12);
 
-    /* STM32F103 的 ADC1 规则通道 DMA 请求固定对应 DMA1_Channel1。 */
+    /* STM32F103 的 ADC1 扫描通道 DMA 固定对应 DMA1_Channel1。 */
     DMA1_Channel1->CCR = 0;
     DMA1_Channel1->CPAR = (u32)&ADC1->DR;
     DMA1_Channel1->CMAR = (u32)adcScanRecodeBuff;
@@ -98,12 +102,17 @@ void Adc_Init(void)
 
 u16 Adc_GetChannel(u8 ch)
 {
+    if (ch >= ADC_SCAN_CHANNELS)
+        return 0;
+
+    return adcScanRecodeBuff[Adc_GetLatestSamplePos(ch)];
+}
+
+static u16 Adc_GetLatestSamplePos(u8 ch)
+{
     u16 cnt;
     u16 pos;
     u16 samplePos;
-
-    if (ch >= ADC_SCAN_CHANNELS)
-        return 0;
 
     cnt = DMA1_Channel1->CNDTR;
     pos = (ADC_SCAN_BUF_SIZE - cnt) & (ADC_SCAN_BUF_SIZE - 1);
@@ -111,7 +120,148 @@ u16 Adc_GetChannel(u8 ch)
     samplePos = (u16)((pos + ADC_SCAN_BUF_SIZE - ADC_SCAN_CHANNELS) & (ADC_SCAN_BUF_SIZE - 1));
     samplePos = (u16)((samplePos & ~(ADC_SCAN_CHANNELS - 1)) | ch);
 
-    return adcScanRecodeBuff[samplePos];
+    return samplePos;
 }
 
+u16 Adc_GetChannelAverage(u8 ch)
+{
+    u16 samplePos;
+    u16 minValue;
+    u16 maxValue;
+    u16 sampleValue;
+    u32 sumValue;
+    u8 i;
 
+    if (ch >= ADC_SCAN_CHANNELS)
+        return 0;
+
+    samplePos = Adc_GetLatestSamplePos(ch);
+    minValue = adcScanRecodeBuff[samplePos];
+    maxValue = minValue;
+    sumValue = 0;
+
+    for (i = 0; i < ADC_FILTER_WINDOW_SIZE; i++)
+    {
+        sampleValue = adcScanRecodeBuff[samplePos];
+        sumValue += sampleValue;
+
+        if (sampleValue < minValue)
+            minValue = sampleValue;
+
+        if (sampleValue > maxValue)
+            maxValue = sampleValue;
+
+        samplePos = (u16)((samplePos + ADC_SCAN_BUF_SIZE - ADC_SCAN_CHANNELS) & (ADC_SCAN_BUF_SIZE - 1));
+    }
+
+    sumValue -= minValue;
+    sumValue -= maxValue;
+
+    return (u16)(sumValue >> 3);
+}
+
+static u32 Adc_ConvertDividerToMv(u16 adcValue, u16 rtUpX10, u16 rtDownX10)
+{
+    unsigned long long numerator;
+
+    numerator = (unsigned long long)adcValue * ADC_VREF_MV * (rtUpX10 + rtDownX10);
+    numerator += ((unsigned long long)rtDownX10 * ADC_ADC_MAX_COUNTS) / 2U;
+
+    return (u32)(numerator / ((unsigned long long)rtDownX10 * ADC_ADC_MAX_COUNTS));
+}
+
+static u32 Adc_ConvertCurrentToMa(u16 adcValue)
+{
+    unsigned long long adcMv;
+
+    adcMv = (unsigned long long)adcValue * ADC_VREF_MV;
+    adcMv += ADC_ADC_MAX_COUNTS / 2U;
+    adcMv /= ADC_ADC_MAX_COUNTS;
+
+    adcMv *= 1000U;
+    adcMv += ((unsigned long long)ADC_CURRENT_R_MOHM * ADC_CURRENT_GAIN) / 2U;
+
+    return (u32)(adcMv / ((unsigned long long)ADC_CURRENT_R_MOHM * ADC_CURRENT_GAIN));
+}
+
+adc_real_unit_t Adc_GetChannelRealUnit(u8 ch)
+{
+    switch (ch)
+    {
+    case ADC_CH_DUT_IVDD:
+    case ADC_CH_DUT_IVPP:
+        return ADC_REAL_UNIT_MA;
+
+    case ADC_CH_VDD_FBACK:
+    case ADC_CH_VPP_MAIN_FBACK:
+    case ADC_CH_USB_GOOD:
+    case ADC_CH_3V3_POWER_GOOD:
+    case ADC_CH_DUT_UVPP:
+    case ADC_CH_VDD_MAIN_FBACK:
+        return ADC_REAL_UNIT_MV;
+
+    default:
+        return ADC_REAL_UNIT_NONE;
+    }
+}
+
+u32 Adc_GetChannelRealValue(u8 ch)
+{
+    u16 adcAverage;
+
+    adcAverage = Adc_GetChannelAverage(ch);
+
+    switch (ch)
+    {
+    case ADC_CH_VDD_FBACK:
+        return Adc_ConvertDividerToMv(adcAverage, 39U, 22U);
+
+    case ADC_CH_VPP_MAIN_FBACK:
+        return Adc_ConvertDividerToMv(adcAverage, 200U, 22U);
+
+    case ADC_CH_USB_GOOD:
+        return Adc_ConvertDividerToMv(adcAverage, 39U, 22U);
+
+    case ADC_CH_DUT_IVDD:
+    case ADC_CH_DUT_IVPP:
+        return Adc_ConvertCurrentToMa(adcAverage);
+
+    case ADC_CH_3V3_POWER_GOOD:
+        return Adc_ConvertDividerToMv(adcAverage, 39U, 22U);
+
+    case ADC_CH_DUT_UVPP:
+        return Adc_ConvertDividerToMv(adcAverage, 200U, 22U);
+
+    case ADC_CH_VDD_MAIN_FBACK:
+        return Adc_ConvertDividerToMv(adcAverage, 39U, 22U);
+
+    default:
+        return 0;
+    }
+}
+
+void Adc_GetAllChannelAverage(u16 *buff, u8 maxCount)
+{
+    u8 i;
+    u8 count;
+
+    if (buff == 0)
+        return;
+
+    count = (maxCount < ADC_SCAN_CHANNELS) ? maxCount : ADC_SCAN_CHANNELS;
+    for (i = 0; i < count; i++)
+        buff[i] = Adc_GetChannelAverage(i);
+}
+
+void Adc_GetAllChannelRealValue(u32 *buff, u8 maxCount)
+{
+    u8 i;
+    u8 count;
+
+    if (buff == 0)
+        return;
+
+    count = (maxCount < ADC_SCAN_CHANNELS) ? maxCount : ADC_SCAN_CHANNELS;
+    for (i = 0; i < count; i++)
+        buff[i] = Adc_GetChannelRealValue(i);
+}

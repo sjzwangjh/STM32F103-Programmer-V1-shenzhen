@@ -22,6 +22,8 @@
 #endif
 
 #define  DEBUG_HARDWARE_CONFIG      1       // 硬件调试标志
+#define  UART1_TRACE                0       // high-frequency UART1 trace (per-frame RX/TX, ISP/ICSP per-command); set 1 for full logs
+#define  OFFLINE_REPLAY_FRAME_GAP_MS  10      // universal replay inter-frame settle (ms), safe for all AVR/PIC parts; device-level VPP/VDD timing is explicit in the engines
 
 /* STK500v2 SIGN_ON 回复中的烧录器标识（首字节=字符串长度，末字节 0 用于 sizeof），修改只需改这里。 */
 #define  PROGRAMMER_ID_STR   {8, 'S', 'T', 'K', '5', '0', '0', '_', '2', 0}

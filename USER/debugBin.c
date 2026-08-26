@@ -23,6 +23,15 @@
 #include "eeprom.h"
 #include "flash.h"
 #include "offLineRecorder.h"
+#include <stdio.h>
+
+#define DEBUG_BIN_ADC_TRACE  1
+
+#if DEBUG_BIN_ADC_TRACE
+#define DEBUG_BIN_ADC_LOG(...)  printf(__VA_ARGS__)
+#else
+#define DEBUG_BIN_ADC_LOG(...)
+#endif
 
 extern void usb_port_set(u8 enable);
 
@@ -430,8 +439,10 @@ static void debugBin_Dispatch(void)
             if (channel >= ADC_SCAN_CHANNELS) status = DEBUG_BIN_STATUS_BAD_PARAM;
             else
             {
-                debugBin_WriteU16Le(response, Adc_GetChannel(channel));
+                value16 = Adc_GetChannel(channel);
+                debugBin_WriteU16Le(response, value16);
                 responseLength = 2U;
+                DEBUG_BIN_ADC_LOG("[ADC_RAW] ch=%u raw=%u\r\n", channel, value16);
             }
         }
         break;
@@ -445,9 +456,74 @@ static void debugBin_Dispatch(void)
                 debugBin_WriteU16Le(&response[(u16)channel * 2U], Adc_GetChannel(channel));
             }
             responseLength = (u16)ADC_SCAN_CHANNELS * 2U;
+            DEBUG_BIN_ADC_LOG("[ADC_RAW_ALL] done\r\n");
         }
         break;
 
+    case DEBUG_BIN_CMD_ADC_READ_AVG:
+        if (p->payloadLength != 1U) status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        else
+        {
+            channel = p->payload[0];
+            if (channel >= ADC_SCAN_CHANNELS) status = DEBUG_BIN_STATUS_BAD_PARAM;
+            else
+            {
+                value16 = Adc_GetChannelAverage(channel);
+                debugBin_WriteU16Le(response, value16);
+                responseLength = 2U;
+                DEBUG_BIN_ADC_LOG("[ADC_AVG] ch=%u avg=%u\r\n", channel, value16);
+            }
+        }
+        break;
+
+    case DEBUG_BIN_CMD_ADC_READ_AVG_ALL:
+        if (p->payloadLength != 0U) status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        else
+        {
+            u16 adcAverage[ADC_SCAN_CHANNELS];
+            Adc_GetAllChannelAverage(adcAverage, ADC_SCAN_CHANNELS);
+            for (channel = 0U; channel < ADC_SCAN_CHANNELS; channel++)
+            {
+                debugBin_WriteU16Le(&response[(u16)channel * 2U], adcAverage[channel]);
+            }
+            responseLength = (u16)ADC_SCAN_CHANNELS * 2U;
+            DEBUG_BIN_ADC_LOG("[ADC_AVG_ALL] done\r\n");
+        }
+        break;
+
+    case DEBUG_BIN_CMD_ADC_READ_REAL:
+        if (p->payloadLength != 1U) status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        else
+        {
+            channel = p->payload[0];
+            if (channel >= ADC_SCAN_CHANNELS) status = DEBUG_BIN_STATUS_BAD_PARAM;
+            else
+            {
+                u32 realValue = Adc_GetChannelRealValue(channel);
+                response[0] = (u8)Adc_GetChannelRealUnit(channel);
+                response[1] = 0U;
+                debugBin_WriteU32Le(&response[2], realValue);
+                responseLength = 6U;
+                DEBUG_BIN_ADC_LOG("[ADC_REAL] ch=%u unit=%u value=%lu\r\n", channel, (u8)Adc_GetChannelRealUnit(channel), (unsigned long)realValue);
+            }
+        }
+        break;
+
+    case DEBUG_BIN_CMD_ADC_READ_REAL_ALL:
+        if (p->payloadLength != 0U) status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        else
+        {
+            u32 adcRealValue[ADC_SCAN_CHANNELS];
+            Adc_GetAllChannelRealValue(adcRealValue, ADC_SCAN_CHANNELS);
+            for (channel = 0U; channel < ADC_SCAN_CHANNELS; channel++)
+            {
+                response[(u16)channel * 5U] = (u8)Adc_GetChannelRealUnit(channel);
+                debugBin_WriteU32Le(&response[(u16)channel * 5U + 1U], adcRealValue[channel]);
+            }
+            responseLength = (u16)ADC_SCAN_CHANNELS * 5U;
+            DEBUG_BIN_ADC_LOG("[ADC_REAL_ALL] done\r\n");
+        }
+        break;
     case DEBUG_BIN_CMD_EEPROM_READ:
         /* 请求帧 payload = offset(2B LE) + len(2B LE)
          * 读取 SPI_EEPROM_CAPACITY (8192) 范围内的数据后回传 */

@@ -580,7 +580,7 @@ static uint8_t icspBackupCriticalWords(void)
         if (value == 0xFFFFU)
             return ICSP_ERR;
         *slot = value;
-        #if DEBUG_HARDWARE_CONFIG
+        #if UART1_TRACE
         uart1_WriteString("ICSP bak cfg idx=");
         uart1_WriteDec(idx);
         uart1_WriteString(" val=0x");
@@ -603,7 +603,7 @@ static uint8_t icspBackupCriticalWords(void)
             {
                 if (value == 0x0000U)
                 {
-                    #if DEBUG_HARDWARE_CONFIG
+                    #if UART1_TRACE
                     uart1_WriteString("ICSP CAL: OSCCAL all-zero (code-protected), device invalid\r\n");
                     #endif
                     return ICSP_ERR_CAL_LOST;
@@ -611,7 +611,7 @@ static uint8_t icspBackupCriticalWords(void)
                 if (icspIsOsccalEntryWord(osccalAddr) &&
                     value == icspGetBitMask(g_picDataWidth))
                 {
-                    #if DEBUG_HARDWARE_CONFIG
+                    #if UART1_TRACE
                     uart1_WriteString("ICSP CAL: OSCCAL entry all-ones (missing factory content), device invalid\r\n");
                     #endif
                     return ICSP_ERR_CAL_LOST;
@@ -619,7 +619,7 @@ static uint8_t icspBackupCriticalWords(void)
             }
         }
         *slot = value;
-        #if DEBUG_HARDWARE_CONFIG
+        #if UART1_TRACE
         uart1_WriteString("ICSP bak osccal val=0x");
         uart1_WriteHex16(value);
         uart1_WriteString("\r\n");
@@ -638,7 +638,7 @@ static uint8_t icspBackupCriticalWords(void)
         if (icspReadWordByAbsoluteAddress(targetAddr, &value) != ICSP_OK)
             return ICSP_ERR;
         *slot = value;
-        #if DEBUG_HARDWARE_CONFIG
+        #if UART1_TRACE
         uart1_WriteString("ICSP bak cal idx=");
         uart1_WriteDec(idx);
         uart1_WriteString(" addr=0x");
@@ -711,7 +711,7 @@ static uint8_t icspRestoreCriticalWords(void)
                     return ICSP_ERR;
             }
         }
-        #if DEBUG_HARDWARE_CONFIG
+        #if UART1_TRACE
         uart1_WriteString("ICSP erase cfg back=0x");
         uart1_WriteHex16(*slot);
         uart1_WriteString(" rest=0x");
@@ -734,7 +734,7 @@ static uint8_t icspRestoreCriticalWords(void)
                 return ICSP_ERR;
             if (icspIsCalWordErased(value))
             {
-                #if DEBUG_HARDWARE_CONFIG
+                #if UART1_TRACE
                 uart1_WriteString("ICSP rst osccal post=0x");
                 uart1_WriteHex16(value);
                 uart1_WriteString(" w=0x");
@@ -759,7 +759,7 @@ static uint8_t icspRestoreCriticalWords(void)
             return ICSP_ERR;
         if (icspIsCalWordErased(value))
         {
-            #if DEBUG_HARDWARE_CONFIG
+            #if UART1_TRACE
             uart1_WriteString("ICSP rst cal idx=");
             uart1_WriteDec(idx);
             uart1_WriteString(" addr=0x");
@@ -972,7 +972,7 @@ static uint8_t icspRestartAndSyncCodeBase(void)
         }
     }
 
-    #if DEBUG_HARDWARE_CONFIG
+    #if UART1_TRACE
     uart1_WriteString("ICSP restart init=0x");
     uart1_WriteHex16((uint16_t)initAddr);
     uart1_WriteString("\r\n");
@@ -1062,7 +1062,7 @@ static uint8_t icspWriteConfigWordAt(uint32_t targetAddr, uint16_t value, uint16
     if (icspGotoConfigAddress(targetAddr) != ICSP_OK)
         return ICSP_ERR;
 
-    #if DEBUG_HARDWARE_CONFIG
+    #if UART1_TRACE
     uart1_WriteString("ICSP cfgW addr=0x");
     uart1_WriteHex16((uint16_t)targetAddr);
     uart1_WriteString(" val=0x");
@@ -1300,19 +1300,19 @@ uint8_t icspEnterHV(const pic_prog_params_t *dev)
     {
         /* 先升VPP再升VDD (VPP-first) */
         ICSP_VPP_ON();
-        ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_vpp_first_delay_us, 10U));
+        ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_vpp_first_delay_us, 5000U));
         ICSP_VDD_ON();
-        ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_vdd_delay_us, 10U));
+        ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_vdd_delay_us, 2000U));
     }
     else
     {
         /* 先升VDD再升VPP (VDD-first) */
         ICSP_VDD_ON();
-        ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_vdd_delay_us, 10U));
+        ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_vdd_delay_us, 2000U));
         ICSP_VPP_ON();
-        ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_vpp_delay_us, 10U));
+        ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_vpp_delay_us, 5000U));
     }
-    ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_hv_stable_time_us, 10U));
+    ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_hv_stable_time_us, 2000U));
     return ICSP_OK;
 }
 
@@ -1371,7 +1371,7 @@ uint8_t icspEnterLV(const pic_prog_params_t *dev)
  */
 void icspExit(void)
 {
-    uint16_t offDelay = 10U;
+    uint16_t offDelay = 2000U;
 
     if (icsp_pdev != NULL)
         offDelay = icspGetDelayOrDefault(icsp_pdev->common.icsp_off_delay_us, 10U);
@@ -1380,10 +1380,10 @@ void icspExit(void)
      * floating the rail may leave the part inside programming mode and the
      * PC is then NOT reset to 0x0000 on the next entry. */
     ICSP_VPP_GND();
-    #if DEBUG_HARDWARE_CONFIG
+    #if UART1_TRACE
     uart1_WriteString("ICSP exit: VPP->GND\r\n");
     #endif
-    ICSP_DELAY_US(10);
+    ICSP_DELAY_US(1000);
     ICSP_VDD_OFF();
     ICSP_DELAY_US(offDelay);                    /* TRESET */
     ICSP_DAT_IN();
@@ -1431,7 +1431,7 @@ uint8_t icspReadSignature(uint16_t *sig)
     if (sig == NULL)
         return ICSP_ERR;
     *sig = (uint16_t)icspReadDevID();
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
     uart1_WriteString("icspReadSignature: ");
     uart1_WriteHex16(*sig);
     uart1_WriteString("\r\n");
@@ -1457,7 +1457,7 @@ uint8_t icspBulkErase(void)
         if (st != ICSP_OK)
             return st;
     }
-    #if DEBUG_HARDWARE_CONFIG
+    #if UART1_TRACE
     uart1_WriteString("ICSP erase begin\r\n");
     #endif
 
@@ -1483,7 +1483,7 @@ uint8_t icspBulkErase(void)
         g_picCurrentArea = ICSP_AREA_CONFIG;
         g_picCurrentAddress = icsp_pdev->common.config_space_base;
     }
-    #if DEBUG_HARDWARE_CONFIG
+    #if UART1_TRACE
     uart1_WriteString("ICSP erase done\r\n");
     #endif
 
@@ -1634,7 +1634,7 @@ uint8_t icspSetProgramAddress(uint32_t addr)
 
     if (icsp_pdev == NULL)
         return ICSP_ERR;
-    #if DEBUG_HARDWARE_CONFIG
+    #if UART1_TRACE
     uart1_WriteString("ICSP setPA req=0x");
     uart1_WriteHex16((uint16_t)addr);
     uart1_WriteString(" area=");
@@ -1854,7 +1854,7 @@ uint16_t icspReadCfg(uint8_t idx)
      */
     if (icspReadConfigWordAt(targetAddr, &value) != ICSP_OK)
         return 0xFFFF;
-    #if DEBUG_HARDWARE_CONFIG
+    #if UART1_TRACE
     uart1_WriteString("ICSP cfgR idx=");
     uart1_WriteDec(idx);
     uart1_WriteString(" val=0x");

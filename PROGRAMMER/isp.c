@@ -203,7 +203,7 @@ uint8_t ispEnterProgmode(stkEnterProgIsp_t *param)
     ispAttachToDevice(stkParam.s.sckDuration, param->stabDelay);
     timerMsDelay(param->cmdExeDelay);
 
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
     uart1_WriteString("ISP ENTER sck=");
     uart1_WriteDec(stkParam.s.sckDuration);
     uart1_WriteString(" pollIdx=");
@@ -225,7 +225,7 @@ uint8_t ispEnterProgmode(stkEnterProgIsp_t *param)
         rval = ispBlockTransfer(param->cmd, param->pollIndex);
         if (param->pollIndex < 4)
             ispBlockTransfer(param->cmd + param->pollIndex, 4 - param->pollIndex);
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
         uart1_WriteString("ISP ENTER try=");
         uart1_WriteDec(i);
         uart1_WriteString(" rval=0x");

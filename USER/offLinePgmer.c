@@ -23,6 +23,8 @@
 #include "isp.h"
 #include "flash.h"
 #include "usart.h"
+#include "delay.h"
+#include "Hardware_Config.h"
 #include <string.h>
 
 /* 回放缓冲区大小（接收帧与发送帧均使用 BUFFER_SIZE） */
@@ -30,6 +32,7 @@
 #define OFFLINE_REPLAY_TX_SIZE      BUFFER_SIZE
 /* 标记无效数据包（最大 16 位值） */
 #define OFFLINE_INVALID_PACKET      0xFFFFU
+
 
 /* 熔丝位槽位索引（仅在单个包回放过程中使用的序号定义） */
 /* 全局回放上下文 */
@@ -180,6 +183,9 @@ uint8_t offlineExecuteFrame(uint16_t frameLen)
     stkEvaluateRxMessage(&dataFrame);
     if (dataFrame.txFrameLen < (STK_TXMSG_START + 2U))
         return STK_STATUS_CMD_FAILED;
+
+    /* Replay-only settle gap (see OFFLINE_REPLAY_FRAME_GAP_MS). */
+    delay_ms(OFFLINE_REPLAY_FRAME_GAP_MS);
     return g_replayTx[STK_TXMSG_START + 1U];
 }
 

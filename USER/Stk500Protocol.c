@@ -19,6 +19,9 @@
 #include "offLineRecorder.h"
 #include "eeprom.h"
 #include "usart.h"
+#include "MCP4017_VDD.h"
+#include "MCP4017_VPP.h"
+#include "adc.h"
 
 /* 上报给上位机�?STK500 版本号�?*/
 #define STK_VERSION_HW      1
@@ -318,15 +321,50 @@ static uint8_t stkProgramStatus(uint8_t onlineStatus, uint8_t recordStatus)
 
 static uint8_t setParameter(uint8_t index, uint8_t value)
 {
-    index &= 0x1f;
-    stkParam.bytes[index] = value;
-    return STK_STATUS_CMD_OK;
+    uint8_t paramIndex = (uint8_t)(index & 0x1fU);
+    uint16_t voltageX100 = (uint16_t)value * 10U;
+    uint8_t hwStatus = STK_STATUS_CMD_OK;
+
+    switch (index)
+    {
+    case STK_PARAM_VTARGET:
+        if (MCP4017_VDD_SetVoltage(voltageX100) == 0xFFU)
+            hwStatus = STK_STATUS_CMD_FAILED;
+        break;
+
+    case STK_PARAM_VADJUST:
+        if (MCP4017_VPP_SetVoltage(voltageX100) == 0xFFU)
+            hwStatus = STK_STATUS_CMD_FAILED;
+        break;
+
+    default:
+        break;
+    }
+
+    if (hwStatus == STK_STATUS_CMD_OK)
+        stkParam.bytes[paramIndex] = value;
+
+    return hwStatus;
 }
 
 static uint8_t getParameter(uint8_t index)
 {
-    index &= 0x1f;
-    return stkParam.bytes[index];
+    uint8_t paramIndex = (uint8_t)(index & 0x1fU);
+    u32 voltageMv;
+
+    switch (index)
+    {
+    case STK_PARAM_VTARGET:
+        voltageMv = Adc_GetChannelRealValue(ADC_CH_VDD_MAIN_FBACK);
+        return (uint8_t)((voltageMv >= 25500U) ? 255U : ((voltageMv + 50U) / 100U));
+
+    case STK_PARAM_VADJUST:
+        voltageMv = Adc_GetChannelRealValue(ADC_CH_VPP_MAIN_FBACK);
+        return (uint8_t)((voltageMv >= 25500U) ? 255U : ((voltageMv + 50U) / 100U));
+
+    default:
+        return stkParam.bytes[paramIndex];
+    }
 }
 
 /* ---- avrdude -B 编程速度 -> ICSP 位时钟挡�?----
@@ -353,7 +391,7 @@ static void stkApplyIcspSckTier(uint8_t tier)
     (void)icspSetIcspClock(hz);
 }
 
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
 /* 简洁调�? 数据来源�?*/
 static const char *stkSourceName(uint8_t src)
 {
@@ -412,7 +450,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     if (pDataFrame->frameLen < (uint16_t)(payloadLen + 6U))
         return;
 
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
     /* 简洁调�? 只打印数据来源、方向、命令ID、数据包大小�?*/
     uart1_WriteString(stkSourceName(pDataFrame->source));
     uart1_WriteString(" RX cmd=0x");
@@ -584,7 +622,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         for(i = 0; i < 4; i++){
             stkAddress.bytes[3 - i] = pRx[STK_TXMSG_START + 1 + i];
         }
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
         /* 诊断用：打印上位机每次下发的字地址，确认是否在同一页反复读写�?*/
         uart1_WriteString(stkSourceName(pDataFrame->source));
         uart1_WriteString(" LOAD addr=0x");
@@ -878,7 +916,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 ispProgramMemory(ispParam, 0) : STK_STATUS_CMD_OK;
             uint8_t recStatus = STK_STATUS_CMD_OK;
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             /* 诊断用：打印页写命令实际返回的状态（0=OK）�?*/
             uart1_WriteString(stkSourceName(pDataFrame->source));
             uart1_WriteString(" WRITE st=0x");
@@ -901,7 +939,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
             len.word = (uint16_t)(numBytes + 2U);
         }
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
         /* 诊断用：打印读回数据�?4 字节�?xFF 说明目标片没写进去）�?*/
         uart1_WriteString(stkSourceName(pDataFrame->source));
         uart1_WriteString(" READ data=");
@@ -1012,7 +1050,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 pic8EnterProgmode((uint8_t)(pRx[STK_TXMSG_START + 1] & 0x01U)) :
                 STK_STATUS_CMD_OK;
             g_stkIcspDeviceIdChecked = 0U;
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP40", 0U, &pRx[STK_TXMSG_START + 1], 4U);
 #endif
             pTx[STK_TXMSG_START + 1] = (onlineStatus != STK_STATUS_CMD_OK) ?
@@ -1023,7 +1061,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             if (stkIsOnlineMode())
                 pic8LeaveProgmode();
             g_stkIcspDeviceIdChecked = 0U;
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP41", stkAddress.dword, NULL, 0U);
 #endif
         }
@@ -1042,12 +1080,20 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                         eraseStatus = STK_STATUS_CMD_FAILED;
                 }
             }
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP42", stkAddress.dword, &pRx[STK_TXMSG_START + 1], 2U);
 #endif
             pTx[STK_TXMSG_START + 1] = (eraseStatus == STK_STATUS_CAL_LOST) ?
                 STK_STATUS_CAL_LOST :
                 ((eraseStatus != STK_STATUS_CMD_OK) ? STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK);
+#if DEBUG_HARDWARE_CONFIG
+            if (eraseStatus != STK_STATUS_CMD_OK)
+            {
+                uart1_WriteString("ICSP42 fail eraseStatus=0x");
+                uart1_WriteHex8(eraseStatus);
+                uart1_WriteString("\r\n");
+            }
+#endif
         }
     SWITCH_CASE(STK_CMD_PROGRAM_FLASH_ICSP)
         {
@@ -1059,7 +1105,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 if (onlineStatus == STK_STATUS_CMD_OK)
                     onlineStatus = icspProgramMemory(icspParam, 0U);
             }
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP43", stkAddress.dword, &pRx[STK_TXMSG_START + 1],
                          (uint16_t)((payloadLen > 1U) ? (payloadLen - 1U) : 0U));
 #endif
@@ -1067,7 +1113,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         }
     SWITCH_CASE(STK_CMD_READ_FLASH_ICSP)
         {
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP44Q", stkAddress.dword, &pRx[STK_TXMSG_START + 1], 3U);
 #endif
             if (stkIsOnlineMode())
@@ -1085,7 +1131,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
                 len.word = (uint16_t)(numBytes + 2U);
             }
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP44A", stkAddress.dword, &pTx[STK_TXMSG_START + 2],
                          (uint16_t)((len.word > 2U) ? (len.word - 2U) : 0U));
 #endif
@@ -1100,7 +1146,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 if (onlineStatus == STK_STATUS_CMD_OK)
                     onlineStatus = icspProgramMemory((stkProgramFlashIcsp_t *)icspParam, 1U);
             }
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP45", stkAddress.dword, &pRx[STK_TXMSG_START + 1],
                          (uint16_t)((payloadLen > 1U) ? (payloadLen - 1U) : 0U));
 #endif
@@ -1108,7 +1154,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         }
     SWITCH_CASE(STK_CMD_READ_EEPROM_ICSP)
         {
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP46Q", stkAddress.dword, &pRx[STK_TXMSG_START + 1], 3U);
 #endif
             if (stkIsOnlineMode())
@@ -1125,7 +1171,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
                 len.word = (uint16_t)(numBytes + 2U);
             }
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
             stkIcspTrace("ICSP46A", stkAddress.dword, &pTx[STK_TXMSG_START + 2],
                          (uint16_t)((len.word > 2U) ? (len.word - 2U) : 0U));
 #endif
@@ -1139,7 +1185,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             if (stkIsOnlineMode())
             {
                 onlineStatus = stkEnsureIcspDeviceIdVerified();
-                #if DEBUG_HARDWARE_CONFIG
+                #if UART1_TRACE
                 uart1_WriteString("ICSP47 raw=");
                 uart1_WriteHex16(stkGetLe16(icspParam->data));
                 uart1_WriteString("\r\n");
@@ -1278,7 +1324,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         txLen = pDataFrame->txFrameLen;
     }
 
-#if DEBUG_HARDWARE_CONFIG
+#if UART1_TRACE
     if (pDataFrame->txFrameLen != 0U)
     {
         uart1_WriteString(stkSourceName(pDataFrame->source));
