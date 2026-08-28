@@ -605,6 +605,19 @@ static void debugBin_Dispatch(void)
         /* 因为已经提前回复过了，这里不再走末尾的公共 SendResponse */
         return;
 
+    case DEBUG_BIN_CMD_EEPROM_ERASE:
+        if (p->payloadLength != 0U)
+        {
+            status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        }
+        else
+        {
+            SPI_EEPROM_EraseAll();
+            debugBin_WriteU32Le(response, (u32)SPI_EEPROM_CAPACITY);
+            responseLength = 4U;
+        }
+        break;
+
     case DEBUG_BIN_CMD_FLASH_READ:
         /* Flash 块读 — 用于与 USB HID 功能双向验证
          * 请求帧 payload = read_addr(4B LE) + read_len(2B LE)
@@ -705,6 +718,19 @@ static void debugBin_Dispatch(void)
             SPI_Flash_DebugDemo_DMA();
         }
         return;
+
+    case DEBUG_BIN_CMD_FLASH_ERASE:
+        if (p->payloadLength != 0U)
+        {
+            status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        }
+        else
+        {
+            SPI_Flash_Erase_Chip();
+            debugBin_WriteU32Le(response, (u32)FLASH_CAPACITY);
+            responseLength = 4U;
+        }
+        break;
 
     default:
         status = DEBUG_BIN_STATUS_UNKNOWN_CMD;

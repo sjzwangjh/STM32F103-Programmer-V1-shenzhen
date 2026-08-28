@@ -46,6 +46,56 @@ static uint8_t avrIsDeferredRead(uint8_t cmd)
             cmd == STK_CMD_READ_OSCCAL_HVSP) ? 1U : 0U;
 }
 
+static uint16_t avrGetTransferBytes(const uint8_t *numBytes)
+{
+    return (uint16_t)(((uint16_t)numBytes[0] << 8) | numBytes[1]);
+}
+
+static void avrAdvanceAddressByReadBytes(uint16_t numBytes, uint8_t isEeprom)
+{
+    uint16_t i;
+
+    for (i = 0U; i < numBytes; i++)
+    {
+        if (isEeprom)
+        {
+            stkIncrementAddress();
+        }
+        else if ((i & 1U) != 0U)
+        {
+            stkIncrementAddress();
+        }
+    }
+}
+
+static void avrAdvanceDeferredRead(uint8_t cmd, void *param)
+{
+    switch (cmd)
+    {
+    case STK_CMD_READ_FLASH_ISP:
+        avrAdvanceAddressByReadBytes(
+            avrGetTransferBytes(((stkReadFlashIsp_t *)param)->numBytes), 0U);
+        break;
+
+    case STK_CMD_READ_EEPROM_ISP:
+        avrAdvanceAddressByReadBytes(
+            avrGetTransferBytes(((stkReadFlashIsp_t *)param)->numBytes), 1U);
+        break;
+
+    case STK_CMD_READ_FLASH_HVSP:
+        avrAdvanceAddressByReadBytes(
+            avrGetTransferBytes(((stkReadFlashHvsp_t *)param)->numBytes), 0U);
+        break;
+
+    case STK_CMD_READ_EEPROM_HVSP:
+        avrAdvanceAddressByReadBytes(
+            avrGetTransferBytes(((stkReadFlashHvsp_t *)param)->numBytes), 1U);
+        break;
+
+    default:
+        break;
+    }
+}
 static int8_t avrProgramFuseSlot(const stkProgramFuseIsp_t *param)
 {
     if (param->cmd[0] != 0xACU)
@@ -93,8 +143,13 @@ uint16_t avrReplayProgramPass(void)
 
         cmd = packetHeader.cmd;
         /* 跳过延迟读取（留给第 2 道工序校验）和锁定位编程（留给第 3 道工序） */
-        if (avrIsDeferredRead(cmd) ||
-            cmd == STK_CMD_PROGRAM_LOCK_ISP ||
+        if (avrIsDeferredRead(cmd))
+        {
+            avrAdvanceDeferredRead(cmd, &g_replayFrame[STK_TXMSG_START + 1U]);
+            continue;
+        }
+
+        if (cmd == STK_CMD_PROGRAM_LOCK_ISP ||
             cmd == STK_CMD_PROGRAM_LOCK_HVSP)
         {
             continue;

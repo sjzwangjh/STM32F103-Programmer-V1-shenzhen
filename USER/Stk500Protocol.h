@@ -323,6 +323,9 @@ void    stkPoll(void);              /* must be called from main loop */
 uint8_t stkGetTxSource(void);
 uint8_t stkFwUpgradeRequested(void);
 void    stkIncrementAddress(void);
+void stkResetIspSession(void);
+void stkResetIcspSession(void);
+void stkResetAllProgrammingSessions(void);
 
 /* =================== [ STK general command constants ] =================== */
 #define STK_CMD_SIGN_ON                         0x01
@@ -462,6 +465,7 @@ typedef struct
     uint8_t itemId[STK_PARAM_ITEM_ID_LEN];     // 项目ID, 用于�?一标识一�?项目（一�?烧录任务�?
     char itemDesc[STK_PARAM_ITEM_DESC_LEN + 1];// 项目描述, 用于显示项目的信�?
 } stkDeviceIdentity_t;
+
 
 
 #endif /* __STK500PROTOCOL_H_INCLUDED__ */

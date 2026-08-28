@@ -131,7 +131,7 @@ static void ispAttachToDevice(uint8_t stk500Delay, uint8_t stabDelay)
         ispClockDelay = (stk500Delay + 1) / 4 + (stk500Delay + 1) / 16;
     }
     #if 1
-        if(ispClockDelay < 10) ispClockDelay = 1;
+        if(ispClockDelay <= 1) ispClockDelay = 1;
     #endif
     /* === Hardware initialization (STM32 DUT bus) === */
     PORT_OUT(HWPIN_LED) = 1;    // LEDÏÔÊ¾µ±Ç°×´Ì¬
@@ -331,10 +331,14 @@ uint8_t ispProgramMemory(stkProgramFlashIsp_t *param, uint8_t isEeprom)
     for (i = 0; rval == STK_STATUS_CMD_OK && i < numBytes.word; i++)
     {
         uint8_t x;
+        uint8_t pollAddrHigh;
+        uint8_t pollAddrLow;
 
         cmdBuffer[1] = stkAddress.bytes[1];
         cmdBuffer[2] = stkAddress.bytes[0];
         cmdBuffer[3] = param->data[i];
+        pollAddrHigh = cmdBuffer[1];
+        pollAddrLow = cmdBuffer[2];
         x = param->cmd[0];
 
         if (!isEeprom)
@@ -379,12 +383,32 @@ uint8_t ispProgramMemory(stkProgramFlashIsp_t *param, uint8_t isEeprom)
                     if ((uint8_t)i & 1)
                         xr |= 0x08;
                 }
+                cmdBuffer[1] = pollAddrHigh;
+                cmdBuffer[2] = pollAddrLow;
                 cmdBuffer[0] = xr;
                 timerSetupTimeout(param->delay);
                 while (ispBlockTransfer(cmdBuffer, 4) != d)
                 {
                     if (timerTimeoutOccurred())
                     {
+#if DEBUG_HARDWARE_CONFIG
+                        uart1_WriteString("ISP13 timeout addr=0x");
+                        uart1_WriteHex8(stkAddress.bytes[3]);
+                        uart1_WriteHex8(stkAddress.bytes[2]);
+                        uart1_WriteHex8(stkAddress.bytes[1]);
+                        uart1_WriteHex8(stkAddress.bytes[0]);
+                        uart1_WriteString(" i=");
+                        uart1_WriteDec(i);
+                        uart1_WriteString(" mode=0x");
+                        uart1_WriteHex8(param->mode);
+                        uart1_WriteString(" delay=");
+                        uart1_WriteDec(param->delay);
+                        uart1_WriteString(" exp=0x");
+                        uart1_WriteHex8(d);
+                        uart1_WriteString(" rd=0x");
+                        uart1_WriteHex8(ispBlockTransfer(cmdBuffer, 4));
+                        uart1_WriteString("\r\n");
+#endif
                         rval = STK_STATUS_CMD_TOUT;
                         break;
                     }

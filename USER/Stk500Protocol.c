@@ -1,12 +1,12 @@
 /*
- * STK500v2 协议解析模块
+ * STK500v2 协�??解析模块
  *
- * 本模块负责解析上位机发送的 STK500v2 数据�? 并把命令分发�?
- * AVR ISP/HVSP/HVPP、PIC ICSP 以及离线数据包记录模块�?
+ * �?模块负责解析上位机发送的 STK500v2 数据�? 并把命令分发�?
+ * AVR ISP/HVSP/HVPP、PIC ICSP 以及离线数据包�?�录模块�??
  *
- * 数据来源支持两类: USB HID 在线通讯�?Flash 离线回放�?
+ * 数据来源�?持两�?: USB HID 在线通�??�?Flash 离线回放�?
  * stkEvaluateRxMessage() 通过 stkDataFrame_t 同时接收 RX/TX 缓冲,
- * 从而避免在�?TX 和离线判�?TX 互相交叉�?
+ * 从而避免在�?TX 和�?�线判�??TX 互相交叉�?
  */
 
 #include "Stk500Protocol.h"
@@ -22,19 +22,20 @@
 #include "MCP4017_VDD.h"
 #include "MCP4017_VPP.h"
 #include "adc.h"
+#include "delay.h"
 
 /* 上报给上位机�?STK500 版本号�?*/
 #define STK_VERSION_HW      1
 #define STK_VERSION_MAJOR   2
 #define STK_VERSION_MINOR   4
 
-/* USB HID 接收链使用的全局 RX 缓冲, 只保存当前在线收到的一帧�?*/
+/* USB HID 接收链使用的全局 RX 缓冲, �?保存当前在线收到的一帧�?*/
 static uint8_t      rxBuffer[BUFFER_SIZE];
 static uint16_t     rxPos;
 static utilWord_t   rxLen;
 static uint8_t      rxBlockAvailable;
 
-/* USB HID 发送链使用的全局 TX 缓冲。Flash 回放使用调用方传入的独立 TX 缓冲�?*/
+/* USB HID 发送链使用的全局 TX 缓冲。Flash 回放使用调用方传入的�?�? TX 缓冲�?*/
 static uint8_t      txBuffer[BUFFER_SIZE];
 static uint16_t     txPos, txLen;
 
@@ -46,29 +47,29 @@ stkParam_t      stkParam = {{
                 }};
 utilDword_t     stkAddress;
 
-/* 全局变量: 记录上位机下发的器件和项目身份信息�?*/
+/* 全局变量: 记录上位机下发的器件和项�?�?份信�?�??*/
 static stkDeviceIdentity_t g_stkDeviceIdentity;
 /* ICSP session-level deviceID precheck flag: reset after each ENTER_PROGMODE_ICSP */
 static uint8_t g_stkIcspDeviceIdChecked;
-/* ISP session flag: set after successful ENTER_PROGMODE_ISP, cleared on LEAVE. */
-static uint8_t g_stkIspEntered;
 
-/* 从小端字节流中读�?16 位数据�?*/
+/* 从小�?字节流中读�??16 位数�?�??*/
 static uint16_t stkGetLe16(const uint8_t *bytes);
-/* �?16 位数据按小端格式写入字节流�?*/
+/* �?16 位数�?按小�?格式写入字节流�?*/
 static void stkPutLe16(uint8_t *bytes, uint16_t value);
-/* 保存上位机下发的器件和项目身份信�? 后续会写�?Raw 离线包头�?*/
+/* 保存上位机下发的器件和项�?�?份信�? 后续会写�?Raw 离线包头�?*/
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen);
-/* 将当前器件和项目身份信息打包返回给上位机�?*/
+/* 将当前器件和项目�?份信�?打包返回给上位机�?*/
 static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize);
 /* 打包离线包总体信息: 有效包数量、激活包序号、最大包数量�?*/
 static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize);
-/* 打包指定离线包摘�? 供上位机查看 Flash 中的记录内容�?*/
+/* 打包指定离线包摘�? 供上位机查看 Flash �?的�?�录内�?��??*/
 static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t index);
 /* ICSP first-write deviceID verification helper. Skip when no valid expected value exists. */
 static uint8_t stkEnsureIcspDeviceIdVerified(void);
+/* Normalize PIC config readback to host-visible 16-bit form to avoid false verify mismatches. */
+static uint16_t stkNormalizeIcspConfigValue(uint8_t idx, uint16_t value);
 
-/* 保留 AVR-Doper �?switch 宏风�? 便于和原始协议分发结构对照�?*/
+/* 保留 AVR-Doper �?switch 宏�?��?? 便于和原始协�?分发结构对照�??*/
 #define SWITCH_START        switch(cmd){{
 #define SWITCH_CASE(value)  }break; case (value):{
 #define SWITCH_CASE2(v1,v2) }break; case (v1): case(v2):{
@@ -88,13 +89,41 @@ uint8_t stkFwUpgradeRequested(void)
     return g_stkFwUpgradePending;
 }
 
-/* 从小端字节流中读�?16 位数据�?*/
+void stkResetIspSession(void)
+{
+    stkLeaveProgIsp_t leaveParam;
+
+    leaveParam.preDelay = 0U;
+    leaveParam.postDelay = 0U;
+
+    ispLeaveProgmode(&leaveParam);
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("STK cleanup: force AVR leave\r\n");
+#endif
+}
+
+void stkResetIcspSession(void)
+{
+    pic8LeaveProgmode();
+    g_stkIcspDeviceIdChecked = 0U;
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("STK cleanup: force PIC leave\r\n");
+#endif
+}
+
+void stkResetAllProgrammingSessions(void)
+{
+    stkResetIspSession();
+    stkResetIcspSession();
+}
+
+/* 从小�?字节流中读�??16 位数�?�??*/
 static uint16_t stkGetLe16(const uint8_t *bytes)
 {
     return (uint16_t)bytes[0] | ((uint16_t)bytes[1] << 8);
 }
 
-/* �?16 位数据按小端格式写入字节流�?*/
+/* �?16 位数�?按小�?格式写入字节流�?*/
 static void stkPutLe16(uint8_t *bytes, uint16_t value)
 {
     bytes[0] = (uint8_t)(value & 0xFFU);
@@ -129,6 +158,18 @@ static uint8_t stkEnsureIcspDeviceIdVerified(void)
         return STK_STATUS_CMD_OK;
     }
 
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("ICSP deviceID precheck idx=");
+    uart1_WriteDec(g_stkDeviceIdentity.index);
+    uart1_WriteString(" addr=0x");
+    uart1_WriteHex16((uint16_t)picParams.common.deviceid_addr);
+    uart1_WriteString(" expect=0x");
+    uart1_WriteHex16(picParams.common.deviceid_expected);
+    uart1_WriteString(" mask=0x");
+    uart1_WriteHex16(picParams.common.deviceid_mask);
+    uart1_WriteString("\r\n");
+#endif
+
     if (icspReadSignature(&readValue) != ICSP_OK)
     {
         uart1_WriteString("ICSP deviceID read failed\r\n");
@@ -157,7 +198,45 @@ static uint8_t stkEnsureIcspDeviceIdVerified(void)
     return STK_STATUS_CMD_OK;
 }
 
-/* 保存上位机下发的器件和项目身份信�? 后续会写�?Raw 离线包头。此指令每次编程都要下发 */
+/* 保存上位机下发的器件和项�?�?份信�? 后续会写�?Raw 离线包头。�?�指令每次编程都要下�? */
+
+static uint16_t stkNormalizeIcspConfigValue(uint8_t idx, uint16_t value)
+{
+    pic_prog_params_t picParams;
+    uint16_t implMask;
+    uint16_t cfgBitMask;
+    uint16_t padMask;
+    uint16_t unimplFill;
+    uint8_t cfgBits;
+
+    if (g_stkDeviceIdentity.arch != 1U)
+        return value;
+
+    if (pic8FindDeviceByIndex(g_stkDeviceIdentity.index, &picParams) != 0)
+        return value;
+
+    if (idx >= MAX_CONFIG_WORDS || idx >= picParams.common.config_word_count)
+        return value;
+
+    implMask = picParams.common.config_dcr[idx].impl_mask;
+    if (implMask == 0U)
+        return value;
+
+    cfgBits = picParams.common.config_dcr[idx].nzwidth;
+    if (cfgBits >= 16U)
+        cfgBitMask = 0xFFFFU;
+    else
+        cfgBitMask = (uint16_t)((1UL << cfgBits) - 1UL);
+
+    padMask = (uint16_t)(~cfgBitMask);
+    if (picParams.common.config_dcr[idx].unimpl_val != 0U)
+        unimplFill = (uint16_t)(~implMask);
+    else
+        unimplFill = (uint16_t)((picParams.common.config_dcr[idx].default_value &
+                                  (uint16_t)~implMask & cfgBitMask) | padMask);
+
+    return (uint16_t)((value & implMask) | unimplFill);
+}
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
 {
     if (payload == NULL)
@@ -184,7 +263,7 @@ static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
     return STK_STATUS_CMD_OK;
 }
 
-/* 将当前器件和项目身份信息打包返回给上位机�?*/
+/* 将当前器件和项目�?份信�?打包返回给上位机�?*/
 static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize)
 {
     uint16_t needLen;
@@ -251,7 +330,7 @@ static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize)
     return 6U;
 }
 
-/* 打包指定离线包摘�? 供上位机查看 Flash 中的记录内容�?*/
+/* 打包指定离线包摘�? 供上位机查看 Flash �?的�?�录内�?��??*/
 static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t index)
 {
     offline_package_index_t summary;
@@ -368,11 +447,11 @@ static uint8_t getParameter(uint8_t index)
 }
 
 /* ---- avrdude -B 编程速度 -> ICSP 位时钟挡�?----
- * 上位�?-B �?STK500 公式编码�?STK_PARAM_SCK_DURATION(0x98) 挡位�?d:
+ * 上位�?-B �?STK500 �?式编码�??STK_PARAM_SCK_DURATION(0x98) 挡位�?d:
  *   d=0:最�? d=1:4M  d=2:2M  d=3:1M  d>=4:一�?500K(封底不再降低)
- * 0xFF = 本会话未下发 -B, 保持 pic8Init 默认 4MHz�?
- * 注意: -B 参数�?avrdude open 阶段先于器件身份下发, 不能�?setParameter
- * 里立即应�?会被 pic8Init 的默认档覆盖), 统一延迟�?ENTER_PROGMODE_ICSP 生效�?*/
+ * 0xFF = �?会话�?下发 -B, 保持 pic8Init 默�?? 4MHz�?
+ * 注意: -B 参数�?avrdude open 阶�?�先于器件身份下�?, 不能�?setParameter
+ * 里立即应�?会�?? pic8Init 的默认档覆盖), 统一延迟�?ENTER_PROGMODE_ICSP 生效�?*/
 #define STK_SCK_TIER_IDX        (STK_PARAM_SCK_DURATION & 0x1fU)
 #define STK_SCK_TIER_UNSET      0xFFU
 
@@ -428,7 +507,7 @@ static void stkIcspTrace(const char *tag, uint32_t addr, const uint8_t *data, ui
 }
 #endif
 
-/* 解析一帧完�?STK500 数据。USB 来源会进�?HID TX, Flash 来源只生成本�?TX 判定结果�?*/
+/* 解析一帧完�?STK500 数据。USB 来源会进�?HID TX, Flash 来源�?生成�?�?TX 判定结果�?*/
 void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
 {
     uint8_t     i, cmd;
@@ -451,7 +530,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         return;
 
 #if UART1_TRACE
-    /* 简洁调�? 只打印数据来源、方向、命令ID、数据包大小�?*/
+    /* 简洁调�? �?打印数据来源、方向、命�?ID、数�?包大小�??*/
     uart1_WriteString(stkSourceName(pDataFrame->source));
     uart1_WriteString(" RX cmd=0x");
     uart1_WriteHex8(pRx[STK_TXMSG_START]);
@@ -486,6 +565,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             pDataFrame->source == STK_DATA_SOURCE_USB_CDC ||
             pDataFrame->source == STK_DATA_SOURCE_USB_WINUSB)
         {
+            stkResetAllProgrammingSessions();
             (void)stkSetWorkMode(STK500_WORK_MODE_ONLINE);
         }
         stkParam.bytes[STK_SCK_TIER_IDX] = STK_SCK_TIER_UNSET;  /* 新会�? -B 挡位待下�?*/
@@ -508,7 +588,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
         }
     SWITCH_CASE(STK_CMD_SET_PROG_STATE)
-        /* 设置编程会话状�? 0=STOP_PROG 关闭离线�? 1=START_PROG 创建离线包�?----本指令只在“记录”模式下才会下发---- */
+        /* 设置编程会话状�? 0=STOP_PROG 关闭离线�? 1=START_PROG 创建离线包�?----�?指令�?在“�?�录”模式下才会下发---- */
         if (pRx[STK_TXMSG_START + 1] > STK500_PROGRAM_RECORDING)
         {
             pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
@@ -583,8 +663,8 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 (offlinePgmerSetActivePackage(index) == 0U) ?
                 STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
         }
-    SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* 设置 STK 参数或器件身份信息�?*/
-        if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)// 设置器件“身份信息�?
+    SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* 设置 STK 参数或器件身份信�?�??*/
+        if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)// 设置器件“身份信�?�??
         {
             pTx[STK_TXMSG_START + 1] = stkSetDeviceIdentity(
                 &pRx[STK_TXMSG_START + 2],
@@ -623,7 +703,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             stkAddress.bytes[3 - i] = pRx[STK_TXMSG_START + 1 + i];
         }
 #if UART1_TRACE
-        /* 诊断用：打印上位机每次下发的字地址，确认是否在同一页反复读写�?*/
+        /* 诊断�?：打印上位机每�?�下发的字地址，确认是否在同一页反复�?�写�??*/
         uart1_WriteString(stkSourceName(pDataFrame->source));
         uart1_WriteString(" LOAD addr=0x");
         uart1_WriteHex8(stkAddress.bytes[3]);
@@ -667,7 +747,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             }
         }
     SWITCH_CASE(STK_CMD_SET_CONTROL_STACK)
-        /* AVR Studio 探测能力时会发送该命令, 这里保持 AVR-Doper 的兼容行为�?*/
+        /* AVR Studio 探测能力时会发送�?�命�?, 这里保持 AVR-Doper 的兼容�?�为�??*/
 #if ENABLE_HVPROG
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_HVSP)
         {
@@ -890,21 +970,14 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         {
             uint8_t recStatus = STK_STATUS_CMD_OK;
             uint8_t onlineStatus = STK_STATUS_CMD_OK;
-            if (stkIsOnlineMode() && g_stkIspEntered == 0U)
-            {
+            if (stkIsOnlineMode())
                 onlineStatus = ispEnterProgmode((stkEnterProgIsp_t *)param);
-                if (onlineStatus == STK_STATUS_CMD_OK)
-                    g_stkIspEntered = 1U;
-            }
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
         }
     SWITCH_CASE(STK_CMD_LEAVE_PROGMODE_ISP)
         {
-            if (stkIsOnlineMode() && g_stkIspEntered)
-            {
+            if (stkIsOnlineMode())
                 ispLeaveProgmode((stkLeaveProgIsp_t *)param);
-                g_stkIspEntered = 0U;
-            }
         }
     SWITCH_CASE(STK_CMD_CHIP_ERASE_ISP)
         pTx[STK_TXMSG_START + 1] = stkIsOnlineMode() ?
@@ -917,7 +990,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             uint8_t recStatus = STK_STATUS_CMD_OK;
             pTx[STK_TXMSG_START + 1] = stkProgramStatus(onlineStatus, recStatus);
 #if UART1_TRACE
-            /* 诊断用：打印页写命令实际返回的状态（0=OK）�?*/
+            /* 诊断�?：打印页写命令实际返回的状态（0=OK）�?*/
             uart1_WriteString(stkSourceName(pDataFrame->source));
             uart1_WriteString(" WRITE st=0x");
             uart1_WriteHex8(pTx[STK_TXMSG_START + 1]);
@@ -940,7 +1013,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             len.word = (uint16_t)(numBytes + 2U);
         }
 #if UART1_TRACE
-        /* 诊断用：打印读回数据�?4 字节�?xFF 说明目标片没写进去）�?*/
+        /* 诊断�?：打印�?�回数据�?4 字节�?xFF 说明�?标片没写进去）�??*/
         uart1_WriteString(stkSourceName(pDataFrame->source));
         uart1_WriteString(" READ data=");
         uart1_WriteHex8(pTx[STK_TXMSG_START + 2]);
@@ -1039,7 +1112,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         /*------------------- PIC ICSP 命令处理开�?-------------------*/
     SWITCH_CASE(STK_CMD_ENTER_PROGMODE_ICSP)
         {
-            /* avrdude -B: 挡位在进入编程模式前生效 (仅在线模式有副作�? */
+            /* avrdude -B: 挡位在进入编程模式前生效 (仅在线模式有�?作�?? */
             if (stkIsOnlineMode() &&
                 stkParam.bytes[STK_SCK_TIER_IDX] != STK_SCK_TIER_UNSET)
             {
@@ -1053,6 +1126,29 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
 #if UART1_TRACE
             stkIcspTrace("ICSP40", 0U, &pRx[STK_TXMSG_START + 1], 4U);
 #endif
+#if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("ICSP40 enter mode=");
+            uart1_WriteDec((uint8_t)(pRx[STK_TXMSG_START + 1] & 0x01U));
+            uart1_WriteString(" status=0x");
+            uart1_WriteHex8(onlineStatus);
+            uart1_WriteString("\r\n");
+#endif
+            if (onlineStatus == STK_STATUS_CMD_OK &&
+                stkGetWorkMode() == STK500_WORK_MODE_REPLAY)
+            {
+                u32 vddMv;
+                u32 vppMv;
+                delay_ms(30);
+                vddMv = Adc_GetChannelRealValue(ADC_CH_VDD_FBACK);
+                vppMv = Adc_GetChannelRealValue(ADC_CH_DUT_UVPP);
+#if DEBUG_HARDWARE_CONFIG
+                uart1_WriteString("ICSP40 replay settle vdd=");
+                uart1_WriteDec(vddMv);
+                uart1_WriteString("mV vpp=");
+                uart1_WriteDec(vppMv);
+                uart1_WriteString("mV\r\n");
+#endif
+            }
             pTx[STK_TXMSG_START + 1] = (onlineStatus != STK_STATUS_CMD_OK) ?
                 STK_STATUS_CMD_FAILED : STK_STATUS_CMD_OK;
         }
@@ -1216,6 +1312,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                         pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
                         break;
                     }
+                    cfgValue = stkNormalizeIcspConfigValue((uint8_t)cfgIdx, cfgValue);
                     stkPutLe16(&pTx[STK_TXMSG_START + 2 + cfgIdx * 2U], cfgValue);
                 }
             }
@@ -1272,19 +1369,37 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     SWITCH_CASE(STK_CMD_READ_SIGNATURE_ICSP)
         {
             uint16_t value = 0U;
-            if (stkIsOnlineMode() && icspReadSignature(&value) == ICSP_OK)
-                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
-            else if (!stkIsOnlineMode() &&
-                     g_activeDeviceParams.device_arch == STK_MCU_ARCH_PIC)
+            uint8_t sigStatus = STK_STATUS_CMD_FAILED;
+            uint8_t online = stkIsOnlineMode();
+            if (online)
+            {
+                if (icspReadSignature(&value) == ICSP_OK)
+                    sigStatus = STK_STATUS_CMD_OK;
+            }
+            else if (g_activeDeviceParams.device_arch == STK_MCU_ARCH_PIC)
             {
                 /* Record mode: report the expected deviceID from the table. */
                 value = g_activeDeviceParams.device_params.picParam.common.deviceid_expected;
-                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+                sigStatus = STK_STATUS_CMD_OK;
             }
-            else
-                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+            pTx[STK_TXMSG_START + 1] = sigStatus;
             stkPutLe16(&pTx[STK_TXMSG_START + 2], value);
             len.bytes[0] = 4;
+#if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("ICSP4B src=");
+            uart1_WriteDec(pDataFrame->source);
+            uart1_WriteString(" online=");
+            uart1_WriteDec(online);
+            uart1_WriteString(" arch=");
+            uart1_WriteDec(g_activeDeviceParams.device_arch);
+            uart1_WriteString(" idx=");
+            uart1_WriteDec(g_stkDeviceIdentity.index);
+            uart1_WriteString(" status=0x");
+            uart1_WriteHex8(sigStatus);
+            uart1_WriteString(" value=0x");
+            uart1_WriteHex16(value);
+            uart1_WriteString("\r\n");
+#endif
         }
     SWITCH_CASE(STK_CMD_READ_OSCCAL_ICSP)
         {
@@ -1424,7 +1539,7 @@ int stkGetTxByte(void)
     return c;
 }
 
-/* 主循环轮询入�? �?USB RX/TX 缓冲包装�?stkDataFrame_t 后交给协议解析�?*/
+/* 主循�?�?询入�? �?USB RX/TX 缓冲包�?��??stkDataFrame_t 后交给协�?解析�??*/
 void stkPoll(void)
 {
     if(rxBlockAvailable){

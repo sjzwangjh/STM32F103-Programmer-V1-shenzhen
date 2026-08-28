@@ -29,6 +29,7 @@
 
 /* Raw STK500 离线包格式的魔术字和版本号。 */
 #define OFFLINE_RAW_MAGIC       0x4B504C4FUL  /* "OLPK" */
+#define OFFLINE_RAW_COMMIT_MAGIC 0x4D434C4FUL  /* "OLCM" */
 #define OFFLINE_ACTIVE_MAGIC    0x43414C4FUL  /* "OLAC" */
 #define OFFLINE_RAW_VERSION     1U
 #define OFFLINE_MAX_PACKAGES    32U
@@ -85,6 +86,21 @@ typedef struct {
     uint8_t  reserved[32];              /* 格式扩展预留 */
 } offline_raw_package_header_t;
 
+/* Tail commit record appended after raw packets. */
+typedef struct {
+    uint32_t magic;                     /* OFFLINE_RAW_COMMIT_MAGIC */
+    uint16_t version;                   /* OFFLINE_RAW_VERSION */
+    uint16_t commit_size;               /* sizeof(this struct) */
+    uint16_t package_index;             /* offline package slot */
+    uint16_t package_state;             /* OFFLINE_PACKAGE_VALID */
+    stkDeviceIdentity_t identity;       /* final device/project identity */
+    uint32_t packet_count;              /* raw STK500 frame count */
+    uint32_t packet_area_size;          /* bytes occupied by raw packets */
+    uint32_t total_size;                /* begin header + packets + commit */
+    uint32_t crc32;                     /* accumulated raw packet checksum */
+    uint8_t  reserved[16];
+} offline_raw_package_commit_t;
+
 /* Raw STK500 数据包头。每个被记录的 STK500 帧前面都追加该头。 */
 typedef struct {
     uint16_t frame_len;                 /* 完整 STK500 帧长度 */
@@ -102,6 +118,7 @@ typedef struct {
     uint16_t package_index;             /* 离线包序号 */
     uint32_t flash_addr;                /* 离线包在 SPI Flash 中的起始地址 */
     uint32_t total_size;                /* 离线包总长度 */
+    uint32_t packet_area_size;          /* raw packet area size */
     uint32_t packet_count;              /* raw STK500 数据包数量 */
     uint32_t crc32;                     /* 包校验值 */
     stkDeviceIdentity_t identity;       /* 摘要中的器件和项目描述 */

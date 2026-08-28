@@ -29,11 +29,12 @@ static uint8_t g_pgmStorageInited;
  * sector 0: offline_package_index_t 索引表。
  * sector 1+: raw 包数据区, 每个包包含 package header + 多个 packet header + packet data。
  */
-#define OFFLINE_RAW_INDEX_ADDR          0UL
 #define OFFLINE_RAW_DATA_START_ADDR     FLASH_SECTOR_SIZE
 
 /* EEPROM 中保存当前激活离线包号的位置。 */
-#define OFFLINE_ACTIVE_EEPROM_ADDR      0U
+#define OFFLINE_ACTIVE_LOG_ADDR         0x0300U
+#define OFFLINE_ACTIVE_LOG_SIZE         0x0100U
+#define OFFLINE_ACTIVE_LOG_SLOT_COUNT   (OFFLINE_ACTIVE_LOG_SIZE / sizeof(offline_active_record_t))
 
 /* SPI Flash 中的离线包索引表缓存。 */
 static uint8_t g_rawIndexLoaded;
@@ -92,25 +93,146 @@ static uint32_t offlineAlignSector(uint32_t addr)
 #endif
 
 /* 从 SPI Flash 加载 raw 离线包索引表, 同一次运行中只加载一次。 */
+/* Validate one stored raw-package header from flash. */
+/* Validate the immutable package-begin header. */
+static uint8_t offlineRawBeginHeaderIsValid(const offline_raw_package_header_t *header,
+                                            uint32_t flashAddr)
+{
+    if (header == 0)
+        return 0U;
+
+    if (header->magic != OFFLINE_RAW_MAGIC ||
+        header->version != OFFLINE_RAW_VERSION ||
+        header->header_size != sizeof(offline_raw_package_header_t) ||
+        header->package_index >= OFFLINE_MAX_PACKAGES ||
+        header->packet_area_offset != sizeof(offline_raw_package_header_t) ||
+        flashAddr > FLASH_CAPACITY ||
+        (FLASH_CAPACITY - flashAddr) < sizeof(offline_raw_package_header_t))
+    {
+        return 0U;
+    }
+
+    return 1U;
+}
+
+/* Scan forward until a tail commit record is found after all raw packets. */
+static uint8_t offlineRawFindCommit(uint32_t flashAddr,
+                                    const offline_raw_package_header_t *header,
+                                    offline_raw_package_commit_t *commit)
+{
+    offline_raw_packet_header_t packetHeader;
+    uint32_t cursor;
+
+    if (!offlineRawBeginHeaderIsValid(header, flashAddr) || commit == 0)
+        return 0U;
+
+    cursor = flashAddr + header->packet_area_offset;
+    while ((FLASH_CAPACITY - cursor) >= sizeof(offline_raw_packet_header_t))
+    {
+        uint32_t magic;
+
+        SPI_Flash_Read((uint8_t *)&magic, cursor, sizeof(magic));
+        if (magic == OFFLINE_RAW_COMMIT_MAGIC)
+        {
+            SPI_Flash_Read((uint8_t *)commit,
+                           cursor,
+                           sizeof(offline_raw_package_commit_t));
+            if (commit->version != OFFLINE_RAW_VERSION ||
+                commit->commit_size != sizeof(offline_raw_package_commit_t) ||
+                commit->package_index != header->package_index ||
+                commit->package_state != OFFLINE_PACKAGE_VALID ||
+                commit->packet_area_size !=
+                    (uint32_t)(cursor - flashAddr - header->packet_area_offset) ||
+                commit->total_size !=
+                    (uint32_t)(cursor - flashAddr + sizeof(offline_raw_package_commit_t)) ||
+                commit->total_size > (FLASH_CAPACITY - flashAddr))
+            {
+                return 0U;
+            }
+            return 1U;
+        }
+
+        SPI_Flash_Read((uint8_t *)&packetHeader,
+                       cursor,
+                       sizeof(offline_raw_packet_header_t));
+        if (packetHeader.frame_len < 6U ||
+            packetHeader.frame_len > BUFFER_SIZE ||
+            packetHeader.cmd == 0U ||
+            (FLASH_CAPACITY - cursor - sizeof(offline_raw_packet_header_t)) <
+                packetHeader.frame_len)
+        {
+            return 0U;
+        }
+
+        cursor += sizeof(offline_raw_packet_header_t) + packetHeader.frame_len;
+    }
+
+    return 0U;
+}
+
+/* Scan raw package area and rebuild the RAM summary table. */
 static void offlineRawLoadIndex(void)
 {
+    offline_raw_package_header_t header;
+    offline_raw_package_commit_t commit;
+    uint32_t addr;
+
     if (g_rawIndexLoaded)
         return;
 
-    SPI_Flash_Read((uint8_t *)g_offlinePackageIndex,
-                   OFFLINE_RAW_INDEX_ADDR,
-                   (uint16_t)sizeof(g_offlinePackageIndex));
+    memset(g_offlinePackageIndex, 0, sizeof(g_offlinePackageIndex));
+
+#if OFFLINE_SINGLE_PACKET_MODE
+    addr = OFFLINE_RAW_DATA_START_ADDR;
+    SPI_Flash_Read((uint8_t *)&header,
+                   addr,
+                   sizeof(offline_raw_package_header_t));
+    if (offlineRawFindCommit(addr, &header, &commit))
+    {
+        offline_package_index_t *entry = &g_offlinePackageIndex[0];
+        entry->used = 1U;
+        entry->package_state = commit.package_state;
+        entry->package_index = 0U;
+        entry->flash_addr = addr;
+        entry->total_size = commit.total_size;
+        entry->packet_area_size = commit.packet_area_size;
+        entry->packet_count = commit.packet_count;
+        entry->crc32 = commit.crc32;
+        memcpy(&entry->identity, &commit.identity, sizeof(stkDeviceIdentity_t));
+    }
+#else
+    addr = OFFLINE_RAW_DATA_START_ADDR;
+    while ((FLASH_CAPACITY - addr) >= sizeof(offline_raw_package_header_t))
+    {
+        SPI_Flash_Read((uint8_t *)&header,
+                       addr,
+                       sizeof(offline_raw_package_header_t));
+        if (offlineRawFindCommit(addr, &header, &commit))
+        {
+            offline_package_index_t *entry =
+                &g_offlinePackageIndex[commit.package_index];
+            entry->used = 1U;
+            entry->package_state = commit.package_state;
+            entry->package_index = commit.package_index;
+            entry->flash_addr = addr;
+            entry->total_size = commit.total_size;
+            entry->packet_area_size = commit.packet_area_size;
+            entry->packet_count = commit.packet_count;
+            entry->crc32 = commit.crc32;
+            memcpy(&entry->identity, &commit.identity, sizeof(stkDeviceIdentity_t));
+            addr = offlineAlignSector(addr + commit.total_size);
+        }
+        else
+        {
+            addr += FLASH_SECTOR_SIZE;
+        }
+    }
+#endif
+
     g_rawIndexLoaded = 1U;
 }
 
 /* 将 raw 离线包索引表写回 SPI Flash。 */
-static void offlineRawSaveIndex(void)
-{
-    SPI_Flash_Erase_Sector(OFFLINE_RAW_INDEX_ADDR / FLASH_SECTOR_SIZE);
-    SPI_Flash_Write_NoCheck((const uint8_t *)g_offlinePackageIndex,
-                            OFFLINE_RAW_INDEX_ADDR,
-                            (uint16_t)sizeof(g_offlinePackageIndex));
-}
 
 /* 判断指定序号的 raw 离线包是否存在且有效。 */
 static uint8_t offlineRawIsValidIndex(uint16_t index)
@@ -198,6 +320,61 @@ static uint32_t offlineActiveCalcCrc(const offline_active_record_t *rec)
 {
     return offlineCalcSum32((const uint8_t *)rec,
                             (uint16_t)(sizeof(offline_active_record_t) - sizeof(uint32_t)));
+}
+
+static uint8_t offlineActiveRecordIsValid(const offline_active_record_t *rec)
+{
+    if (rec == 0)
+        return 0U;
+
+    if (rec->magic != OFFLINE_ACTIVE_MAGIC ||
+        rec->version != OFFLINE_RAW_VERSION ||
+        rec->crc32 != offlineActiveCalcCrc(rec))
+    {
+        return 0U;
+    }
+
+    return 1U;
+}
+
+static void offlineActiveEraseLog(void)
+{
+    uint8_t eraseBuf[SPI_EEPROM_PAGE_SIZE];
+    uint32_t addr;
+
+    memset(eraseBuf, 0xFF, sizeof(eraseBuf));
+    for (addr = OFFLINE_ACTIVE_LOG_ADDR;
+         addr < (OFFLINE_ACTIVE_LOG_ADDR + OFFLINE_ACTIVE_LOG_SIZE);
+         addr += SPI_EEPROM_PAGE_SIZE)
+    {
+        SPI_EEPROM_Write(addr, eraseBuf, SPI_EEPROM_PAGE_SIZE);
+    }
+}
+
+static uint8_t offlineActiveFindLatestRecord(offline_active_record_t *rec,
+                                             uint16_t *slotIndex)
+{
+    offline_active_record_t slotRec;
+    uint16_t i;
+    uint8_t found = 0U;
+
+    for (i = 0U; i < OFFLINE_ACTIVE_LOG_SLOT_COUNT; i++)
+    {
+        SPI_EEPROM_Read(OFFLINE_ACTIVE_LOG_ADDR +
+                        ((uint32_t)i * sizeof(offline_active_record_t)),
+                        (uint8_t *)&slotRec,
+                        sizeof(slotRec));
+        if (!offlineActiveRecordIsValid(&slotRec))
+            continue;
+
+        if (rec != 0)
+            memcpy(rec, &slotRec, sizeof(slotRec));
+        if (slotIndex != 0)
+            *slotIndex = i;
+        found = 1U;
+    }
+
+    return found;
 }
 
 
@@ -296,6 +473,7 @@ uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity)
         return 0U;
 
     offlinePgmerInitStorageOnce();
+    offlineRawLoadIndex();
 
     idx = offlineRawAllocIndex();
     if (idx == 0xFFFFU)
@@ -320,6 +498,9 @@ uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity)
     if (identity != 0)
         memcpy(&g_rawCapture.header.identity, identity, sizeof(stkDeviceIdentity_t));
 
+    g_offlinePackageIndex[idx].used = 1U;
+    g_offlinePackageIndex[idx].package_state = OFFLINE_PACKAGE_WRITING;
+    g_offlinePackageIndex[idx].package_index = idx;
     g_offlinePackageIndex[idx].flash_addr = addr;
     g_offlinePackageIndex[idx].total_size = sizeof(offline_raw_package_header_t);
     g_offlinePackageIndex[idx].packet_count = 0U;
@@ -327,7 +508,6 @@ uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity)
     memcpy(&g_offlinePackageIndex[idx].identity,
            &g_rawCapture.header.identity,
            sizeof(stkDeviceIdentity_t));
-    offlineRawSaveIndex();
 
     offlineRawEraseForWrite(addr, FLASH_SECTOR_SIZE);
     SPI_Flash_Write((const uint8_t *)&g_rawCapture.header,
@@ -389,34 +569,47 @@ uint8_t offlinePgmerRawAppendRxPacket(const uint8_t *frame, uint16_t frameLen)
  */
 uint8_t offlinePgmerRawEnd(void)
 {
+    offline_raw_package_commit_t commit;
     uint16_t idx;
+    uint32_t write_addr;
 
     if (!g_rawCapture.active)
         return 0U;
 
     idx = g_rawCapture.index;
-    g_rawCapture.header.package_state = OFFLINE_PACKAGE_VALID;
-    g_rawCapture.header.packet_count = g_rawCapture.packet_count;
-    g_rawCapture.header.packet_area_size =
+    memset(&commit, 0, sizeof(commit));
+    commit.magic = OFFLINE_RAW_COMMIT_MAGIC;
+    commit.version = OFFLINE_RAW_VERSION;
+    commit.commit_size = sizeof(offline_raw_package_commit_t);
+    commit.package_index = idx;
+    commit.package_state = OFFLINE_PACKAGE_VALID;
+    memcpy(&commit.identity,
+           &g_rawCapture.header.identity,
+           sizeof(stkDeviceIdentity_t));
+    commit.packet_count = g_rawCapture.packet_count;
+    commit.packet_area_size =
         g_rawCapture.write_offset - sizeof(offline_raw_package_header_t);
-    g_rawCapture.header.total_size = g_rawCapture.write_offset;
-    g_rawCapture.header.crc32 = g_rawCapture.running_crc;
+    commit.total_size =
+        g_rawCapture.write_offset + sizeof(offline_raw_package_commit_t);
+    commit.crc32 = g_rawCapture.running_crc;
 
-    SPI_Flash_Write((const uint8_t *)&g_rawCapture.header,
-                    g_rawCapture.file_addr,
-                    sizeof(offline_raw_package_header_t));
+    write_addr = g_rawCapture.file_addr + g_rawCapture.write_offset;
+    offlineRawEraseForWrite(write_addr, sizeof(offline_raw_package_commit_t));
+    SPI_Flash_Write((const uint8_t *)&commit,
+                    write_addr,
+                    sizeof(offline_raw_package_commit_t));
 
     g_offlinePackageIndex[idx].used = 1U;
     g_offlinePackageIndex[idx].package_state = OFFLINE_PACKAGE_VALID;
     g_offlinePackageIndex[idx].package_index = idx;
     g_offlinePackageIndex[idx].flash_addr = g_rawCapture.file_addr;
-    g_offlinePackageIndex[idx].total_size = g_rawCapture.write_offset;
-    g_offlinePackageIndex[idx].packet_count = g_rawCapture.packet_count;
-    g_offlinePackageIndex[idx].crc32 = g_rawCapture.running_crc;
+    g_offlinePackageIndex[idx].total_size = commit.total_size;
+    g_offlinePackageIndex[idx].packet_area_size = commit.packet_area_size;
+    g_offlinePackageIndex[idx].packet_count = commit.packet_count;
+    g_offlinePackageIndex[idx].crc32 = commit.crc32;
     memcpy(&g_offlinePackageIndex[idx].identity,
-           &g_rawCapture.header.identity,
+           &commit.identity,
            sizeof(stkDeviceIdentity_t));
-    offlineRawSaveIndex();
 
     memset(&g_rawCapture, 0, sizeof(g_rawCapture));
     return 0U;
@@ -698,8 +891,11 @@ uint8_t offlinePgmerGetPackageSummary(uint16_t index, offline_package_index_t *s
 uint8_t offlinePgmerSetActivePackage(uint16_t index)
 {
     offline_active_record_t rec;
+    uint16_t lastSlot = 0U;
+    uint16_t writeSlot = 0U;
 
     offlinePgmerInitStorageOnce();
+    offlineRawLoadIndex();
     if (!offlineRawIsValidIndex(index))
         return 1U;
 
@@ -711,7 +907,20 @@ uint8_t offlinePgmerSetActivePackage(uint16_t index)
     rec.active_crc32 = g_offlinePackageIndex[index].crc32;
     rec.crc32 = offlineActiveCalcCrc(&rec);
 
-    SPI_EEPROM_Write(OFFLINE_ACTIVE_EEPROM_ADDR,
+    if (OFFLINE_ACTIVE_LOG_SLOT_COUNT == 0U)
+        return 1U;
+
+    if (offlineActiveFindLatestRecord(0, &lastSlot))
+        writeSlot = (uint16_t)(lastSlot + 1U);
+
+    if (writeSlot >= OFFLINE_ACTIVE_LOG_SLOT_COUNT)
+    {
+        offlineActiveEraseLog();
+        writeSlot = 0U;
+    }
+
+    SPI_EEPROM_Write(OFFLINE_ACTIVE_LOG_ADDR +
+                     ((uint32_t)writeSlot * sizeof(offline_active_record_t)),
                      (const uint8_t *)&rec,
                      sizeof(rec));
     return 0U;
@@ -730,15 +939,8 @@ uint8_t offlinePgmerGetActivePackage(uint16_t *index)
 #else
     offline_active_record_t rec;
 
-    SPI_EEPROM_Read(OFFLINE_ACTIVE_EEPROM_ADDR,
-                    (uint8_t *)&rec,
-                    sizeof(rec));
-    if (rec.magic != OFFLINE_ACTIVE_MAGIC ||
-        rec.version != OFFLINE_RAW_VERSION ||
-        rec.crc32 != offlineActiveCalcCrc(&rec))
-    {
+    if (!offlineActiveFindLatestRecord(&rec, 0))
         return 1U;
-    }
 
     *index = rec.active_index;
     return 0U;

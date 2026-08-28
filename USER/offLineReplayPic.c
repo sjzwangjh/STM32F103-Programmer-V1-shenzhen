@@ -101,11 +101,19 @@ uint16_t picReplayVerifyPass(void)
     uint8_t  cfgValid[MAX_CONFIG_WORDS];
     uint16_t expectedUid[PIC_USERID_WORDS_MAX];
     uint8_t  uidValid[PIC_USERID_WORDS_MAX];
+    pic_prog_params_t picParams;
+    uint8_t  havePicParams = 0U;
 
     memset(expectedCfg, 0, sizeof(expectedCfg));
     memset(cfgValid, 0, sizeof(cfgValid));
     memset(expectedUid, 0, sizeof(expectedUid));
     memset(uidValid, 0, sizeof(uidValid));
+    memset(&picParams, 0, sizeof(picParams));
+    if (g_replay.header.identity.arch == STK_MCU_ARCH_PIC &&
+        pic8FindDeviceByIndex(g_replay.header.identity.index, &picParams) == 0)
+    {
+        havePicParams = 1U;
+    }
 
     for (i = 0U; i < g_replay.header.packet_count; i++)
     {
@@ -130,7 +138,6 @@ uint16_t picReplayVerifyPass(void)
         case STK_CMD_SET_PARAMETER:
         case STK_CMD_LOAD_ADDRESS:
         case STK_CMD_ENTER_PROGMODE_ICSP:
-            /* Replay address / enter programming mode for verification. */
             if (offlineExecuteFrame(packetHeader.frame_len) != STK_STATUS_CMD_OK)
             {
 #if DEBUG_HARDWARE_CONFIG
@@ -191,17 +198,27 @@ uint16_t picReplayVerifyPass(void)
                 for (w = 0U; w < cfgCount && w < MAX_CONFIG_WORDS; w++)
                 {
                     uint16_t actual = icspReadCfg(w);
-                    if (cfgValid[w] && actual != expectedCfg[w])
+                    uint16_t expect = expectedCfg[w];
+                    uint16_t implMask = 0xFFFFU;
+                    if (havePicParams != 0U && w < picParams.common.config_word_count)
+                    {
+                        if (picParams.common.config_dcr[w].impl_mask != 0U)
+                            implMask = picParams.common.config_dcr[w].impl_mask;
+                    }
+                    if (cfgValid[w] &&
+                        ((uint16_t)(actual & implMask) != (uint16_t)(expect & implMask)))
                     {
 #if DEBUG_HARDWARE_CONFIG
                         uart1_WriteString("REPLAY pic vfy cfg mismatch pkt=");
                         uart1_WriteDec(i);
                         uart1_WriteString(" idx=");
                         uart1_WriteDec(w);
+                        uart1_WriteString(" mask=0x");
+                        uart1_WriteHex16(implMask);
                         uart1_WriteString(" got=0x");
                         uart1_WriteHex16(actual);
                         uart1_WriteString(" want=0x");
-                        uart1_WriteHex16(expectedCfg[w]);
+                        uart1_WriteHex16(expect);
                         uart1_WriteString("\r\n");
 #endif
                         return (uint16_t)(i + 1U);
@@ -265,33 +282,61 @@ uint16_t picReplayVerifyPass(void)
             break;
 
         case STK_CMD_READ_SIGNATURE_ICSP:
-        case STK_CMD_READ_OSCCAL_ICSP:
-            /* Replay the read command and require a valid reply. */
-            if (offlineExecuteFrame(packetHeader.frame_len) != STK_STATUS_CMD_OK)
             {
+                uint8_t status;
 #if DEBUG_HARDWARE_CONFIG
-                uart1_WriteString("REPLAY pic vfy execfail pkt=");
+                uart1_WriteString("REPLAY pic vfy sig pkt=");
                 uart1_WriteDec(i);
-                uart1_WriteString(" cmd=0x");
-                uart1_WriteHex8(cmd);
                 uart1_WriteString("\r\n");
 #endif
-                return (uint16_t)(i + 1U);
+                status = offlineExecuteFrame(packetHeader.frame_len);
+                if (status != STK_STATUS_CMD_OK)
+                {
+#if DEBUG_HARDWARE_CONFIG
+                    uart1_WriteString("REPLAY pic vfy execfail pkt=");
+                    uart1_WriteDec(i);
+                    uart1_WriteString(" cmd=0x");
+                    uart1_WriteHex8(cmd);
+                    uart1_WriteString(" status=0x");
+                    uart1_WriteHex8(status);
+                    uart1_WriteString("\r\n");
+#endif
+                    return (uint16_t)(i + 1U);
+                }
+            }
+            break;
+
+        case STK_CMD_READ_OSCCAL_ICSP:
+            {
+                uint8_t status;
+                status = offlineExecuteFrame(packetHeader.frame_len);
+                if (status != STK_STATUS_CMD_OK)
+                {
+#if DEBUG_HARDWARE_CONFIG
+                    uart1_WriteString("REPLAY pic vfy execfail pkt=");
+                    uart1_WriteDec(i);
+                    uart1_WriteString(" cmd=0x");
+                    uart1_WriteHex8(cmd);
+                    uart1_WriteString(" status=0x");
+                    uart1_WriteHex8(status);
+                    uart1_WriteString("\r\n");
+#endif
+                    return (uint16_t)(i + 1U);
+                }
             }
             break;
 
         default:
-            /* Erase, chip-identity and other frames are not repeated here. */
             break;
         }
     }
     return 0U;
 }
-
 uint16_t picReplayLockAndLeavePass(void)
 {
     uint32_t cursor = g_replay.header.packet_area_offset;
     uint32_t i;
+    uint16_t result = 0U;
     uint16_t leavePacket = 0xFFFFU;
     uint16_t leaveFrameLen = 0U;
     uint8_t leaveFrame[32];
@@ -316,8 +361,15 @@ uint16_t picReplayLockAndLeavePass(void)
     {
         memcpy(g_replayFrame, leaveFrame, leaveFrameLen);
         if (offlineExecuteFrame(leaveFrameLen) != STK_STATUS_CMD_OK)
-            return (uint16_t)(leavePacket + 1U);
+            result = (uint16_t)(leavePacket + 1U);
     }
 
-    return 0U;
+    /* Always force the ICSP engine back to idle so the next replay does not
+     * depend on a clean LEAVE frame or a power-cycle. */
+    pic8LeaveProgmode();
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("REPLAY pic force leave\r\n");
+#endif
+
+    return result;
 }

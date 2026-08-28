@@ -72,12 +72,14 @@
 #define DEBUG_BIN_CMD_EEPROM_READ       0x0501U
 #define DEBUG_BIN_CMD_EEPROM_WRITE      0x0502U
 #define DEBUG_BIN_CMD_EEPROM_DEMO       0x0503U
+#define DEBUG_BIN_CMD_EEPROM_ERASE      0x0504U
 
 /* 调试Flash数据 — 块读写，用于与USB HID双向验证 */
 #define DEBUG_BIN_CMD_FLASH_READ        0x0601U
 #define DEBUG_BIN_CMD_FLASH_WRITE       0x0602U
 #define DEBUG_BIN_CMD_FLASH_DEMO        0x0603U
 #define DEBUG_BIN_CMD_FLASH_DEMO_DMA    0x0604U
+#define DEBUG_BIN_CMD_FLASH_ERASE       0x0605U
 
 /* Capability bits returned by GET_CAPABILITIES. */
 #define DEBUG_BIN_CAP_BOARD_IO          (1UL << 0)

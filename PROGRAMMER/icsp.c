@@ -1286,9 +1286,9 @@ uint8_t icspEnterHV(const pic_prog_params_t *dev)
 {
     if (dev == NULL) return ICSP_ERR;
 
-    /* CLK=0, DAT=0, 均为输出 */
-    ICSP_CLK_OUT(); ICSP_DAT_OUT();
-    ICSP_CLK_L();   ICSP_DAT_L();
+    /* CLK=0, DAT=0, LVP/PGM=0, 均为输出 */
+    ICSP_CLK_OUT(); ICSP_DAT_OUT(); ICSP_LVP_OUT();
+    ICSP_CLK_L();   ICSP_DAT_L();   ICSP_LVP_L();
     ICSP_DELAY_US(10);
 
     /* 关VDD/VPP */
@@ -1431,7 +1431,7 @@ uint8_t icspReadSignature(uint16_t *sig)
     if (sig == NULL)
         return ICSP_ERR;
     *sig = (uint16_t)icspReadDevID();
-#if UART1_TRACE
+#if DEBUG_HARDWARE_CONFIG
     uart1_WriteString("icspReadSignature: ");
     uart1_WriteHex16(*sig);
     uart1_WriteString("\r\n");
