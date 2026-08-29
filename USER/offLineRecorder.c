@@ -1,16 +1,16 @@
 /*
- * offLineRecorder.c - ÀëÏßÊý¾Ý°ü¼ÇÂ¼Æ÷¹«¹²¿ØÖÆ²ã
+ * offLineRecorder.c - ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý°ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ²ï¿½
  *
- * ±¾Ä£¿éÎ»ÓÚ STK500 Ð­Òé²ãºÍ¾ßÌåÀëÏß´æ´¢/Ö´ÐÐÄ£¿éÖ®¼ä£¬Ö÷Òª¸ºÔð:
- * 1. ¹ÜÀí¹¤×÷Ä£Ê½: Ä£Äâ¡¢ÔÚÏß¡¢¼ÇÂ¼¡¢ÔÚÏß+¼ÇÂ¼¡£
- * 2. ¹ÜÀíÀëÏß°ü¼ÇÂ¼»á»°: ´Ó START_PROG µ½ STOP_PROG ±£´æÉÏÎ»»úÔ­Ê¼ STK500 Êý¾Ý°ü¡£
- * 3. Ìá¹©ÀëÏß°ü²éÑ¯½Ó¿Ú: »ñÈ¡°üÊýÁ¿¡¢°üÕªÒª¡¢ÉèÖÃ/¶ÁÈ¡µ±Ç°¼¤»î°ü¡£
+ * ï¿½ï¿½Ä£ï¿½ï¿½Î»ï¿½ï¿½ STK500 Ð­ï¿½ï¿½ï¿½Í¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß´æ´¢/Ö´ï¿½ï¿½Ä£ï¿½ï¿½Ö®ï¿½ä£¬ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½:
+ * 1. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½: Ä£ï¿½â¡¢ï¿½ï¿½ï¿½ß¡ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½Â¼ï¿½ï¿½
+ * 2. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½Â¼ï¿½á»°: ï¿½ï¿½ START_PROG ï¿½ï¿½ STOP_PROG ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½Ô­Ê¼ STK500 ï¿½ï¿½ï¿½Ý°ï¿½ï¿½ï¿½
+ * 3. ï¿½á¹©ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½Ñ¯ï¿½Ó¿ï¿½: ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÕªÒªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½È¡ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
  *
- * ·Ö²ã¹ØÏµ:
- * Stk500Protocol.c ¸ºÔð½âÎöÃüÁîºÍ¾ö¶¨ºÎÊ±µ÷ÓÃ±¾Ä£¿é¡£
- * offLineRecorder.c ¸ºÔðÍ³Ò»¹¤×÷Ä£Ê½¡¢Ë÷Òý±í¡¢¼¤»î°üºÍ¼ÇÂ¼Á÷³Ì¡£
- * AVR/PIC ×¨ÓÃÀëÏßÖ´ÐÐ²îÒìÓÉ¸÷×ÔÄ£¿é´¦Àí, ±¾Ä£¿é²»½âÊÍÐ¾Æ¬Êý¾Ý¸ñÊ½¡£
+ * ï¿½Ö²ï¿½ï¿½Ïµ:
+ * Stk500Protocol.c ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¾ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½Ã±ï¿½Ä£ï¿½é¡£
+ * offLineRecorder.c ï¿½ï¿½ï¿½ï¿½Í³Ò»ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¼ï¿½Â¼ï¿½ï¿½ï¿½Ì¡ï¿½
+ * AVR/PIC ×¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½Ð²ï¿½ï¿½ï¿½ï¿½É¸ï¿½ï¿½ï¿½Ä£ï¿½é´¦ï¿½ï¿½, ï¿½ï¿½Ä£ï¿½é²»ï¿½ï¿½ï¿½ï¿½Ð¾Æ¬ï¿½ï¿½ï¿½Ý¸ï¿½Ê½ï¿½ï¿½
  */
 
 #include "offLineRecorder.h"
@@ -21,26 +21,26 @@
 #include "flash.h"
 #include "eeprom.h"
 
-/* ÊÇ·ñÒÑ¾­³õÊ¼»¯¹ý Raw °ü´æ´¢¡£ */
+/* ï¿½Ç·ï¿½ï¿½Ñ¾ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ Raw ï¿½ï¿½ï¿½æ´¢ï¿½ï¿½ */
 static uint8_t g_pgmStorageInited;
 
 /*
- * Raw STK500 ÀëÏß°ü²¼¾Ö:
- * sector 0: offline_package_index_t Ë÷Òý±í¡£
- * sector 1+: raw °üÊý¾ÝÇø, Ã¿¸ö°ü°üº¬ package header + ¶à¸ö packet header + packet data¡£
+ * Raw STK500 ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½:
+ * sector 0: offline_package_index_t ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * sector 1+: raw ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, Ã¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ package header + ï¿½ï¿½ï¿½ packet header + packet dataï¿½ï¿½
  */
 #define OFFLINE_RAW_DATA_START_ADDR     FLASH_SECTOR_SIZE
 
-/* EEPROM ÖÐ±£´æµ±Ç°¼¤»îÀëÏß°üºÅµÄÎ»ÖÃ¡£ */
+/* EEPROM ï¿½Ð±ï¿½ï¿½æµ±Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß°ï¿½ï¿½Åµï¿½Î»ï¿½Ã¡ï¿½ */
 #define OFFLINE_ACTIVE_LOG_ADDR         0x0300U
 #define OFFLINE_ACTIVE_LOG_SIZE         0x0100U
 #define OFFLINE_ACTIVE_LOG_SLOT_COUNT   (OFFLINE_ACTIVE_LOG_SIZE / sizeof(offline_active_record_t))
 
-/* SPI Flash ÖÐµÄÀëÏß°üË÷Òý±í»º´æ¡£ */
+/* SPI Flash ï¿½Ðµï¿½ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½æ¡£ */
 static uint8_t g_rawIndexLoaded;
 static offline_package_index_t g_offlinePackageIndex[OFFLINE_MAX_PACKAGES];
 
-/* µ±Ç°ÕýÔÚ¼ÇÂ¼µÄ raw STK500 ÀëÏß°üÉÏÏÂÎÄ¡£ */
+/* ï¿½ï¿½Ç°ï¿½ï¿½ï¿½Ú¼ï¿½Â¼ï¿½ï¿½ raw STK500 ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¡ï¿½ */
 static struct {
     uint8_t active;
     uint16_t index;
@@ -55,21 +55,21 @@ static struct {
 /* Record-mode read-back scratch buffer for parsing the on-going package. */
 static uint8_t g_readbackFrame[BUFFER_SIZE];
 
-/* STK500 µ±Ç°¹¤×÷Ä£Ê½, ÓÉÐ­Òé²ãÃüÁîÉèÖÃ¡£ */
+/* STK500 ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½Ä£Ê½, ï¿½ï¿½Ð­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¡ï¿½ */
 uint8_t g_stkWorkMode = STK500_WORK_MODE_ONLINE;
 
-/* µ±Ç°¼¤»îµÄÄ¿±êÆ÷¼þ²ÎÊý, ÓÉÐ­Òé²ãÏÂ·¢µÄ device identity ³õÊ¼»¯¡£ */
+/* ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½Ð­ï¿½ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ device identity ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ */
 offlineDeviceParams_t g_activeDeviceParams;
 
 
-/* ÑÓ³Ù±ê¼Ç Raw °ü´æ´¢ÒÑ¾­¿ÉÓÃ, ±ÜÃâÖØ¸´³õÊ¼»¯¡£ */
+/* ï¿½Ó³Ù±ï¿½ï¿½ Raw ï¿½ï¿½ï¿½æ´¢ï¿½Ñ¾ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½Ø¸ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ */
 static void offlinePgmerInitStorageOnce(void)
 {
     if (g_pgmStorageInited == 0U)
         g_pgmStorageInited = 1U;
 }
 
-/* ¶ÔÒ»¶ÎÊý¾Ý¼ÆËãÇáÁ¿¼¶ 32 Î»Ð£ÑéÖµ, ÓÃÓÚË÷Òý/¼¤»î¼ÇÂ¼µÄÍêÕûÐÔÅÐ¶Ï¡£ */
+/* ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½Ý¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 32 Î»Ð£ï¿½ï¿½Öµ, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð¶Ï¡ï¿½ */
 static uint32_t offlineCalcSum32(const uint8_t *data, uint16_t len)
 {
     uint32_t sum = 0U;
@@ -84,7 +84,7 @@ static uint32_t offlineCalcSum32(const uint8_t *data, uint16_t len)
     return sum;
 }
 
-/* ½«µØÖ·ÏòÉÏ¶ÔÆëµ½ SPI Flash ÉÈÇø±ß½ç¡£ */
+/* ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½Ï¶ï¿½ï¿½ëµ½ SPI Flash ï¿½ï¿½ï¿½ï¿½ï¿½ß½ç¡£ */
 #if !OFFLINE_SINGLE_PACKET_MODE
 static uint32_t offlineAlignSector(uint32_t addr)
 {
@@ -92,7 +92,7 @@ static uint32_t offlineAlignSector(uint32_t addr)
 }
 #endif
 
-/* ´Ó SPI Flash ¼ÓÔØ raw ÀëÏß°üË÷Òý±í, Í¬Ò»´ÎÔËÐÐÖÐÖ»¼ÓÔØÒ»´Î¡£ */
+/* ï¿½ï¿½ SPI Flash ï¿½ï¿½ï¿½ï¿½ raw ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, Í¬Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½Ò»ï¿½Î¡ï¿½ */
 /* Validate one stored raw-package header from flash. */
 /* Validate the immutable package-begin header. */
 static uint8_t offlineRawBeginHeaderIsValid(const offline_raw_package_header_t *header,
@@ -232,9 +232,9 @@ static void offlineRawLoadIndex(void)
     g_rawIndexLoaded = 1U;
 }
 
-/* ½« raw ÀëÏß°üË÷Òý±íÐ´»Ø SPI Flash¡£ */
+/* ï¿½ï¿½ raw ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ SPI Flashï¿½ï¿½ */
 
-/* ÅÐ¶ÏÖ¸¶¨ÐòºÅµÄ raw ÀëÏß°üÊÇ·ñ´æÔÚÇÒÓÐÐ§¡£ */
+/* ï¿½Ð¶ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½Åµï¿½ raw ï¿½ï¿½ï¿½ß°ï¿½ï¿½Ç·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð§ï¿½ï¿½ */
 static uint8_t offlineRawIsValidIndex(uint16_t index)
 {
     offlineRawLoadIndex();
@@ -244,7 +244,7 @@ static uint8_t offlineRawIsValidIndex(uint16_t index)
             g_offlinePackageIndex[index].package_state == OFFLINE_PACKAGE_VALID) ? 1U : 0U;
 }
 
-/* ÎªÐÂµÄ raw ÀëÏß°ü·ÖÅäÒ»¸öË÷Òý²Û¡£ */
+/* Îªï¿½Âµï¿½ raw ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Û¡ï¿½ */
 static uint16_t offlineRawAllocIndex(void)
 {
 #if OFFLINE_SINGLE_PACKET_MODE
@@ -272,11 +272,36 @@ static uint16_t offlineRawAllocIndex(void)
         }
     }
 
+    {
+        uint16_t oldestIndex = 0xFFFFU;
+        uint32_t oldestAddr = FLASH_CAPACITY;
+
+        for (i = 0U; i < OFFLINE_MAX_PACKAGES; i++)
+        {
+            if (g_offlinePackageIndex[i].used == 1U &&
+                g_offlinePackageIndex[i].package_state == OFFLINE_PACKAGE_VALID &&
+                g_offlinePackageIndex[i].flash_addr < oldestAddr)
+            {
+                oldestAddr = g_offlinePackageIndex[i].flash_addr;
+                oldestIndex = i;
+            }
+        }
+
+        if (oldestIndex != 0xFFFFU)
+        {
+            memset(&g_offlinePackageIndex[oldestIndex], 0, sizeof(g_offlinePackageIndex[oldestIndex]));
+            g_offlinePackageIndex[oldestIndex].used = 1U;
+            g_offlinePackageIndex[oldestIndex].package_state = OFFLINE_PACKAGE_WRITING;
+            g_offlinePackageIndex[oldestIndex].package_index = oldestIndex;
+            return oldestIndex;
+        }
+    }
+
     return 0xFFFFU;
 #endif
 }
 
-/* ÎªÐÂµÄ raw ÀëÏß°ü·ÖÅä SPI Flash ÆðÊ¼µØÖ·¡£ */
+/* Îªï¿½Âµï¿½ raw ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½ SPI Flash ï¿½ï¿½Ê¼ï¿½ï¿½Ö·ï¿½ï¿½ */
 static uint32_t offlineRawAllocFlashAddr(void)
 {
 #if OFFLINE_SINGLE_PACKET_MODE
@@ -299,11 +324,36 @@ static uint32_t offlineRawAllocFlashAddr(void)
         }
     }
 
-    return offlineAlignSector(max_end);
+    max_end = offlineAlignSector(max_end);
+    if ((FLASH_CAPACITY - max_end) < FLASH_SECTOR_SIZE)
+    {
+        uint8_t eraseBuf[SPI_EEPROM_PAGE_SIZE];
+        uint32_t addr;
+
+        for (addr = OFFLINE_RAW_DATA_START_ADDR;
+             addr < FLASH_CAPACITY;
+             addr += FLASH_SECTOR_SIZE)
+        {
+            SPI_Flash_Erase_Sector(addr / FLASH_SECTOR_SIZE);
+        }
+
+        memset(g_offlinePackageIndex, 0, sizeof(g_offlinePackageIndex));
+        memset(eraseBuf, 0xFF, sizeof(eraseBuf));
+        for (addr = OFFLINE_ACTIVE_LOG_ADDR;
+             addr < (OFFLINE_ACTIVE_LOG_ADDR + OFFLINE_ACTIVE_LOG_SIZE);
+             addr += SPI_EEPROM_PAGE_SIZE)
+        {
+            SPI_EEPROM_Write(addr, eraseBuf, SPI_EEPROM_PAGE_SIZE);
+        }
+
+        return OFFLINE_RAW_DATA_START_ADDR;
+    }
+
+    return max_end;
 #endif
 }
 
-/* Ð´Èë raw °üÊý¾ÝÇ°°´Ðè²Á³ý¸²¸Çµ½µÄ SPI Flash ÉÈÇø¡£ */
+/* Ð´ï¿½ï¿½ raw ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Çµï¿½ï¿½ï¿½ SPI Flash ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 static void offlineRawEraseForWrite(uint32_t addr, uint32_t len)
 {
     uint32_t end = addr + len;
@@ -315,7 +365,7 @@ static void offlineRawEraseForWrite(uint32_t addr, uint32_t len)
     }
 }
 
-/* ¼ÆËã EEPROM ¼¤»î°ü¼ÇÂ¼µÄÐ£ÑéÖµ, crc32 ×Ö¶Î±¾Éí²»²ÎÓë¼ÆËã¡£ */
+/* ï¿½ï¿½ï¿½ï¿½ EEPROM ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½Ð£ï¿½ï¿½Öµ, crc32 ï¿½Ö¶Î±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ã¡£ */
 static uint32_t offlineActiveCalcCrc(const offline_active_record_t *rec)
 {
     return offlineCalcSum32((const uint8_t *)rec,
@@ -378,7 +428,7 @@ static uint8_t offlineActiveFindLatestRecord(offline_active_record_t *rec,
 }
 
 
-/* ³õÊ¼»¯ÀëÏß±à³ÌÆ÷¹«¹²¿ØÖÆ²ã¡£ */
+/* ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ß±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ²ã¡£ */
 void offlinePgmerInit(void)
 {
     g_stkWorkMode      = STK500_WORK_MODE_ONLINE;
@@ -388,8 +438,8 @@ void offlinePgmerInit(void)
 }
 
 /*
- * ÓÃÉÏÎ»»úÏÂ·¢µÄÆ÷¼þÉí·ÝÐÅÏ¢³õÊ¼»¯µ±Ç°Ä¿±êÆ÷¼þ¡£
- * AVR Æ÷¼þ»á¸ù¾ÝË÷ÒýºÅ´Ó avrDeviceConst ³£Á¿±í²¹È«ÔËÐÐ²ÎÊý¡£
+ * ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½Â·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½Ç°Ä¿ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * AVR ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å´ï¿½ avrDeviceConst ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½Ð²ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 void offlinePgmerInitWith(stkDeviceIdentity_t* di)
 {
@@ -418,7 +468,7 @@ void offlinePgmerInitWith(stkDeviceIdentity_t* di)
     }
 }
 
-/* ÉèÖÃ STK500 À©Õ¹¹¤×÷Ä£Ê½¡£ */
+/* ï¿½ï¿½ï¿½ï¿½ STK500 ï¿½ï¿½Õ¹ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ */
 uint8_t stkSetWorkMode(uint8_t mode)
 {
     if (mode > STK500_WORK_MODE_REPLAY)
@@ -429,7 +479,7 @@ uint8_t stkSetWorkMode(uint8_t mode)
 }
 
 
-/* »ñÈ¡µ±Ç° STK500 À©Õ¹¹¤×÷Ä£Ê½¡£ */
+/* ï¿½ï¿½È¡ï¿½ï¿½Ç° STK500 ï¿½ï¿½Õ¹ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ */
 uint8_t stkGetWorkMode(void)
 {
     return g_stkWorkMode;
@@ -437,8 +487,8 @@ uint8_t stkGetWorkMode(void)
 
 
 /*
- * ÅÐ¶Ïµ±Ç°ÊÇ·ñÐèÒªÕæÊµÖ´ÐÐÔÚÏßÉÕÂ¼¡£
- * ÔÚÏßÄ£Ê½ºÍÔÚÏß+¼ÇÂ¼Ä£Ê½·µ»Ø 1, Ä£Äâ/´¿¼ÇÂ¼Ä£Ê½·µ»Ø 0¡£
+ * ï¿½Ð¶Ïµï¿½Ç°ï¿½Ç·ï¿½ï¿½ï¿½Òªï¿½ï¿½ÊµÖ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½Â¼Ä£Ê½ï¿½ï¿½ï¿½ï¿½ 1, Ä£ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½Â¼Ä£Ê½ï¿½ï¿½ï¿½ï¿½ 0ï¿½ï¿½
  */
 uint8_t stkIsOnlineMode(void)
 {
@@ -448,8 +498,8 @@ uint8_t stkIsOnlineMode(void)
 
 
 /*
- * ÅÐ¶Ïµ±Ç°ÊÇ·ñÐèÒª¼ÇÂ¼ÀëÏßÊý¾Ý¡£
- * ´¿¼ÇÂ¼Ä£Ê½ºÍÔÚÏß+¼ÇÂ¼Ä£Ê½·µ»Ø 1¡£
+ * ï¿½Ð¶Ïµï¿½Ç°ï¿½Ç·ï¿½ï¿½ï¿½Òªï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý¡ï¿½
+ * ï¿½ï¿½ï¿½ï¿½Â¼Ä£Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½+ï¿½ï¿½Â¼Ä£Ê½ï¿½ï¿½ï¿½ï¿½ 1ï¿½ï¿½
  */
 uint8_t stkIsRecordMode(void)
 {
@@ -458,8 +508,8 @@ uint8_t stkIsRecordMode(void)
 
 
 /*
- * ¿ªÊ¼¼ÇÂ¼Ò»¸ö raw STK500 ÀëÏß°ü¡£
- * Í¨³£ÓÉ CMD_SET_PROG_STATE: START_PROG ´¥·¢¡£
+ * ï¿½ï¿½Ê¼ï¿½ï¿½Â¼Ò»ï¿½ï¿½ raw STK500 ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½
+ * Í¨ï¿½ï¿½ï¿½ï¿½ CMD_SET_PROG_STATE: START_PROG ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity)
 {
@@ -517,8 +567,8 @@ uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity)
 }
 
 /*
- * Ïòµ±Ç° raw ÀëÏß°ü×·¼ÓÒ»¸öÉÏÎ»»ú·¢À´µÄÍêÕû STK500 Ö¡¡£
- * frame ±£´æµÄÊÇÐ­ÒéÔ­Ê¼Ö¡, ±ãÓÚÀëÏßÖ´ÐÐÊ±¸´ÓÃÔÚÏß±à³ÌÍ¬Ò»Ì×½âÎöÁ÷³Ì¡£
+ * ï¿½ï¿½Ç° raw ï¿½ï¿½ï¿½ß°ï¿½×·ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ STK500 Ö¡ï¿½ï¿½
+ * frame ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð­ï¿½ï¿½Ô­Ê¼Ö¡, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß±ï¿½ï¿½Í¬Ò»ï¿½×½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì¡ï¿½
  */
 uint8_t offlinePgmerRawAppendRxPacket(const uint8_t *frame, uint16_t frameLen)
 {
@@ -564,8 +614,8 @@ uint8_t offlinePgmerRawAppendRxPacket(const uint8_t *frame, uint16_t frameLen)
 }
 
 /*
- * ½áÊø raw STK500 ÀëÏß°ü¼ÇÂ¼¡£
- * ÕâÀï»á»ØÐ´°üÍ·, ²¢°ÑË÷Òý×´Ì¬´Ó WRITING ¸Ä³É VALID¡£
+ * ï¿½ï¿½ï¿½ï¿½ raw STK500 ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½Â¼ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½Í·, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ WRITING ï¿½Ä³ï¿½ VALIDï¿½ï¿½
  */
 uint8_t offlinePgmerRawEnd(void)
 {
@@ -610,6 +660,10 @@ uint8_t offlinePgmerRawEnd(void)
     memcpy(&g_offlinePackageIndex[idx].identity,
            &commit.identity,
            sizeof(stkDeviceIdentity_t));
+
+    /* Newly recorded package becomes the active offline project immediately.
+     * Manual host activation is only needed when switching to another slot. */
+    (void)offlinePgmerSetActivePackage(idx);
 
     memset(&g_rawCapture, 0, sizeof(g_rawCapture));
     return 0U;
@@ -844,7 +898,7 @@ uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr,
     return filled;
 }
 
-/* »ñÈ¡ raw ÀëÏß°ü×ÜÌåÐÅÏ¢, ¹©ÉÏÎ»»ú²éÑ¯µ±Ç° Flash ÖÐÒÑÓÐ¶àÉÙ¸öÀëÏß°ü¡£ */
+/* ï¿½ï¿½È¡ raw ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢, ï¿½ï¿½ï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½Ñ¯ï¿½ï¿½Ç° Flash ï¿½ï¿½ï¿½ï¿½ï¿½Ð¶ï¿½ï¿½Ù¸ï¿½ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ */
 uint8_t offlinePgmerGetOfflineInfo(offline_package_info_t *info)
 {
     uint16_t i;
@@ -869,7 +923,7 @@ uint8_t offlinePgmerGetOfflineInfo(offline_package_info_t *info)
     return 0U;
 }
 
-/* »ñÈ¡Ö¸¶¨ÐòºÅ raw ÀëÏß°üµÄÕªÒªÐÅÏ¢¡£ */
+/* ï¿½ï¿½È¡Ö¸ï¿½ï¿½ï¿½ï¿½ï¿½ raw ï¿½ï¿½ï¿½ß°ï¿½ï¿½ï¿½ÕªÒªï¿½ï¿½Ï¢ï¿½ï¿½ */
 uint8_t offlinePgmerGetPackageSummary(uint16_t index, offline_package_index_t *summary)
 {
     if (summary == 0)
@@ -885,8 +939,8 @@ uint8_t offlinePgmerGetPackageSummary(uint16_t index, offline_package_index_t *s
 }
 
 /*
- * ÉèÖÃÀëÏßÄ£Ê½ÏÂÄ¬ÈÏÖ´ÐÐµÄ¼¤»î°ü¡£
- * ¼¤»î°ü±àºÅÐ´Èë EEPROM, µôµçºóÈÔ¿É±£Áô¡£
+ * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½Ä¬ï¿½ï¿½Ö´ï¿½ÐµÄ¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ EEPROM, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¿É±ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 uint8_t offlinePgmerSetActivePackage(uint16_t index)
 {
@@ -926,7 +980,7 @@ uint8_t offlinePgmerSetActivePackage(uint16_t index)
     return 0U;
 }
 
-/* ´Ó EEPROM ¶ÁÈ¡µ±Ç°¼¤»î°ü±àºÅ¡£ */
+/* ï¿½ï¿½ EEPROM ï¿½ï¿½È¡ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Å¡ï¿½ */
 uint8_t offlinePgmerGetActivePackage(uint16_t *index)
 {
     if (index == 0)
