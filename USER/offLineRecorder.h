@@ -36,7 +36,7 @@
 
 /* Debug mode: keep only one package (slot 0), overwrite it on next recording.
  * Set to 0 to restore multi-package recording. */
-#define OFFLINE_SINGLE_PACKET_MODE  1U
+#define OFFLINE_SINGLE_PACKET_MODE  0U
 
 /* SPI Flash 索引表中的离线包状态。 */
 #define OFFLINE_PACKAGE_EMPTY   0U

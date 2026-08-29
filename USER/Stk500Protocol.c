@@ -64,6 +64,9 @@ static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize);
 static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize);
 /* 打包指定离线包摘�? 供上位机查看 Flash �?的�?�录内�?��??*/
 static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t index);
+static uint16_t stkPutOfflineDeviceName(uint8_t *out, uint16_t outSize, uint8_t arch, uint16_t index);
+static void stkTraceOfflineInfo(const offline_package_info_t *info, uint8_t ok);
+static void stkTraceOfflineSummary(uint16_t slot, const offline_package_index_t *summary, uint8_t ok);
 /* ICSP first-write deviceID verification helper. Skip when no valid expected value exists. */
 static uint8_t stkEnsureIcspDeviceIdVerified(void);
 /* Normalize PIC config readback to host-visible 16-bit form to avoid false verify mismatches. */
@@ -98,6 +101,77 @@ static uint8_t stkBootCtrlFlashErasePage(uint32_t pageAddr);
 static uint8_t stkBootCtrlFlashProgramHalfWords(uint32_t addr, const uint8_t *data, uint16_t len);
 static uint8_t stkBootCtrlWrite(const boot_app_ctrl_t *ctrl);
 static uint8_t stkBootCtrlSaveState(uint16_t state, uint32_t bootCount, uint32_t lastError);
+
+static void stkTraceOfflineInfo(const offline_package_info_t *info, uint8_t ok)
+{
+    uart1_WriteString("[STK] offline info ");
+    if (ok == 0U || info == 0)
+    {
+        uart1_WriteString("fail\r\n");
+        return;
+    }
+
+    uart1_WriteString("count=");
+    uart1_WriteDec(info->package_count);
+    uart1_WriteString(" active=");
+    uart1_WriteHex16(info->active_index);
+    uart1_WriteString(" max=");
+    uart1_WriteDec(info->max_count);
+    uart1_WriteString("\r\n");
+}
+
+static void stkTraceOfflineSummary(uint16_t slot, const offline_package_index_t *summary, uint8_t ok)
+{
+    uart1_WriteString("[STK] offline slot=");
+    uart1_WriteDec(slot);
+    if (ok == 0U || summary == 0)
+    {
+        uart1_WriteString(" fail\r\n");
+        return;
+    }
+
+    uart1_WriteString(" used=");
+    uart1_WriteDec(summary->used);
+    uart1_WriteString(" state=");
+    uart1_WriteDec(summary->package_state);
+    uart1_WriteString(" pkg=");
+    uart1_WriteDec(summary->package_index);
+    uart1_WriteString(" dev=0x");
+    uart1_WriteHex16(summary->identity.index);
+    uart1_WriteString("\r\n");
+}
+
+static uint16_t stkPutOfflineDeviceName(uint8_t *out, uint16_t outSize, uint8_t arch, uint16_t index)
+{
+    uint8_t i;
+
+    if (out == 0 || outSize < DEVICE_NAME_CHAR_LENGTH)
+        return 0U;
+
+    memset(out, 0, DEVICE_NAME_CHAR_LENGTH);
+    if (arch == STK_MCU_ARCH_AVR)
+    {
+        avr_prog_params_t dev;
+
+        if (avrFindDeviceByIndex(index, &dev) != 0)
+            return 0U;
+        for (i = 0U; i < DEVICE_NAME_CHAR_LENGTH && dev.device_name[i] != 0U; ++i)
+            out[i] = dev.device_name[i];
+        return DEVICE_NAME_CHAR_LENGTH;
+    }
+    if (arch == STK_MCU_ARCH_PIC)
+    {
+        const pic8_device_index_t *entry;
+
+        if (pic8GetDeviceEntry(index, &entry) != 0 || entry == 0)
+            return 0U;
+        for (i = 0U; i < DEVICE_NAME_CHAR_LENGTH && entry->name[i] != 0U; ++i)
+            out[i] = entry->name[i];
+        return DEVICE_NAME_CHAR_LENGTH;
+    }
+
+    return 0U;
+}
 
 uint8_t stkFwUpgradeRequested(void)
 {
@@ -560,11 +634,18 @@ static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize)
     offline_package_info_t info;
 
     if (out == 0 || outSize < 6U)
+    {
+        stkTraceOfflineInfo(0, 0U);
         return 0U;
+    }
 
     if (offlinePgmerGetOfflineInfo(&info) != 0U)
+    {
+        stkTraceOfflineInfo(0, 0U);
         return 0U;
+    }
 
+    stkTraceOfflineInfo(&info, 1U);
     stkPutLe16(&out[0], info.package_count);
     stkPutLe16(&out[2], info.active_index);
     stkPutLe16(&out[4], info.max_count);
@@ -577,14 +658,22 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
     offline_package_index_t summary;
     uint16_t pos = 0U;
     uint16_t minSize = (uint16_t)(1U + 1U + 2U + 4U + 4U + 4U + 4U + 1U + 2U +
-                                  STK_PARAM_ITEM_ID_LEN + STK_PARAM_ITEM_DESC_LEN);
+                                  STK_PARAM_ITEM_ID_LEN + STK_PARAM_ITEM_DESC_LEN +
+                                  DEVICE_NAME_CHAR_LENGTH);
 
     if (out == 0 || outSize < minSize)
+    {
+        stkTraceOfflineSummary(index, 0, 0U);
         return 0U;
+    }
 
     if (offlinePgmerGetPackageSummary(index, &summary) != 0U)
+    {
+        stkTraceOfflineSummary(index, 0, 0U);
         return 0U;
+    }
 
+    stkTraceOfflineSummary(index, &summary, 1U);
     out[pos++] = summary.used;
     out[pos++] = summary.package_state;
     stkPutLe16(&out[pos], summary.package_index); pos += 2U;
@@ -598,6 +687,10 @@ static uint16_t stkPutOfflineSummary(uint8_t *out, uint16_t outSize, uint16_t in
     pos += STK_PARAM_ITEM_ID_LEN;
     memcpy(&out[pos], summary.identity.itemDesc, STK_PARAM_ITEM_DESC_LEN);
     pos += STK_PARAM_ITEM_DESC_LEN;
+    pos += stkPutOfflineDeviceName(&out[pos],
+                                   (uint16_t)(outSize - pos),
+                                   summary.identity.arch,
+                                   summary.identity.index);
     return pos;
 }
 
