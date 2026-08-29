@@ -1,7 +1,7 @@
 /*
- * SPI EEPROM Çý¶¯Ä£¿é
- * »ùÓÚ STM32F103VET6 µÄ SPI2 ÍâÉè
- * Ö§³Ö FT25C64A£¨64Kbit / 8KB£©µÈ SPI EEPROM Ð¾Æ¬
+ * SPI EEPROM ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½ STM32F103VET6 ï¿½ï¿½ SPI2 ï¿½ï¿½ï¿½ï¿½
+ * Ö§ï¿½ï¿½ FT25C64Aï¿½ï¿½64Kbit / 8KBï¿½ï¿½ï¿½ï¿½ SPI EEPROM Ð¾Æ¬
  */
 
 #include "eeprom.h"
@@ -9,186 +9,198 @@
 #include <string.h>
 #include <stdio.h>
 
+static volatile u8 g_spiEepromTimeout;
+
+#define SPI_EEPROM_BUSY_TIMEOUT  200000UL
+
 /*
- * SPI_EEPROM_ClipLength - ½Ø¶Ï³¤¶ÈÒÔ²»³¬¹ý EEPROM ÈÝÁ¿±ß½ç
- * addr: ÆðÊ¼µØÖ·
- * len:  ÇëÇó³¤¶È
- * ·µ»ØÖµ: Êµ¼Ê¿ÉÓÃ³¤¶È£¨³¬³öÈÝÁ¿Ôò·µ»Ø0»ò½Ø¶ÏÖµ£©
+ * SPI_EEPROM_ClipLength - ï¿½Ø¶Ï³ï¿½ï¿½ï¿½ï¿½Ô²ï¿½ï¿½ï¿½ï¿½ï¿½ EEPROM ï¿½ï¿½ï¿½ï¿½ï¿½ß½ï¿½
+ * addr: ï¿½ï¿½Ê¼ï¿½ï¿½Ö·
+ * len:  ï¿½ï¿½ï¿½ó³¤¶ï¿½
+ * ï¿½ï¿½ï¿½ï¿½Öµ: Êµï¿½Ê¿ï¿½ï¿½Ã³ï¿½ï¿½È£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ò·µ»ï¿½0ï¿½ï¿½Ø¶ï¿½Öµï¿½ï¿½
  */
 static u16 SPI_EEPROM_ClipLength(u32 addr, u16 len)
 {
     u32 remain;
 
     if (addr >= SPI_EEPROM_CAPACITY)
-        return 0;                           /* ÆðÊ¼µØÖ·³¬³öÈÝÁ¿£¬·µ»Ø0 */
+        return 0;                           /* ï¿½ï¿½Ê¼ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½0 */
 
-    remain = SPI_EEPROM_CAPACITY - addr;    /* Ê£Óà¿ÉÓÃ¿Õ¼ä */
+    remain = SPI_EEPROM_CAPACITY - addr;    /* Ê£ï¿½ï¿½ï¿½ï¿½Ã¿Õ¼ï¿½ */
     if ((u32)len > remain)
-        len = (u16)remain;                  /* ½Ø¶Ïµ½¿ÉÓÃ¿Õ¼ä³¤¶È */
+        len = (u16)remain;                  /* ï¿½Ø¶Ïµï¿½ï¿½ï¿½ï¿½Ã¿Õ¼ä³¤ï¿½ï¿½ */
 
     return len;
 }
 
 /*
- * SPI_EEPROM_Init - ³õÊ¼»¯ SPI EEPROM Ä£¿é
- * ÅäÖÃ CS ºÍ WP Òý½ÅÎª GPIO Êä³ö
- * ³õÊ¼»¯ SPI2 ÍâÉè£¬ÉèÖÃÊ±ÖÓËÙ¶ÈÎª·ÖÆµ4
- * CS ºÍ WP ³õÊ¼¾ùÎª¸ßµçÆ½£¨²»Ñ¡ÖÐ / ½ûÖ¹Ð´±£»¤£©
+ * SPI_EEPROM_Init - ï¿½ï¿½Ê¼ï¿½ï¿½ SPI EEPROM Ä£ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½ CS ï¿½ï¿½ WP ï¿½ï¿½ï¿½ï¿½Îª GPIO ï¿½ï¿½ï¿½
+ * ï¿½ï¿½Ê¼ï¿½ï¿½ SPI2 ï¿½ï¿½ï¿½è£¬ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½Ù¶ï¿½Îªï¿½ï¿½Æµ4
+ * CS ï¿½ï¿½ WP ï¿½ï¿½Ê¼ï¿½ï¿½Îªï¿½ßµï¿½Æ½ï¿½ï¿½ï¿½ï¿½Ñ¡ï¿½ï¿½ / ï¿½ï¿½Ö¹Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 void SPI_EEPROM_Init(void)
 {
-    /* Ê¹ÄÜ CS ºÍ WP Òý½ÅµÄ GPIO Ê±ÖÓ */
+    g_spiEepromTimeout = 0U;
+    /* Ê¹ï¿½ï¿½ CS ï¿½ï¿½ WP ï¿½ï¿½ï¿½Åµï¿½ GPIO Ê±ï¿½ï¿½ */
     PORT_RCC_CLK(HW_SPI_EEPROM_CS);
     PORT_RCC_CLK(HW_SPI_EEPROM_WP);
 
-    /* ÅäÖÃ CS ºÍ WP ÎªÍÆÍìÊä³ö */
+    /* ï¿½ï¿½ï¿½ï¿½ CS ï¿½ï¿½ WP Îªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     PORT_SET_DIR_PP(HW_SPI_EEPROM_CS);
     PORT_SET_DIR_PP(HW_SPI_EEPROM_WP);
 
-    SPI_EEPROM_CS_H();          /* CS ³õÊ¼Îª¸ß£¨²»Ñ¡ÖÐ£© */
-    SPI_EEPROM_WP_H();          /* WP ³õÊ¼Îª¸ß£¨½ûÖ¹Ð´±£»¤£© */
+    SPI_EEPROM_CS_H();          /* CS ï¿½ï¿½Ê¼Îªï¿½ß£ï¿½ï¿½ï¿½Ñ¡ï¿½Ð£ï¿½ */
+    SPI_EEPROM_WP_H();          /* WP ï¿½ï¿½Ê¼Îªï¿½ß£ï¿½ï¿½ï¿½Ö¹Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 
-    SPI2_Init();                /* ³õÊ¼»¯ SPI2 ÍâÉè */
-    SPI2_SetSpeed(SPI_SPEED_4); /* ÉèÖÃ SPI Ê±ÖÓËÙ¶È */
+    SPI2_Init();                /* ï¿½ï¿½Ê¼ï¿½ï¿½ SPI2 ï¿½ï¿½ï¿½ï¿½ */
+    SPI2_SetSpeed(SPI_SPEED_4); /* ï¿½ï¿½ï¿½ï¿½ SPI Ê±ï¿½ï¿½ï¿½Ù¶ï¿½ */
 }
 
 /*
- * SPI_EEPROM_WriteEnable - Ð´Ê¹ÄÜ£¨·¢ËÍ WREN Ö¸Áî£©
- * ÔÚÃ¿´ÎÐ´Èë»ò²Á³ý²Ù×÷Ç°±ØÐëµ÷ÓÃ
+ * SPI_EEPROM_WriteEnable - Ð´Ê¹ï¿½Ü£ï¿½ï¿½ï¿½ï¿½ï¿½ WREN Ö¸ï¿½î£©
+ * ï¿½ï¿½Ã¿ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 void SPI_EEPROM_WriteEnable(void)
 {
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WREN);  /* ·¢ËÍÐ´Ê¹ÄÜÖ¸Áî */
+    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WREN);  /* ï¿½ï¿½ï¿½ï¿½Ð´Ê¹ï¿½ï¿½Ö¸ï¿½ï¿½ */
     SPI_EEPROM_CS_H();
 }
 
 /*
- * SPI_EEPROM_WriteDisable - Ð´½ûÖ¹£¨·¢ËÍ WRDI Ö¸Áî£©
+ * SPI_EEPROM_WriteDisable - Ð´ï¿½ï¿½Ö¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ WRDI Ö¸ï¿½î£©
  */
 void SPI_EEPROM_WriteDisable(void)
 {
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WRDI);  /* ·¢ËÍÐ´½ûÖ¹Ö¸Áî */
+    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WRDI);  /* ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½Ö¹Ö¸ï¿½ï¿½ */
     SPI_EEPROM_CS_H();
 }
 
 /*
- * SPI_EEPROM_ReadStatusReg - ¶Á×´Ì¬¼Ä´æÆ÷
- * ·µ»ØÖµ: ×´Ì¬¼Ä´æÆ÷Öµ
- *   bit0(WIP): Ã¦±êÖ¾£¨1=ÕýÔÚ±à³Ì/²Á³ý£©
- *   bit1(WEL): Ð´Ê¹ÄÜËø´æ£¨1=ÒÑÊ¹ÄÜ£©
- *   bit2~3(BP0~BP1): ¿é±£»¤Î»
- *   bit7(WPEN): Ð´±£»¤Ê¹ÄÜ
+ * SPI_EEPROM_ReadStatusReg - ï¿½ï¿½×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½Öµ: ×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½Öµ
+ *   bit0(WIP): Ã¦ï¿½ï¿½Ö¾ï¿½ï¿½1=ï¿½ï¿½ï¿½Ú±ï¿½ï¿½/ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ *   bit1(WEL): Ð´Ê¹ï¿½ï¿½ï¿½ï¿½ï¿½æ£¨1=ï¿½ï¿½Ê¹ï¿½Ü£ï¿½
+ *   bit2~3(BP0~BP1): ï¿½é±£ï¿½ï¿½Î»
+ *   bit7(WPEN): Ð´ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½
  */
 u8 SPI_EEPROM_ReadStatusReg(void)
 {
     u8 sr;
 
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(SPI_EEPROM_CMD_RDSR);  /* ·¢ËÍ¶Á×´Ì¬¼Ä´æÆ÷Ö¸Áî */
-    sr = SPI2_ReadWriteByte(0xFF);             /* ¶ÁÈ¡×´Ì¬¼Ä´æÆ÷Öµ */
+    SPI2_ReadWriteByte(SPI_EEPROM_CMD_RDSR);  /* ï¿½ï¿½ï¿½Í¶ï¿½×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ */
+    sr = SPI2_ReadWriteByte(0xFF);             /* ï¿½ï¿½È¡×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½Öµ */
     SPI_EEPROM_CS_H();
 
     return sr;
 }
 
 /*
- * SPI_EEPROM_WriteStatusReg - Ð´×´Ì¬¼Ä´æÆ÷
- * sr: ÒªÐ´ÈëµÄ×´Ì¬¼Ä´æÆ÷Öµ£¨ÓÃÓÚÉèÖÃ¿é±£»¤Î»µÈ£©
+ * SPI_EEPROM_WriteStatusReg - Ð´×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½
+ * sr: ÒªÐ´ï¿½ï¿½ï¿½×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã¿é±£ï¿½ï¿½Î»ï¿½È£ï¿½
  */
 void SPI_EEPROM_WriteStatusReg(u8 sr)
 {
-    SPI_EEPROM_WriteEnable();                 /* Ð´ÈëÇ°ÐèÒªÐ´Ê¹ÄÜ */
+    SPI_EEPROM_WriteEnable();                 /* Ð´ï¿½ï¿½Ç°ï¿½ï¿½ÒªÐ´Ê¹ï¿½ï¿½ */
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WRSR);  /* ·¢Ð´×´Ì¬¼Ä´æÆ÷Ö¸Áî */
-    SPI2_ReadWriteByte(sr);                   /* Ð´Èë×´Ì¬¼Ä´æÆ÷Öµ */
+    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WRSR);  /* ï¿½ï¿½Ð´×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ */
+    SPI2_ReadWriteByte(sr);                   /* Ð´ï¿½ï¿½×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½Öµ */
     SPI_EEPROM_CS_H();
-    SPI_EEPROM_WaitBusy();                    /* µÈ´ý²Ù×÷Íê³É */
+    SPI_EEPROM_WaitBusy();                    /* ï¿½È´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     SPI_EEPROM_WriteDisable();
 }
 
 /*
- * SPI_EEPROM_WaitBusy - µÈ´ý EEPROM ÄÚ²¿²Ù×÷Íê³É
- * ÂÖÑ¯×´Ì¬¼Ä´æÆ÷µÄ WIP Î»£¨bit0£©£¬Ö±µ½Îª0
+ * SPI_EEPROM_WaitBusy - ï¿½È´ï¿½ EEPROM ï¿½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * ï¿½ï¿½Ñ¯×´Ì¬ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ WIP Î»ï¿½ï¿½bit0ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½Îª0
  */
 void SPI_EEPROM_WaitBusy(void)
 {
-    while (SPI_EEPROM_ReadStatusReg() & SPI_EEPROM_SR_WIP)
+    u32 timeout = SPI_EEPROM_BUSY_TIMEOUT;
+
+    while ((SPI_EEPROM_ReadStatusReg() & SPI_EEPROM_SR_WIP) != 0U)
     {
-        /* µÈ´ý EEPROM ÄÚ²¿±à³Ì/²Á³ýÍê³É */
+        if (timeout-- == 0U)
+        {
+            g_spiEepromTimeout = 1U;
+            break;
+        }
     }
 }
 
+
 /*
- * SPI_EEPROM_ReadByte - ¶ÁÈ¡Ò»¸ö×Ö½Ú
- * addr: Òª¶ÁÈ¡µÄµØÖ·£¨0x0000~0x1FFF£©
- * ·µ»ØÖµ: ¸ÃµØÖ·´æ´¢µÄÊý¾Ý×Ö½Ú
+ * SPI_EEPROM_ReadByte - ï¿½ï¿½È¡Ò»ï¿½ï¿½ï¿½Ö½ï¿½
+ * addr: Òªï¿½ï¿½È¡ï¿½Äµï¿½Ö·ï¿½ï¿½0x0000~0x1FFFï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½Öµ: ï¿½Ãµï¿½Ö·ï¿½æ´¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½
  */
 u8 SPI_EEPROM_ReadByte(u32 addr)
 {
     u8 data;
 
-    addr &= SPI_EEPROM_MAX_ADDR;              /* È·±£µØÖ·ÔÚºÏ·¨·¶Î§ÄÚ */
+    addr &= SPI_EEPROM_MAX_ADDR;              /* È·ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ÚºÏ·ï¿½ï¿½ï¿½Î§ï¿½ï¿½ */
 
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(SPI_EEPROM_CMD_READ);  /* ·¢ËÍ¶ÁÊý¾ÝÖ¸Áî */
-    SPI2_ReadWriteByte((u8)(addr >> 8));      /* µØÖ·¸ß8Î» */
-    SPI2_ReadWriteByte((u8)addr);             /* µØÖ·µÍ8Î» */
-    data = SPI2_ReadWriteByte(0xFF);          /* ¶ÁÈ¡Êý¾Ý×Ö½Ú */
+    SPI2_ReadWriteByte(SPI_EEPROM_CMD_READ);  /* ï¿½ï¿½ï¿½Í¶ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ */
+    SPI2_ReadWriteByte((u8)(addr >> 8));      /* ï¿½ï¿½Ö·ï¿½ï¿½8Î» */
+    SPI2_ReadWriteByte((u8)addr);             /* ï¿½ï¿½Ö·ï¿½ï¿½8Î» */
+    data = SPI2_ReadWriteByte(0xFF);          /* ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½Ö½ï¿½ */
     SPI_EEPROM_CS_H();
 
     return data;
 }
 
 /*
- * SPI_EEPROM_WriteByte - Ð´ÈëÒ»¸ö×Ö½Ú
- * addr: ÒªÐ´ÈëµÄµØÖ·
- * data: ÒªÐ´ÈëµÄÊý¾Ý
+ * SPI_EEPROM_WriteByte - Ð´ï¿½ï¿½Ò»ï¿½ï¿½ï¿½Ö½ï¿½
+ * addr: ÒªÐ´ï¿½ï¿½Äµï¿½Ö·
+ * data: ÒªÐ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
  */
 void SPI_EEPROM_WriteByte(u32 addr, u8 data)
 {
-    addr &= SPI_EEPROM_MAX_ADDR;              /* È·±£µØÖ·ÔÚºÏ·¨·¶Î§ÄÚ */
+    addr &= SPI_EEPROM_MAX_ADDR;              /* È·ï¿½ï¿½ï¿½ï¿½Ö·ï¿½ÚºÏ·ï¿½ï¿½ï¿½Î§ï¿½ï¿½ */
 
-    SPI_EEPROM_WriteEnable();                 /* Ð´Ê¹ÄÜ */
+    SPI_EEPROM_WriteEnable();                 /* Ð´Ê¹ï¿½ï¿½ */
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WRITE); /* ·¢ËÍÐ´Êý¾ÝÖ¸Áî */
-    SPI2_ReadWriteByte((u8)(addr >> 8));      /* µØÖ·¸ß8Î» */
-    SPI2_ReadWriteByte((u8)addr);             /* µØÖ·µÍ8Î» */
-    SPI2_ReadWriteByte(data);                 /* Ð´ÈëÊý¾Ý */
+    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WRITE); /* ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ */
+    SPI2_ReadWriteByte((u8)(addr >> 8));      /* ï¿½ï¿½Ö·ï¿½ï¿½8Î» */
+    SPI2_ReadWriteByte((u8)addr);             /* ï¿½ï¿½Ö·ï¿½ï¿½8Î» */
+    SPI2_ReadWriteByte(data);                 /* Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     SPI_EEPROM_CS_H();
-    SPI_EEPROM_WaitBusy();                    /* µÈ´ý±à³ÌÍê³É */
+    SPI_EEPROM_WaitBusy();                    /* ï¿½È´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     SPI_EEPROM_WriteDisable();
 }
 
 /*
- * SPI_EEPROM_Read - ¶ÁÈ¡Á¬ÐøÊý¾Ý
- * addr:  ÆðÊ¼µØÖ·
- * pBuf:  Êä³ö»º³åÇø
- * len:   Òª¶ÁÈ¡µÄ×Ö½ÚÊý
+ * SPI_EEPROM_Read - ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * addr:  ï¿½ï¿½Ê¼ï¿½ï¿½Ö·
+ * pBuf:  ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * len:   Òªï¿½ï¿½È¡ï¿½ï¿½ï¿½Ö½ï¿½ï¿½ï¿½
  */
 void SPI_EEPROM_Read(u32 addr, u8 *pBuf, u16 len)
 {
     if (pBuf == 0)
         return;
 
-    len = SPI_EEPROM_ClipLength(addr, len);   /* ½Ø¶Ïµ½ÓÐÐ§·¶Î§ */
+    len = SPI_EEPROM_ClipLength(addr, len);   /* ï¿½Ø¶Ïµï¿½ï¿½ï¿½Ð§ï¿½ï¿½Î§ */
     if (len == 0)
         return;
 
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(SPI_EEPROM_CMD_READ);  /* ·¢ËÍ¶ÁÊý¾ÝÖ¸Áî */
-    SPI2_ReadWriteByte((u8)(addr >> 8));      /* µØÖ·¸ß8Î» */
-    SPI2_ReadWriteByte((u8)addr);             /* µØÖ·µÍ8Î» */
-    SPI2_ReadBuf(pBuf, len);                  /* Á¬Ðø¶ÁÈ¡Êý¾Ý */
+    SPI2_ReadWriteByte(SPI_EEPROM_CMD_READ);  /* ï¿½ï¿½ï¿½Í¶ï¿½ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ */
+    SPI2_ReadWriteByte((u8)(addr >> 8));      /* ï¿½ï¿½Ö·ï¿½ï¿½8Î» */
+    SPI2_ReadWriteByte((u8)addr);             /* ï¿½ï¿½Ö·ï¿½ï¿½8Î» */
+    SPI2_ReadBuf(pBuf, len);                  /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ */
     SPI_EEPROM_CS_H();
 }
 
 /*
- * SPI_EEPROM_WritePage - Ð´ÈëÒ»Ò³Êý¾Ý£¨×î´ó 32 ×Ö½Ú£¬²»¿çÒ³£©
- * addr:  ÆðÊ¼µØÖ·£¨ÐèÔÚÒ³ÄÚÆðÊ¼Î»ÖÃ£©
- * pBuf:  Êý¾ÝÔ´»º³åÇø
- * len:   ÒªÐ´ÈëµÄ×Ö½ÚÊý£¨×Ô¶¯ÏÞÖÆÔÚµ±Ç°Ò³Ê£Óà¿Õ¼äÄÚ£©
+ * SPI_EEPROM_WritePage - Ð´ï¿½ï¿½Ò»Ò³ï¿½ï¿½ï¿½Ý£ï¿½ï¿½ï¿½ï¿½ 32 ï¿½Ö½Ú£ï¿½ï¿½ï¿½ï¿½ï¿½Ò³ï¿½ï¿½
+ * addr:  ï¿½ï¿½Ê¼ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò³ï¿½ï¿½ï¿½ï¿½Ê¼Î»ï¿½Ã£ï¿½
+ * pBuf:  ï¿½ï¿½ï¿½ï¿½Ô´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * len:   ÒªÐ´ï¿½ï¿½ï¿½ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Úµï¿½Ç°Ò³Ê£ï¿½ï¿½Õ¼ï¿½ï¿½Ú£ï¿½
  */
 void SPI_EEPROM_WritePage(u32 addr, const u8 *pBuf, u16 len)
 {
@@ -197,32 +209,32 @@ void SPI_EEPROM_WritePage(u32 addr, const u8 *pBuf, u16 len)
     if (pBuf == 0)
         return;
 
-    len = SPI_EEPROM_ClipLength(addr, len);   /* ½Ø¶Ïµ½ÓÐÐ§·¶Î§ */
+    len = SPI_EEPROM_ClipLength(addr, len);   /* ï¿½Ø¶Ïµï¿½ï¿½ï¿½Ð§ï¿½ï¿½Î§ */
     if (len == 0)
         return;
 
-    /* ¼ÆËãµ±Ç°Ò³ÄÚÊ£Óà¿Õ¼ä */
+    /* ï¿½ï¿½ï¿½ãµ±Ç°Ò³ï¿½ï¿½Ê£ï¿½ï¿½Õ¼ï¿½ */
     pageRemain = (u16)(SPI_EEPROM_PAGE_SIZE - (addr & (SPI_EEPROM_PAGE_SIZE - 1U)));
     if (len > pageRemain)
-        len = pageRemain;                     /* ÏÞÖÆÔÚÒ»Ò³ÄÚ */
+        len = pageRemain;                     /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»Ò³ï¿½ï¿½ */
 
-    SPI_EEPROM_WriteEnable();                 /* Ð´Ê¹ÄÜ */
+    SPI_EEPROM_WriteEnable();                 /* Ð´Ê¹ï¿½ï¿½ */
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WRITE); /* ·¢ËÍÐ´Êý¾ÝÖ¸Áî */
-    SPI2_ReadWriteByte((u8)(addr >> 8));      /* µØÖ·¸ß8Î» */
-    SPI2_ReadWriteByte((u8)addr);             /* µØÖ·µÍ8Î» */
-    SPI2_WriteBuf(pBuf, len);                 /* Á¬ÐøÐ´ÈëÊý¾Ý */
+    SPI2_ReadWriteByte(SPI_EEPROM_CMD_WRITE); /* ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ */
+    SPI2_ReadWriteByte((u8)(addr >> 8));      /* ï¿½ï¿½Ö·ï¿½ï¿½8Î» */
+    SPI2_ReadWriteByte((u8)addr);             /* ï¿½ï¿½Ö·ï¿½ï¿½8Î» */
+    SPI2_WriteBuf(pBuf, len);                 /* ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     SPI_EEPROM_CS_H();
-    SPI_EEPROM_WaitBusy();                    /* µÈ´ý±à³ÌÍê³É */
+    SPI_EEPROM_WaitBusy();                    /* ï¿½È´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     SPI_EEPROM_WriteDisable();
 }
 
 /*
- * SPI_EEPROM_Write - Ð´ÈëÁ¬ÐøÊý¾Ý£¨×Ô¶¯´¦Àí¿çÒ³£©
- * Èç¹ûÐ´Èë¿çÔ½Ò³±ß½ç£¬×Ô¶¯²ð·ÖÎª¶à´ÎÒ³Ð´Èë
- * addr:  ÆðÊ¼µØÖ·
- * pBuf:  Êý¾ÝÔ´»º³åÇø
- * len:   ÒªÐ´ÈëµÄ×Ö½ÚÊý
+ * SPI_EEPROM_Write - Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò³ï¿½ï¿½
+ * ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½Ô½Ò³ï¿½ß½ç£¬ï¿½Ô¶ï¿½ï¿½ï¿½ï¿½Îªï¿½ï¿½ï¿½Ò³Ð´ï¿½ï¿½
+ * addr:  ï¿½ï¿½Ê¼ï¿½ï¿½Ö·
+ * pBuf:  ï¿½ï¿½ï¿½ï¿½Ô´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * len:   ÒªÐ´ï¿½ï¿½ï¿½ï¿½Ö½ï¿½ï¿½ï¿½
  */
 void SPI_EEPROM_Write(u32 addr, const u8 *pBuf, u16 len)
 {
@@ -232,28 +244,28 @@ void SPI_EEPROM_Write(u32 addr, const u8 *pBuf, u16 len)
     if (pBuf == 0)
         return;
 
-    len = SPI_EEPROM_ClipLength(addr, len);   /* ½Ø¶Ïµ½ÓÐÐ§·¶Î§ */
+    len = SPI_EEPROM_ClipLength(addr, len);   /* ï¿½Ø¶Ïµï¿½ï¿½ï¿½Ð§ï¿½ï¿½Î§ */
     while (len > 0)
     {
-        /* ¼ÆËãµ±Ç°Ò³ÄÚÆ«ÒÆºÍ±¾´Î¿ÉÐ´Èë³¤¶È */
+        /* ï¿½ï¿½ï¿½ãµ±Ç°Ò³ï¿½ï¿½Æ«ï¿½ÆºÍ±ï¿½ï¿½Î¿ï¿½Ð´ï¿½ë³¤ï¿½ï¿½ */
         pageOffset = (u16)(addr & (SPI_EEPROM_PAGE_SIZE - 1U));
         writeLen = (u16)(SPI_EEPROM_PAGE_SIZE - pageOffset);
         if (writeLen > len)
             writeLen = len;
 
-        SPI_EEPROM_WritePage(addr, pBuf, writeLen);  /* Ð´ÈëÒ»Ò³ */
+        SPI_EEPROM_WritePage(addr, pBuf, writeLen);  /* Ð´ï¿½ï¿½Ò»Ò³ */
 
-        addr  += writeLen;                    /* µØÖ·Ç°½ø */
-        pBuf  += writeLen;                    /* Ö¸ÕëÇ°½ø */
-        len   -= writeLen;                    /* Ê£Óà×Ö½ÚÊý¼õÉÙ */
+        addr  += writeLen;                    /* ï¿½ï¿½Ö·Ç°ï¿½ï¿½ */
+        pBuf  += writeLen;                    /* Ö¸ï¿½ï¿½Ç°ï¿½ï¿½ */
+        len   -= writeLen;                    /* Ê£ï¿½ï¿½ï¿½Ö½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
     }
 }
 
 /*
- * SPI_EEPROM_EraseAll - È«Æ¬²Á³ý
- * ½« EEPROM ËùÓÐ´æ´¢µ¥ÔªÐ´Èë 0xFF
- * ×¢£ºEEPROM ²»Ö§³ÖÓ²¼þÕûÆ¬²Á³ýÖ¸Áî£¬
- *     ÐèÍ¨¹ýÖðÒ³Ð´Èë 0xFF ÊµÏÖ
+ * SPI_EEPROM_EraseAll - È«Æ¬ï¿½ï¿½ï¿½ï¿½
+ * ï¿½ï¿½ EEPROM ï¿½ï¿½ï¿½Ð´æ´¢ï¿½ï¿½ÔªÐ´ï¿½ï¿½ 0xFF
+ * ×¢ï¿½ï¿½EEPROM ï¿½ï¿½Ö§ï¿½ï¿½Ó²ï¿½ï¿½ï¿½ï¿½Æ¬ï¿½ï¿½ï¿½ï¿½Ö¸ï¿½î£¬
+ *     ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½Ò³Ð´ï¿½ï¿½ 0xFF Êµï¿½ï¿½
  */
 void SPI_EEPROM_EraseAll(void)
 {
@@ -261,40 +273,40 @@ void SPI_EEPROM_EraseAll(void)
     u8 pageBuf[SPI_EEPROM_PAGE_SIZE];
     u16 i;
 
-    /* ¹¹ÔìÒ»Ò³È« 0xFF µÄ»º³åÇø */
+    /* ï¿½ï¿½ï¿½ï¿½Ò»Ò³È« 0xFF ï¿½Ä»ï¿½ï¿½ï¿½ï¿½ï¿½ */
     for (i = 0; i < SPI_EEPROM_PAGE_SIZE; i++)
         pageBuf[i] = 0xFF;
 
-    /* ÖðÒ³Ð´Èë 0xFF */
+    /* ï¿½ï¿½Ò³Ð´ï¿½ï¿½ 0xFF */
     for (addr = 0; addr < SPI_EEPROM_CAPACITY; addr += SPI_EEPROM_PAGE_SIZE)
         SPI_EEPROM_WritePage(addr, pageBuf, SPI_EEPROM_PAGE_SIZE);
 }
 
 /*
- * SPI_EEPROM_ReadID - ¶ÁÈ¡³§ÉÌ ID ºÍÉè±¸ ID
- * Í¨¹ý·¢ËÍ 0x9F£¨JEDEC ID£©Ö¸Áî»ñÈ¡
- * mid: Êä³ö³§ÉÌ ID Ö¸Õë£¨¿ÉÎª 0£©
- * did: Êä³öÉè±¸ ID Ö¸Õë£¨¿ÉÎª 0£©
+ * SPI_EEPROM_ReadID - ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ ID ï¿½ï¿½ï¿½è±¸ ID
+ * Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 0x9Fï¿½ï¿½JEDEC IDï¿½ï¿½Ö¸ï¿½ï¿½ï¿½È¡
+ * mid: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ID Ö¸ï¿½ë£¨ï¿½ï¿½Îª 0ï¿½ï¿½
+ * did: ï¿½ï¿½ï¿½ï¿½è±¸ ID Ö¸ï¿½ë£¨ï¿½ï¿½Îª 0ï¿½ï¿½
  */
 void SPI_EEPROM_ReadID(u8 *mid, u8 *did)
 {
     SPI_EEPROM_CS_L();
-    SPI2_ReadWriteByte(0x9F);               /* ¶Á JEDEC ID Ö¸Áî */
+    SPI2_ReadWriteByte(0x9F);               /* ï¿½ï¿½ JEDEC ID Ö¸ï¿½ï¿½ */
     if (mid != 0)
-        *mid = SPI2_ReadWriteByte(0xFF);    /* ¶Á³§ÉÌ ID */
+        *mid = SPI2_ReadWriteByte(0xFF);    /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ID */
     if (did != 0)
-        *did = SPI2_ReadWriteByte(0xFF);    /* ¶ÁÉè±¸ ID */
+        *did = SPI2_ReadWriteByte(0xFF);    /* ï¿½ï¿½ï¿½è±¸ ID */
     SPI_EEPROM_CS_H();
 }
 
 /*
- * SPI_EEPROM_DebugDemo - SPI EEPROM µ÷ÊÔÊ¾Àý
- * ¿ÉÔÚ main() Íê³É SPI_EEPROM_Init() ºóÊÖ¶¯µ÷ÓÃ¡£
- * Ê¾ÀýÁ÷³Ì£º
- * 1. ¶ÁÈ¡³§ÉÌ ID / Éè±¸ ID
- * 2. Ð´Èë²âÊÔÊý¾Ý
- * 3. »Ø¶Á²¢±È½Ï
- * Ã¿Ò»²½¶¼»áÍ¨¹ý USART1 ´òÓ¡µ÷ÊÔÐÅÏ¢¡£
+ * SPI_EEPROM_DebugDemo - SPI EEPROM ï¿½ï¿½ï¿½ï¿½Ê¾ï¿½ï¿½
+ * ï¿½ï¿½ï¿½ï¿½ main() ï¿½ï¿½ï¿½ SPI_EEPROM_Init() ï¿½ï¿½ï¿½Ö¶ï¿½ï¿½ï¿½ï¿½Ã¡ï¿½
+ * Ê¾ï¿½ï¿½ï¿½ï¿½ï¿½Ì£ï¿½
+ * 1. ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ ID / ï¿½è±¸ ID
+ * 2. Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * 3. ï¿½Ø¶ï¿½ï¿½ï¿½ï¿½È½ï¿½
+ * Ã¿Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ USART1 ï¿½ï¿½Ó¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½
  */
 void SPI_EEPROM_DebugDemo(void)
 {
@@ -314,54 +326,54 @@ void SPI_EEPROM_DebugDemo(void)
     did = 0;
     compareOk = 0;
 
-    /* ²½Öè1: ³õÊ¼»¯ EEPROM */
-    printf("¡¾EEPROMµ÷ÊÔ¡¿¿ªÊ¼ SPI EEPROM µ÷ÊÔ...\r\n");
+    /* ï¿½ï¿½ï¿½ï¿½1: ï¿½ï¿½Ê¼ï¿½ï¿½ EEPROM */
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½ï¿½Ê¼ SPI EEPROM ï¿½ï¿½ï¿½ï¿½...\r\n");
     SPI_EEPROM_Init();
-    printf("¡¾EEPROMµ÷ÊÔ¡¿³õÊ¼»¯Íê³É\r\n");
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½\r\n");
 
-    /* ²½Öè2: ¶ÁÈ¡³§ÉÌ ID ºÍÉè±¸ ID */
+    /* ï¿½ï¿½ï¿½ï¿½2: ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ ID ï¿½ï¿½ï¿½è±¸ ID */
     SPI_EEPROM_ReadID(&mid, &did);
-    printf("¡¾EEPROMµ÷ÊÔ¡¿¶ÁÈ¡ID: ³§ÉÌ=0x%02X, Éè±¸=0x%02X\r\n", mid, did);
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½ï¿½È¡ID: ï¿½ï¿½ï¿½ï¿½=0x%02X, ï¿½è±¸=0x%02X\r\n", mid, did);
 
-    /* ²½Öè3: Ð´Èë 16 ×Ö½Ú²âÊÔÊý¾Ýµ½µØÖ· 0x0000 */
-    printf("¡¾EEPROMµ÷ÊÔ¡¿Ð´ÈëÊý¾Ýµ½µØÖ· 0x0000: ");
+    /* ï¿½ï¿½ï¿½ï¿½3: Ð´ï¿½ï¿½ 16 ï¿½Ö½Ú²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ýµï¿½ï¿½ï¿½Ö· 0x0000 */
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½Ð´ï¿½ï¿½ï¿½ï¿½ï¿½Ýµï¿½ï¿½ï¿½Ö· 0x0000: ");
     for (i = 0; i < sizeof(txBuf); i++)
         printf("%02X ", txBuf[i]);
     printf("\r\n");
     SPI_EEPROM_Write(0x0000U, txBuf, sizeof(txBuf));
-    printf("¡¾EEPROMµ÷ÊÔ¡¿Ð´ÈëÍê³É\r\n");
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½Ð´ï¿½ï¿½ï¿½ï¿½ï¿½\r\n");
 
-    /* ²½Öè4: ´ÓµØÖ· 0x0000 »Ø¶ÁÊý¾Ý */
+    /* ï¿½ï¿½ï¿½ï¿½4: ï¿½Óµï¿½Ö· 0x0000 ï¿½Ø¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
     SPI_EEPROM_Read(0x0000U, rxBuf, sizeof(rxBuf));
-    printf("¡¾EEPROMµ÷ÊÔ¡¿»Ø¶ÁÊý¾Ý: ");
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½Ø¶ï¿½ï¿½ï¿½ï¿½ï¿½: ");
     for (i = 0; i < sizeof(rxBuf); i++)
         printf("%02X ", rxBuf[i]);
     printf("\r\n");
 
-    /* ²½Öè5: ±È½ÏÐ´ÈëºÍ»Ø¶ÁÊý¾Ý */
+    /* ï¿½ï¿½ï¿½ï¿½5: ï¿½È½ï¿½Ð´ï¿½ï¿½Í»Ø¶ï¿½ï¿½ï¿½ï¿½ï¿½ */
     if (memcmp(txBuf, rxBuf, sizeof(txBuf)) == 0)
     {
         compareOk = 1;
-        printf("¡¾EEPROMµ÷ÊÔ¡¿±È½Ï½á¹û: Ò»ÖÂ£¬¶ÁÐ´²âÊÔÍ¨¹ý£¡\r\n");
+        printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½È½Ï½ï¿½ï¿½: Ò»ï¿½Â£ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½\r\n");
     }
     else
     {
-        printf("¡¾EEPROMµ÷ÊÔ¡¿±È½Ï½á¹û: ²»Ò»ÖÂ£¬¶ÁÐ´²âÊÔÊ§°Ü£¡\r\n");
+        printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½È½Ï½ï¿½ï¿½: ï¿½ï¿½Ò»ï¿½Â£ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½Ê§ï¿½Ü£ï¿½\r\n");
     }
 
-    /* ²½Öè6: È«Æ¬²Á³ýºóÑéÖ¤ */
-    printf("¡¾EEPROMµ÷ÊÔ¡¿¿ªÊ¼È«Æ¬²Á³ý...\r\n");
+    /* ï¿½ï¿½ï¿½ï¿½6: È«Æ¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤ */
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½ï¿½Ê¼È«Æ¬ï¿½ï¿½ï¿½ï¿½...\r\n");
     SPI_EEPROM_EraseAll();
-    printf("¡¾EEPROMµ÷ÊÔ¡¿È«Æ¬²Á³ýÍê³É\r\n");
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½È«Æ¬ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½\r\n");
 
     memset(rxBuf, 0, sizeof(rxBuf));
     SPI_EEPROM_Read(0x0000U, rxBuf, sizeof(rxBuf));
-    printf("¡¾EEPROMµ÷ÊÔ¡¿²Á³ýºó¶ÁÈ¡ 0x0000: ");
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ 0x0000: ");
     for (i = 0; i < sizeof(rxBuf); i++)
         printf("%02X ", rxBuf[i]);
     printf("\r\n");
 
-    /* ¼ì²é²Á³ýºóÊÇ·ñÈ«Îª 0xFF */
+    /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½È«Îª 0xFF */
     compareOk = 1;
     for (i = 0; i < sizeof(rxBuf); i++)
     {
@@ -372,11 +384,11 @@ void SPI_EEPROM_DebugDemo(void)
         }
     }
     if (compareOk != 0U)
-        printf("¡¾EEPROMµ÷ÊÔ¡¿²Á³ýÑéÖ¤Í¨¹ý£¬È«²¿Îª 0xFF\r\n");
+        printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤Í¨ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½Îª 0xFF\r\n");
     else
-        printf("¡¾EEPROMµ÷ÊÔ¡¿²Á³ýÑéÖ¤Ê§°Ü£¬´æÔÚ·Ç 0xFF Êý¾Ý\r\n");
+        printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¤Ê§ï¿½Ü£ï¿½ï¿½ï¿½ï¿½Ú·ï¿½ 0xFF ï¿½ï¿½ï¿½ï¿½\r\n");
 
-    printf("¡¾EEPROMµ÷ÊÔ¡¿½áÊø\r\n");
+    printf("ï¿½ï¿½EEPROMï¿½ï¿½ï¿½Ô¡ï¿½ï¿½ï¿½ï¿½ï¿½\r\n");
 
     (void)compareOk;
 }

@@ -32,6 +32,25 @@
 #include "offLinePgmer.h"
 #include "debugBin.h"
 
+#define APP_VERSION_TEXT  "APP 01.00.00"
+#define APP_BUILD_TIME_TEXT "2026-08-28 00:00:00"
+
+extern uint8_t stkBootConfirmApplicationReady(void);
+
+const boot_app_image_info_t g_appImageInfo __attribute__((used, at(APP_INFO_ADDR))) =
+{
+    BOOT_APP_IMAGE_INFO_MAGIC,
+    BOOT_APP_IMAGE_INFO_VERSION,
+    BOOT_APP_IMAGE_TYPE_APP,
+    APP_CODE_BASE,
+    0U,
+    0U,
+    APP_VERSION_TEXT,
+    APP_BUILD_TIME_TEXT,
+    {0U, 0U, 0U, 0U, 0U},
+    0U
+};
+
 /* Offline replay result record in SPI EEPROM (0x0040, 4 bytes):
  * byte0 magic 0xA5, byte1 version 1, byte2-3 last failed packet no (u16 BE).
  * All-0xFF means no failure recorded. */
@@ -65,16 +84,18 @@ int main(void)
     u8 handlerKey = 0;
     u8 sysClockMHz;
 
+    AppProgrammer_EarlyTrace();
+
     sysClockMHz = Stm32_Clock_Init(6);
     delay_init(sysClockMHz);
     uart_init(sysClockMHz,HW_DEBUG_BAUDRATE);
-		uart1_WriteString("app start...\r\n");
+    uart1_WriteString("[App] start\r\n");
     if(sysClockMHz != 72U)
     {
         uart1_WriteString("[App] clock init failed, running on HSI 8MHz\r\n");
     }else{
         uart1_WriteString("[App] clock init success, running on HSI 72MHz\r\n");
-		}
+	}
 
     LED_Init(); KEY_Init(); BEEP_Init();
 
@@ -83,6 +104,7 @@ int main(void)
     USB_Interrupts_Config();
     Set_USBClock();
     USB_Init();
+    uart1_WriteString("[App] usb init\r\n");
 
     /* 保留 SWD，关�?JTAG 即可，避免误�?SWD 调试口�?*/
     Disable_JTAG_Keep_SWD();
@@ -91,6 +113,7 @@ int main(void)
     uint32_t timeout = 500;
     while(bDeviceState != CONFIGURED && timeout--) delay_ms(1);
     delay_ms(200);
+    uart1_WriteString((bDeviceState == CONFIGURED) ? "[App] usb ok\r\n" : "[App] usb timeout\r\n");
     LED_ACTIVE=1;
 
     powerSoftInit(1200,50);
@@ -107,12 +130,14 @@ int main(void)
 
     /* EEPROM 当前仅提供轮询版 SPI 读写接口，无需 DMA 初始化�?*/
     SPI_EEPROM_Init();
+    uart1_WriteString("[App] eeprom init\r\n");
 
     /* Flash 默认读写接口也是轮询版�?
      * 只有在后续明确调�?SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
      * 时，才需要打开 SPI_Flash_DMA_Init()�?
      */
     SPI_Flash_Init();
+    uart1_WriteString("[App] spi flash init\r\n");
     /* SPI_Flash_DMA_Init(); */
 
     /* FatFs / diskio 当前走的�?SD_ReadSingleBlock()/SD_ReadBlocks()
@@ -123,13 +148,21 @@ int main(void)
     if(SD_Init() == SD_OK)
     {
         /* SD_DMA_Init(); */
+        uart1_WriteString("[App] sd ok\r\n");
+    }
+    else
+    {
+        uart1_WriteString("[App] sd fail\r\n");
     }
 		/* 初始�?Handler */
     Handler_Task_Init();
-	HandlerTask(1,1);   // 初始化发送一个失效信�?
+    HandlerTask(1,1);   // 初始化发送一个失效信�?
     /* 离线编程器初始化 */
     offlinePgmer_init();
+    uart1_WriteString("[App] core init done\r\n");
     debugBin_Init();
+    (void)stkBootConfirmApplicationReady();
+    uart1_WriteString("[App] wait confirm\r\n");
     while(1)
     {
         i++;
