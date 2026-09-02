@@ -24,6 +24,9 @@
 #include "adc.h"
 #include "delay.h"
 
+/* Session cleanup remains unconditional; suppress its routine UART chatter. */
+#define STK_SESSION_TRACE 0
+
 /* 上报给上位机�?STK500 版本号�?*/
 #define STK_VERSION_HW      1
 #define STK_VERSION_MAJOR   2
@@ -412,7 +415,7 @@ void stkResetIspSession(void)
     leaveParam.postDelay = 0U;
 
     ispLeaveProgmode(&leaveParam);
-#if DEBUG_HARDWARE_CONFIG
+#if DEBUG_HARDWARE_CONFIG && STK_SESSION_TRACE
     uart1_WriteString("STK cleanup: force AVR leave\r\n");
 #endif
 }
@@ -421,7 +424,7 @@ void stkResetIcspSession(void)
 {
     pic8LeaveProgmode();
     g_stkIcspDeviceIdChecked = 0U;
-#if DEBUG_HARDWARE_CONFIG
+#if DEBUG_HARDWARE_CONFIG && STK_SESSION_TRACE
     uart1_WriteString("STK cleanup: force PIC leave\r\n");
 #endif
 }
@@ -520,7 +523,6 @@ static uint16_t stkNormalizeIcspConfigValue(uint8_t idx, uint16_t value)
     pic_prog_params_t picParams;
     uint16_t implMask;
     uint16_t cfgBitMask;
-    uint16_t padMask;
     uint16_t unimplFill;
     uint8_t cfgBits;
 
@@ -543,14 +545,14 @@ static uint16_t stkNormalizeIcspConfigValue(uint8_t idx, uint16_t value)
     else
         cfgBitMask = (uint16_t)((1UL << cfgBits) - 1UL);
 
-    padMask = (uint16_t)(~cfgBitMask);
     if (picParams.common.config_dcr[idx].unimpl_val != 0U)
         unimplFill = (uint16_t)(~implMask);
     else
         unimplFill = (uint16_t)((picParams.common.config_dcr[idx].default_value &
-                                  (uint16_t)~implMask & cfgBitMask) | padMask);
+                                  (uint16_t)~implMask & cfgBitMask));
 
-    return (uint16_t)((value & implMask) | unimplFill);
+    /* Host config bytes represent the PIC word width, not a 16-bit padded word. */
+    return (uint16_t)(((value & implMask) | unimplFill) & cfgBitMask);
 }
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
 {
@@ -1640,12 +1642,24 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 for (cfgIdx = 0U; cfgIdx < cfgCount && cfgIdx < MAX_CONFIG_WORDS; cfgIdx++)
                 {
                     uint16_t cfgValue = icspReadCfg(cfgIdx);
+                    #if UART1_TRACE
+                    uint16_t rawCfgValue = cfgValue;
+                    #endif
                     if (cfgValue == 0xFFFFU)
                     {
                         pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
                         break;
                     }
                     cfgValue = stkNormalizeIcspConfigValue((uint8_t)cfgIdx, cfgValue);
+                    #if UART1_TRACE
+                    uart1_WriteString("ICSP cfg host idx=");
+                    uart1_WriteDec(cfgIdx);
+                    uart1_WriteString(" raw=0x");
+                    uart1_WriteHex16(rawCfgValue);
+                    uart1_WriteString(" norm=0x");
+                    uart1_WriteHex16(cfgValue);
+                    uart1_WriteString("\r\n");
+                    #endif
                     stkPutLe16(&pTx[STK_TXMSG_START + 2 + cfgIdx * 2U], cfgValue);
                 }
             }

@@ -5,10 +5,28 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* ICSP ÄÚÖÃÆ÷¼þÂÖÀª:
- * 1 = baseline 12-bit (ÒÔ PIC12F508 ÀàÆ÷¼þÎª²Î¿¼)
- * 2 = mid-range 14-bit (ÒÔ PIC16F627A/628A/648A ÀàÆ÷¼þÎª²Î¿¼)
- * 3 = enhanced mid-range (ÒÔ PIC16F1825/1829 ÀàÆ÷¼þÎª²Î¿¼)
+/* Resolve operations are frequent; enable only when investigating the device DB. */
+#define PIC8_DB_TRACE 0
+
+/*
+ * PICkit2 stores PIC memory addresses in Intel HEX byte units. This overlay
+ * contains only fields that map losslessly to the STM32 ICSP model; timing and
+ * PK2 firmware script IDs intentionally remain outside the programming path.
+ */
+typedef struct {
+    char     name[16];
+    uint32_t program_words;
+    uint32_t config_word_addr;
+    uint32_t userid_word_addr;
+    uint8_t  config_words;
+    uint8_t  userid_words;
+    uint8_t  osccal_save;
+} pic8_pk2_supplement_t;
+
+/* ICSP å†…ç½®å™¨ä»¶è½®å»“:
+ * 1 = baseline 12-bit (ä»¥ PIC12F508 ç±»å™¨ä»¶ä¸ºå‚è€ƒ)
+ * 2 = mid-range 14-bit (ä»¥ PIC16F627A/628A/648A ç±»å™¨ä»¶ä¸ºå‚è€ƒ)
+ * 3 = enhanced mid-range (ä»¥ PIC16F1825/1829 ç±»å™¨ä»¶ä¸ºå‚è€ƒ)
  */
 
 /* Power shared table (27 entries) */
@@ -176,6 +194,10 @@ static const pic8_sub_entry_t g_subTable[] = {
   {0x0000, 0x2008, 0x8008, 0x8009, 0x0000, 0x2008, 0x0000, 0x8004, 0x8005, 8, 0},
   {0x0000, 0x2008, 0x8008, 0x0000, 0x0000, 0x2008, 0x0000, 0x8004, 0x8006, 8, 0},
   {0x0000, 0x2008, 0x8008, 0x0000, 0x0000, 0x2008, 0x0000, 0x800D, 0x800F, 8, 0},
+};
+
+static const pic8_pk2_supplement_t g_pk2SupplementTable[] = {
+#include "picDeviceConst_pk2_supplement.inc"
 };
 
 /* Device table (285 entries) */
@@ -469,6 +491,50 @@ static const pic8_device_index_t g_deviceTable[] = {
 
 
 
+static void pic8ApplyPk2Supplement(const pic8_device_index_t *entry,
+                                   pic_prog_params_t *out)
+{
+    uint16_t i;
+    const pic8_pk2_supplement_t *pk2;
+    pic8_icsp_common_t *cm;
+
+    if (entry == NULL || out == NULL)
+        return;
+
+    cm = &out->common;
+    for (i = 0U; i < (uint16_t)(sizeof(g_pk2SupplementTable) / sizeof(g_pk2SupplementTable[0])); i++)
+    {
+        pk2 = &g_pk2SupplementTable[i];
+        if (strcmp(entry->name, pk2->name) != 0)
+            continue;
+
+        cm->code_base_addr = 0U;
+        cm->code_end_addr = pk2->program_words;
+        cm->config_addr = pk2->config_word_addr;
+        cm->config_word_count = pk2->config_words;
+        cm->userid_base = pk2->userid_word_addr;
+        cm->userid_word_count = pk2->userid_words;
+
+        if (cm->core_family == PIC8_CORE_BASELINE_12BIT)
+        {
+            /* Baseline devices enter Program/Verify with PC at configuration. */
+            cm->pc_init_mode = PIC8_PC_INIT_AT_CONFIG;
+            /* PK2 config_word_addr is the HEX logical address, not the PC. */
+            out->baseLine.config_shadow_addr = (pk2->program_words != 0U) ?
+                                                ((pk2->program_words << 1) - 1U) : 0U;
+            if (pk2->osccal_save != 0U && pk2->program_words != 0U)
+            {
+                cm->osccal_base = pk2->program_words - 1U;
+                cm->osccal_word_count = 1U;
+                /* PIC12F508/509 factory backup is immediately after User IDs. */
+                cm->cal_data_base = pk2->userid_word_addr + pk2->userid_words;
+                cm->cal_data_word_count = 1U;
+            }
+        }
+        return;
+    }
+}
+
 static void pic8AggregateParams(const pic8_device_index_t *entry,
                                 pic_prog_params_t *out)
 {
@@ -571,6 +637,7 @@ static void pic8AggregateParams(const pic8_device_index_t *entry,
     }
     cm->deviceid_mask = entry->deviceid_mask;
     cm->deviceid_expected = entry->deviceid_expected;
+
     if (cm->lvp_mode == PIC8_LVP_MCHP_KEY) {
         cm->lvp_key_required = 1;
         cm->lvp_key_bits = 32;
@@ -582,13 +649,15 @@ static void pic8AggregateParams(const pic8_device_index_t *entry,
         for (i = 0; i < dc->dcr_count && i < MAX_CONFIG_WORDS; i++)
             memcpy(&cm->config_dcr[i], &dc->dcr[i], sizeof(pic8_dcr_entry_t));
     }
+
+    pic8ApplyPk2Supplement(entry, out);
 }
 
-/* ©¤---------------©¤ ¹©Ä£¿éÍâ²¿µ÷ÓÃµÄAPIº¯Êý ©¤------------------©¤ */
-/// @brief »ñÈ¡Æ÷¼þÁÐ±í
-/// @param startIndex ÆðÊ¼Ë÷Òý
-/// @param rdCount ¶ÁÈ¡ÊýÁ¿
-/// @return ·µ»ØÆ÷¼þ×ÜÊý
+/* â”€---------------â”€ ä¾›æ¨¡å—å¤–éƒ¨è°ƒç”¨çš„APIå‡½æ•° â”€------------------â”€ */
+/// @brief èŽ·å–å™¨ä»¶åˆ—è¡¨
+/// @param startIndex èµ·å§‹ç´¢å¼•
+/// @param rdCount è¯»å–æ•°é‡
+/// @return è¿”å›žå™¨ä»¶æ€»æ•°
 uint16_t pic8GetDeviceList(uint16_t startIndex, uint16_t rdCount) {
     uint16_t i, count = PIC8_DEVICE_TABLE_SIZE;
     uint8_t buff[100];
@@ -606,10 +675,10 @@ uint16_t pic8GetDeviceList(uint16_t startIndex, uint16_t rdCount) {
     return PIC8_DEVICE_TABLE_SIZE;
 }
 
-/// @brief ¸ù¾ÝÆ÷¼þÃû³Æ£¬»ñÈ¡Æ÷¼þ²ÎÊý£¬²¢Ìî³äµ½¸ø¶¨µÄ½á¹¹ÌåÖ¸ÕëÖÐ
-/// @param deviceName £ºÆ÷¼þÃû³Æ
-/// @param out £ºÊä³ö²ÎÊý½á¹¹ÌåÖ¸Õë
-/// @return ³É¹¦·µ»Ø0£¬Ê§°Ü·µ»Ø-1
+/// @brief æ ¹æ®å™¨ä»¶åç§°ï¼ŒèŽ·å–å™¨ä»¶å‚æ•°ï¼Œå¹¶å¡«å……åˆ°ç»™å®šçš„ç»“æž„ä½“æŒ‡é’ˆä¸­
+/// @param deviceName ï¼šå™¨ä»¶åç§°
+/// @param out ï¼šè¾“å‡ºå‚æ•°ç»“æž„ä½“æŒ‡é’ˆ
+/// @return æˆåŠŸè¿”å›ž0ï¼Œå¤±è´¥è¿”å›ž-1
 int8_t pic8FindDeviceByName(const char *deviceName, pic_prog_params_t *out) {
     uint16_t i;
     if (deviceName == NULL || out == NULL) return -1;
@@ -628,28 +697,41 @@ int8_t pic8FindDeviceByName(const char *deviceName, pic_prog_params_t *out) {
     return -1;
 }
 
-/// @brief ¸ù¾ÝÆ÷¼þË÷Òý£¬»ñÈ¡Æ÷¼þ²ÎÊý£¬²¢Ìî³äµ½¸ø¶¨µÄ½á¹¹ÌåÖ¸ÕëÖÐ
-/// @param index £ºÆ÷¼þË÷Òý
-/// @param out £ºÊä³ö²ÎÊý½á¹¹ÌåÖ¸Õë
-/// @return ³É¹¦·µ»Ø0£¬Ê§°Ü·µ»Ø-1
+/// @brief æ ¹æ®å™¨ä»¶ç´¢å¼•ï¼ŒèŽ·å–å™¨ä»¶å‚æ•°ï¼Œå¹¶å¡«å……åˆ°ç»™å®šçš„ç»“æž„ä½“æŒ‡é’ˆä¸­
+/// @param index ï¼šå™¨ä»¶ç´¢å¼•
+/// @param out ï¼šè¾“å‡ºå‚æ•°ç»“æž„ä½“æŒ‡é’ˆ
+/// @return æˆåŠŸè¿”å›ž0ï¼Œå¤±è´¥è¿”å›ž-1
 int8_t pic8FindDeviceByIndex(uint16_t index, pic_prog_params_t *out) {
     if (out == NULL || index >= PIC8_DEVICE_TABLE_SIZE) return -1;
-    #if DEBUG_HARDWARE_CONFIG
+    #if DEBUG_HARDWARE_CONFIG && PIC8_DB_TRACE
         printf("pic8FindDeviceByIndex: idx=%u, name=%s\r\n", index, g_deviceTable[index].name);
     #endif 
     pic8AggregateParams(&g_deviceTable[index], out);
+    #if DEBUG_HARDWARE_CONFIG && PIC8_DB_TRACE
+    printf("PIC DB: pwr=%u seq=%u space=%u dcr=%u core=%u init=%u\r\n",
+           g_deviceTable[index].power_idx, g_deviceTable[index].seq_idx,
+           g_deviceTable[index].space_idx, g_deviceTable[index].dcr_idx,
+           out->common.core_family, out->common.pc_init_mode);
+    printf("PIC DB: codeEnd=%lX cfgMeta=%lX cfgShadow=%lX user=%lX osccal=%lX cal=%lX\r\n",
+           (unsigned long)out->common.code_end_addr,
+           (unsigned long)out->common.config_addr,
+           (unsigned long)out->baseLine.config_shadow_addr,
+           (unsigned long)out->common.userid_base,
+           (unsigned long)out->common.osccal_base,
+           (unsigned long)out->common.cal_data_base);
+    #endif
     return 0;
 }
 
-/// @brief »ñÈ¡Æ÷¼þ×ÜÊý
+/// @brief èŽ·å–å™¨ä»¶æ€»æ•°
 /// @param  
-/// @return Æ÷¼þ×ÜÊý
+/// @return å™¨ä»¶æ€»æ•°
 uint16_t pic8GetDeviceCount(void) { return PIC8_DEVICE_TABLE_SIZE; }
 
-/// @brief ¸ù¾ÝË÷Òý»ñÈ¡Æ÷¼þÌõÄ¿
-/// @param index Æ÷¼þË÷Òý
-/// @param entry Êä³öÖ¸ÏòÆ÷¼þÌõÄ¿µÄÖ¸Õë
-/// @return ³É¹¦·µ»Ø0£¬Ê§°Ü·µ»Ø-1
+/// @brief æ ¹æ®ç´¢å¼•èŽ·å–å™¨ä»¶æ¡ç›®
+/// @param index å™¨ä»¶ç´¢å¼•
+/// @param entry è¾“å‡ºæŒ‡å‘å™¨ä»¶æ¡ç›®çš„æŒ‡é’ˆ
+/// @return æˆåŠŸè¿”å›ž0ï¼Œå¤±è´¥è¿”å›ž-1
 int8_t pic8GetDeviceEntry(uint16_t index, const pic8_device_index_t **entry) {
     if (entry == NULL || index >= PIC8_DEVICE_TABLE_SIZE) return -1;
     *entry = &g_deviceTable[index];

@@ -121,9 +121,10 @@ int main(void)
 
     LCD_GPIO_Init();
     LCD_Init();
-    LCD_DisplayString58(1,12,"DIF Micro");
     LCD_DisplayGraphic(1,1,64,64, bmp_defeng_Logo);
-    LCD_DisplayGB2312String(3,9,"Defeng Tech");
+    LCD_DisplayString58(1,12,"DIF Micro");
+    LCD_DisplayString58(3,12,"DefengTech");
+    LCD_DisplayString58(5,12,"Programmer");
 
     timerInit();
     Adc_Init();             // ADC + DMA1_Channel1

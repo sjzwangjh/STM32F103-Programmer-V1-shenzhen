@@ -1,23 +1,23 @@
 /*
- * ICSP ±à³ÌÇı¶¯ÊµÏÖ - PIC10/12/16 ÏµÁĞ´®ĞĞ±à³Ì
+ * ICSP ç¼–ç¨‹é©±åŠ¨å®ç° - PIC10/12/16 ç³»åˆ—ä¸²è¡Œç¼–ç¨‹
  *
- * ²ã´Î½á¹¹:
- *   A. µçÔ´ÓëÒı½Å¿ØÖÆ²ã        ¡ª¡ª ÔÚ icsp.h ÖĞÒÔºê·½Ê½±£Áô
- *   B. ICSP Î»Ê±ĞòÊÕ·¢²ã       ¡ª¡ª 6-bit ÃüÁî / 16-cycle Êı¾İÖ¡
- *   C. ±à³ÌÄ£Ê½¿ØÖÆ²ã          ¡ª¡ª HVP/LVP ½øÈëÓëÍË³ö
- *   D. Æ÷¼şÔ­ÓïÓëµØÖ·²ã        ¡ª¡ª Config/UserID/DeviceID µÈÑ°Ö·Óë¶ÁĞ´
- *   E. Ğ£ÑéÓë°²È«²ã            ¡ª¡ª Ğ£Ñé/Ò»ÖÂĞÔ¼ì²é
- *   F. Family ·Ö·¢Èë¿Ú²ã       ¡ª¡ª ¶ÔÉÏÌá¹©Í³Ò» PIC8 Èë¿Ú
+ * å±‚æ¬¡ç»“æ„:
+ *   A. ç”µæºä¸å¼•è„šæ§åˆ¶å±‚        â€”â€” åœ¨ icsp.h ä¸­ä»¥å®æ–¹å¼ä¿ç•™
+ *   B. ICSP ä½æ—¶åºæ”¶å‘å±‚       â€”â€” 6-bit å‘½ä»¤ / 16-cycle æ•°æ®å¸§
+ *   C. ç¼–ç¨‹æ¨¡å¼æ§åˆ¶å±‚          â€”â€” HVP/LVP è¿›å…¥ä¸é€€å‡º
+ *   D. å™¨ä»¶åŸè¯­ä¸åœ°å€å±‚        â€”â€” Config/UserID/DeviceID ç­‰å¯»å€ä¸è¯»å†™
+ *   E. æ ¡éªŒä¸å®‰å…¨å±‚            â€”â€” æ ¡éªŒ/ä¸€è‡´æ€§æ£€æŸ¥
+ *   F. Family åˆ†å‘å…¥å£å±‚       â€”â€” å¯¹ä¸Šæä¾›ç»Ÿä¸€ PIC8 å…¥å£
  *
- * µçÔ´/Òı½Å²Ù×÷ÒÑÈ«²¿Í¨¹ı icsp.h ºêÄÚÁª£¬Ïû³ıº¯Êıµ÷ÓÃ¿ªÏú¡£
+ * ç”µæº/å¼•è„šæ“ä½œå·²å…¨éƒ¨é€šè¿‡ icsp.h å®å†…è”ï¼Œæ¶ˆé™¤å‡½æ•°è°ƒç”¨å¼€é”€ã€‚
  *
- * ---- µØÖ·ÓÅ»¯ËµÃ÷ ----
- * ICSP µÄ PC (Program Counter) Ö»ÄÜÍ¨¹ı Increment Address µİÔö,
- * ²»ÄÜµİ¼õÒ²ÎŞ·¨Ö±½ÓÌø×ª¡£±¾Ä£¿éÍ¨¹ı¸ú×Ùµ±Ç° PC Î»ÖÃ
- * (g_picCurrentArea / g_picCurrentAddress), ÊµÏÖ"ÖÇÄÜÑ°Ö·":
- *   - Ä¿±êµØÖ· >= µ±Ç°µØÖ·: ½öÓÃ Increment µ½´ï, ±ÜÃâ¸´Î»ÖØÀ´
- *   - Ä¿±êµØÖ· < µ±Ç°µØÖ·: ×ßÍêÕûÂ·¾¶ (¸´Î»+µİÔö)
- * ´ËÓÅ»¯´ó·ù¼õÉÙÁ¬Ğø Flash/EEPROM/Config ·ÃÎÊÊ±µÄÈßÓàµØÖ·²Ù×÷¡£
+ * ---- åœ°å€ä¼˜åŒ–è¯´æ˜ ----
+ * ICSP çš„ PC (Program Counter) åªèƒ½é€šè¿‡ Increment Address é€’å¢,
+ * ä¸èƒ½é€’å‡ä¹Ÿæ— æ³•ç›´æ¥è·³è½¬ã€‚æœ¬æ¨¡å—é€šè¿‡è·Ÿè¸ªå½“å‰ PC ä½ç½®
+ * (g_picCurrentArea / g_picCurrentAddress), å®ç°"æ™ºèƒ½å¯»å€":
+ *   - ç›®æ ‡åœ°å€ >= å½“å‰åœ°å€: ä»…ç”¨ Increment åˆ°è¾¾, é¿å…å¤ä½é‡æ¥
+ *   - ç›®æ ‡åœ°å€ < å½“å‰åœ°å€: èµ°å®Œæ•´è·¯å¾„ (å¤ä½+é€’å¢)
+ * æ­¤ä¼˜åŒ–å¤§å¹…å‡å°‘è¿ç»­ Flash/EEPROM/Config è®¿é—®æ—¶çš„å†—ä½™åœ°å€æ“ä½œã€‚
  */
 
 #include "sys.h"
@@ -28,61 +28,66 @@
 #include "icsp.h"
 #include <string.h>
 
+/* Keep concise bring-up diagnostics while hiding per-address transport noise. */
+#undef UART1_TRACE
+#define UART1_TRACE 1
+#define ICSP_UART_DETAIL_TRACE 0
+
 
 /* ================================================================= */
-/* ¾²Ì¬±äÁ¿                                                             */
+/* é™æ€å˜é‡                                                             */
 /* ================================================================= */
-static uint8_t      g_picCmdWidth;                /* ÃüÁîÎ»¿í: 6 */
-static uint8_t      g_picDataWidth;               /* Êı¾İÎ»¿í: 12/14/16 */
-static const pic_prog_params_t  *icsp_pdev = NULL; /* µ±Ç°Æ÷¼ş */
-static uint8_t      g_picEnterPreferLvp;           /* ×î½üÒ»´Î½øÈë±à³ÌÄ£Ê½Ê±ÊÇ·ñÆ«ºÃLVP */
-static uint8_t      g_picProgmodeActive;           /* µ±Ç°ÊÇ·ñÒÑ½øÈë±à³ÌÄ£Ê½ */
-static pic_saved_param_t g_picSavedParam;          /* ²Á³ıÇ°±£´æµÄ¹Ø¼ü²ÎÊı */
-static uint8_t      g_picSavedParamValid;          /* ¹Ø¼ü²ÎÊıÊÇ·ñÒÑÍê³É±£´æ */
+static uint8_t      g_picCmdWidth;                /* å‘½ä»¤ä½å®½: 6 */
+static uint8_t      g_picDataWidth;               /* æ•°æ®ä½å®½: 12/14/16 */
+static const pic_prog_params_t  *icsp_pdev = NULL; /* å½“å‰å™¨ä»¶ */
+static uint8_t      g_picEnterPreferLvp;           /* æœ€è¿‘ä¸€æ¬¡è¿›å…¥ç¼–ç¨‹æ¨¡å¼æ—¶æ˜¯å¦åå¥½LVP */
+static uint8_t      g_picProgmodeActive;           /* å½“å‰æ˜¯å¦å·²è¿›å…¥ç¼–ç¨‹æ¨¡å¼ */
+static pic_saved_param_t g_picSavedParam;          /* æ“¦é™¤å‰ä¿å­˜çš„å…³é”®å‚æ•° */
+static uint8_t      g_picSavedParamValid;          /* å…³é”®å‚æ•°æ˜¯å¦å·²å®Œæˆä¿å­˜ */
 
 /*
- * ---- ĞÂÔö: ICSP µ±Ç° PC Î»ÖÃ¸ú×Ù ----
+ * ---- æ–°å¢: ICSP å½“å‰ PC ä½ç½®è·Ÿè¸ª ----
  *
- * ×÷ÓÃ: ¸ú×Ùµ±Ç° PC ´¦ÓÚÄÄ¸öÇøÓòÒÔ¼°¾ßÌåµØÖ·Öµ,
- *       Ê¹ºóĞøÑ°Ö·ÄÜ»ùÓÚµ±Ç°Î»ÖÃ×ö"ÔöÁ¿Ê½"µ¼º½,
- *       ±ÜÃâÃ¿´Î¶¼´Ó¸´Î»Î»ÖÃÖØĞÂµİÔö¡£
+ * ä½œç”¨: è·Ÿè¸ªå½“å‰ PC å¤„äºå“ªä¸ªåŒºåŸŸä»¥åŠå…·ä½“åœ°å€å€¼,
+ *       ä½¿åç»­å¯»å€èƒ½åŸºäºå½“å‰ä½ç½®åš"å¢é‡å¼"å¯¼èˆª,
+ *       é¿å…æ¯æ¬¡éƒ½ä»å¤ä½ä½ç½®é‡æ–°é€’å¢ã€‚
  *
- * ICSP_AREA_NONE   = Î´Öª / Î´½øÈë±à³ÌÄ£Ê½
- * ICSP_AREA_PROGRAM = ³ÌĞò´æ´¢Æ÷Çø
- * ICSP_AREA_CONFIG = ÅäÖÃ¿Õ¼äÇø (º¬ Config, UserID, DeviceID, OSCCAL, EEPROM)
+ * ICSP_AREA_NONE   = æœªçŸ¥ / æœªè¿›å…¥ç¼–ç¨‹æ¨¡å¼
+ * ICSP_AREA_PROGRAM = ç¨‹åºå­˜å‚¨å™¨åŒº
+ * ICSP_AREA_CONFIG = é…ç½®ç©ºé—´åŒº (å« Config, UserID, DeviceID, OSCCAL, EEPROM)
  *
- * EEPROM ËäÈ»Ê¹ÓÃ CMD_LOAD_DATA / CMD_READ_DATA ·ÃÎÊ,
- * µ«ÆäµØÖ·¶¨Î»Í¨¹ı CMD_LOAD_CFG + Increment ÊµÏÖ, ÓëÅäÖÃ¿Õ¼ä¹²ÓÃ PC µ¼º½,
- * Òò´ËÍ³Ò»¹éÈë ICSP_AREA_CONFIG¡£
+ * EEPROM è™½ç„¶ä½¿ç”¨ CMD_LOAD_DATA / CMD_READ_DATA è®¿é—®,
+ * ä½†å…¶åœ°å€å®šä½é€šè¿‡ CMD_LOAD_CFG + Increment å®ç°, ä¸é…ç½®ç©ºé—´å…±ç”¨ PC å¯¼èˆª,
+ * å› æ­¤ç»Ÿä¸€å½’å…¥ ICSP_AREA_CONFIGã€‚
  */
 #define ICSP_AREA_NONE      0
 #define ICSP_AREA_PROGRAM   1
 #define ICSP_AREA_CONFIG    2
 
-static uint8_t      g_picCurrentArea;              /* µ±Ç°PCËùÔÚÇøÓò */
-static uint32_t     g_picCurrentAddress;           /* µ±Ç°PCµØÖ·Öµ */
+static uint8_t      g_picCurrentArea;              /* å½“å‰PCæ‰€åœ¨åŒºåŸŸ */
+static uint32_t     g_picCurrentAddress;           /* å½“å‰PCåœ°å€å€¼ */
 
 
 /* ================================================================= */
-/* B²ã: ICSP Ê±ĞòÎ»²Ù×÷²ã                                               */
+/* Bå±‚: ICSP æ—¶åºä½æ“ä½œå±‚                                               */
 /* ================================================================= */
 
 /*
- * ICSP ÃüÁî¶¨Òå (6-bit, LSB first)
+ * ICSP å‘½ä»¤å®šä¹‰ (6-bit, LSB first)
  *
- * ºËÊµÒÀ¾İ:
+ * æ ¸å®ä¾æ®:
  * 1. PIC10F200/202/204/206 Programming Specification, DS41228F
  * 2. PIC12F629/675 & PIC16F630/676 Programming Specification, DS41191D
  * 3. PIC16F627A/628A/648A Programming Specification, DS41196B
  * 4. PIC16F1825/1829 Programming Specification, DS41390D
  *
- * ËµÃ÷:
- * - baseline 12-bit ºËÃüÁî¼¯×îĞ¡, Ö÷ÒªÊÇ Program/Read/Increment/Begin/End/Bulk Erase
- * - ±ê×¼ 14-bit mid-range Ôö¼ÓÁË Load Configuration / Data EEPROM / End Programming
- * - enhanced mid-range ½øÒ»²½Ôö¼Ó Reset Address Óë Row Erase Program Memory
+ * è¯´æ˜:
+ * - baseline 12-bit æ ¸å‘½ä»¤é›†æœ€å°, ä¸»è¦æ˜¯ Program/Read/Increment/Begin/End/Bulk Erase
+ * - æ ‡å‡† 14-bit mid-range å¢åŠ äº† Load Configuration / Data EEPROM / End Programming
+ * - enhanced mid-range è¿›ä¸€æ­¥å¢åŠ  Reset Address ä¸ Row Erase Program Memory
  */
 
-/* ===== ±ê×¼ 14-bit / enhanced mid-range ¹²ÓÃÃüÁî ===== */
+/* ===== æ ‡å‡† 14-bit / enhanced mid-range å…±ç”¨å‘½ä»¤ ===== */
 #define CMD_LOAD_CFG            0x00    /* 000000: Load Configuration */
 #define CMD_LOAD_PROG           0x02    /* 000010: Load Data for Program Memory */
 #define CMD_LOAD_DATA           0x03    /* 000011: Load Data for Data Memory */
@@ -95,11 +100,11 @@ static uint32_t     g_picCurrentAddress;           /* µ±Ç°PCµØÖ·Öµ */
 #define CMD_ERASE_DATA          0x0B    /* 001011: Bulk Erase Data Memory */
 #define CMD_BEGIN_PROG_EXT      0x18    /* 011000: Begin Externally Timed Programming */
 
-/* ===== enhanced mid-range À©Õ¹ÃüÁî ===== */
+/* ===== enhanced mid-range æ‰©å±•å‘½ä»¤ ===== */
 #define CMD_ROW_ERASE_PROG      0x11    /* 010001: Row Erase Program Memory */
 #define CMD_RESET_ADDR          0x16    /* 010110: Reset Address */
 
-/* ===== baseline 12-bit ºËÃüÁî ===== */
+/* ===== baseline 12-bit æ ¸å‘½ä»¤ ===== */
 #define CMD12_LOAD_PROG         0x02    /* 000010: Load Data for Program Memory */
 #define CMD12_READ_PROG         0x04    /* 000100: Read Data from Program Memory */
 #define CMD12_INC_ADDR          0x06    /* 000110: Increment Address */
@@ -107,8 +112,8 @@ static uint32_t     g_picCurrentAddress;           /* µ±Ç°PCµØÖ·Öµ */
 #define CMD12_BULK_ERASE        0x09    /* 001001: Bulk Erase Program Memory */
 #define CMD12_END_PROG          0x0E    /* 001110: End Programming */
 
-/* ÈÈµãÂ·¾¶¿ìËÙºê:
- * µ± ICSP_CLK_DELAY ±»¶¨ÒåÎª¿ÕÊ±£¬¾¡Á¿±ÜÃâÈÈµãÂ·¾¶ÖĞµÄ¶îÍâº¯Êıµ÷ÓÃ¡£
+/* çƒ­ç‚¹è·¯å¾„å¿«é€Ÿå®:
+ * å½“ ICSP_CLK_DELAY è¢«å®šä¹‰ä¸ºç©ºæ—¶ï¼Œå°½é‡é¿å…çƒ­ç‚¹è·¯å¾„ä¸­çš„é¢å¤–å‡½æ•°è°ƒç”¨ã€‚
  */
 #define ICSP_IS_BASELINE_FAST() \
     (icsp_pdev != NULL && icsp_pdev->common.core_family == PIC8_CORE_BASELINE_12BIT)
@@ -128,12 +133,12 @@ static uint32_t     g_picCurrentAddress;           /* µ±Ç°PCµØÖ·Öµ */
 #define ICSP_USE_EXT_PROG_FAST()  (ICSP_IS_BASELINE_FAST())
 
 /*
- * ÔöÇ¿ĞÍºê: µİÔö ICSP µØÖ·, Í¬Ê±¸üĞÂ¸ú×Ù±äÁ¿ g_picCurrentAddress
+ * å¢å¼ºå‹å®: é€’å¢ ICSP åœ°å€, åŒæ—¶æ›´æ–°è·Ÿè¸ªå˜é‡ g_picCurrentAddress
  *
- * Éè¼ÆÒªµã:
- * - Ã¿Ö´ĞĞÒ»´Î ICSP Increment Ó²¼şÃüÁî, PC Ôö¼Ó 1
- * - Í¬²½µİÔö g_picCurrentAddress È·±£¸ú×Ù±äÁ¿ÓëÊµ¼Ê PC Ò»ÖÂ
- * - ´Ë´¦²»¼ì²é g_picCurrentArea, ÓÉµ÷ÓÃ·½±£Ö¤ÔÚÕıÈ·µÄÇøÓòÄÚµ÷ÓÃ
+ * è®¾è®¡è¦ç‚¹:
+ * - æ¯æ‰§è¡Œä¸€æ¬¡ ICSP Increment ç¡¬ä»¶å‘½ä»¤, PC å¢åŠ  1
+ * - åŒæ­¥é€’å¢ g_picCurrentAddress ç¡®ä¿è·Ÿè¸ªå˜é‡ä¸å®é™… PC ä¸€è‡´
+ * - æ­¤å¤„ä¸æ£€æŸ¥ g_picCurrentArea, ç”±è°ƒç”¨æ–¹ä¿è¯åœ¨æ­£ç¡®çš„åŒºåŸŸå†…è°ƒç”¨
  */
 #define ICSP_INCREMENT_ADDRESS_FAST() \
     do{ \
@@ -174,26 +179,26 @@ void icspDelayUs(uint32_t us)
     }
 }
 
-/* ---- ÔËĞĞÊ±Î»Ê±ÖÓËÙ¶È¿ØÖÆ (ËµÃ÷¼û icsp.h µÄ ICSP_CLK_DELAY) ---- */
+/* ---- è¿è¡Œæ—¶ä½æ—¶é’Ÿé€Ÿåº¦æ§åˆ¶ (è¯´æ˜è§ icsp.h çš„ ICSP_CLK_DELAY) ---- */
 #if !ICSP_CLK_FAST
 uint16_t g_icspPhasePad = 0U;
 
 /*
- * Éè¶¨ ICSP Î»Ê±ÖÓ (¶Á/Ğ´Ê±ĞòÍ¬²½ÉúĞ§)
- * Ã¿ bit ÖÜÆÚ ¡Ö 16 + 8*pad ¸ö CPU ÖÜÆÚ (72MHz ÏÂÔ¼ 222ns + 111ns*pad),
- * ³£ÊıÎª·´»ã±à±ê¶¨¹ÀÖµ, ÈçĞè¾«È·¿ÉÓÃÊ¾²¨Æ÷Êµ²âºóÎ¢µ÷
- * @param  hz  Ä¿±êÎ»Ê±ÖÓ (Hz), ¹ı¿ì×Ô¶¯Âäµ½×î¿ìµµ, ¹ıÂıÇ¯Î»µ½×îÂıµµ (~35kHz)
- * @return Êµ¼Ê´ïµ½µÄ½üËÆÆµÂÊ (Hz)
+ * è®¾å®š ICSP ä½æ—¶é’Ÿ (è¯»/å†™æ—¶åºåŒæ­¥ç”Ÿæ•ˆ)
+ * æ¯ bit å‘¨æœŸ â‰ˆ 16 + 8*pad ä¸ª CPU å‘¨æœŸ (72MHz ä¸‹çº¦ 222ns + 111ns*pad),
+ * å¸¸æ•°ä¸ºåæ±‡ç¼–æ ‡å®šä¼°å€¼, å¦‚éœ€ç²¾ç¡®å¯ç”¨ç¤ºæ³¢å™¨å®æµ‹åå¾®è°ƒ
+ * @param  hz  ç›®æ ‡ä½æ—¶é’Ÿ (Hz), è¿‡å¿«è‡ªåŠ¨è½åˆ°æœ€å¿«æ¡£, è¿‡æ…¢é’³ä½åˆ°æœ€æ…¢æ¡£ (~35kHz)
+ * @return å®é™…è¾¾åˆ°çš„è¿‘ä¼¼é¢‘ç‡ (Hz)
  */
 uint32_t icspSetIcspClock(uint32_t hz)
 {
-    uint32_t per;                       /* Ä¿±ê bit ÖÜÆÚ (CPU ÖÜÆÚÊı) */
+    uint32_t per;                       /* ç›®æ ‡ bit å‘¨æœŸ (CPU å‘¨æœŸæ•°) */
     uint32_t pad;
 
     if (hz == 0UL)
         hz = 1UL;
     per = 72000000UL / hz;
-    pad = (per > 16UL) ? ((per - 12UL) >> 3) : 0UL;   /* +4 ÉáÈë */
+    pad = (per > 16UL) ? ((per - 12UL) >> 3) : 0UL;   /* +4 èˆå…¥ */
     if (pad > 255UL)
         pad = 255UL;
     g_icspPhasePad = (uint16_t)pad;
@@ -203,13 +208,13 @@ uint32_t icspSetIcspClock(uint32_t hz)
 
 
 /* ================================================================= */
-/* ÄÚ²¿¸¨Öúº¯Êı                                                         */
+/* å†…éƒ¨è¾…åŠ©å‡½æ•°                                                         */
 /* ================================================================= */
 
 /**
- * @brief  ¸ù¾İÎ»¿í»ñÈ¡¶ÔÓ¦µÄÎ»ÑÚÂë
- * @param  width Î»¿í (0=ÊÓÎª16Î»)
- * @return È«1Î»ÑÚÂë, Èç width=8 ·µ»Ø 0x00FF
+ * @brief  æ ¹æ®ä½å®½è·å–å¯¹åº”çš„ä½æ©ç 
+ * @param  width ä½å®½ (0=è§†ä¸º16ä½)
+ * @return å…¨1ä½æ©ç , å¦‚ width=8 è¿”å› 0x00FF
  */
 static uint16_t icspGetBitMask(uint8_t width)
 {
@@ -221,9 +226,9 @@ static uint16_t icspGetBitMask(uint8_t width)
 }
 
 /**
- * @brief  »ñÈ¡²Á³ıÇ°±£´æµÄÅäÖÃ×Ö´æ´¢²ÛÎ»Ö¸Õë
- * @param  idx ÅäÖÃ×ÖË÷Òı (0~3, ¶ÔÓ¦ config_word ~ config4_word)
- * @return Ö¸Ïò¶ÔÓ¦ÅäÖÃ×ÖµÄÖ¸Õë, Ë÷ÒıÎŞĞ§·µ»Ø NULL
+ * @brief  è·å–æ“¦é™¤å‰ä¿å­˜çš„é…ç½®å­—å­˜å‚¨æ§½ä½æŒ‡é’ˆ
+ * @param  idx é…ç½®å­—ç´¢å¼• (0~3, å¯¹åº” config_word ~ config4_word)
+ * @return æŒ‡å‘å¯¹åº”é…ç½®å­—çš„æŒ‡é’ˆ, ç´¢å¼•æ— æ•ˆè¿”å› NULL
  */
 static uint16_t *icspGetSavedConfigSlot(uint8_t idx)
 {
@@ -238,9 +243,9 @@ static uint16_t *icspGetSavedConfigSlot(uint8_t idx)
 }
 
 /**
- * @brief  »ñÈ¡²Á³ıÇ°±£´æµÄĞ£×¼×Ö´æ´¢²ÛÎ»Ö¸Õë
- * @param  idx Ğ£×¼×ÖË÷Òı (0=osccal, 1=cal_word1, 2=cal_word2)
- * @return Ö¸Ïò¶ÔÓ¦Ğ£×¼×ÖµÄÖ¸Õë, Ë÷ÒıÎŞĞ§·µ»Ø NULL
+ * @brief  è·å–æ“¦é™¤å‰ä¿å­˜çš„æ ¡å‡†å­—å­˜å‚¨æ§½ä½æŒ‡é’ˆ
+ * @param  idx æ ¡å‡†å­—ç´¢å¼• (0=osccal, 1=cal_word1, 2=cal_word2)
+ * @return æŒ‡å‘å¯¹åº”æ ¡å‡†å­—çš„æŒ‡é’ˆ, ç´¢å¼•æ— æ•ˆè¿”å› NULL
  */
 static uint16_t *icspGetSavedCalSlot(uint8_t idx)
 {
@@ -254,9 +259,9 @@ static uint16_t *icspGetSavedCalSlot(uint8_t idx)
 }
 
 /**
- * @brief  »ñÈ¡ÓĞĞ§µÄÅäÖÃ×Ö¸öÊı
- *         ÓÅÏÈÊ¹ÓÃ common.config_word_count, ÈôÎª0Ôò»ØÍËµ½×Ó½á¹¹ÌåÅĞ¶Ï
- * @return ÅäÖÃ×Ö¸öÊı, Ê§°Ü·µ»Ø0
+ * @brief  è·å–æœ‰æ•ˆçš„é…ç½®å­—ä¸ªæ•°
+ *         ä¼˜å…ˆä½¿ç”¨ common.config_word_count, è‹¥ä¸º0åˆ™å›é€€åˆ°å­ç»“æ„ä½“åˆ¤æ–­
+ * @return é…ç½®å­—ä¸ªæ•°, å¤±è´¥è¿”å›0
  */
 static uint8_t icspGetConfigWordCountEffective(void)
 {
@@ -264,7 +269,7 @@ static uint8_t icspGetConfigWordCountEffective(void)
         return 0U;
     if (icsp_pdev->common.config_word_count != 0U)
         return icsp_pdev->common.config_word_count;
-    /* baseline Æ÷¼ş: Èô config_shadow_addr »ò config_addr ·ÇÁã, ÔòÖÁÉÙÓĞ1¸öÅäÖÃ×Ö */
+    /* baseline å™¨ä»¶: è‹¥ config_shadow_addr æˆ– config_addr éé›¶, åˆ™è‡³å°‘æœ‰1ä¸ªé…ç½®å­— */
     if (ICSP_IS_BASELINE_FAST() &&
         (icsp_pdev->baseLine.config_shadow_addr != 0U || icsp_pdev->common.config_addr != 0U))
         return 1U;
@@ -272,9 +277,9 @@ static uint8_t icspGetConfigWordCountEffective(void)
 }
 
 /**
- * @brief  »ñÈ¡ÓĞĞ§µÄ OSCCAL Ğ£×¼×Ö¸öÊı
- *         ÓÅÏÈÊ¹ÓÃ common.osccal_word_count, ÈôÎª0Ôò¸ù¾İ baseline ×Ó½á¹¹ÌåÅĞ¶Ï
- * @return Ğ£×¼×Ö¸öÊı, Ê§°Ü·µ»Ø0
+ * @brief  è·å–æœ‰æ•ˆçš„ OSCCAL æ ¡å‡†å­—ä¸ªæ•°
+ *         ä¼˜å…ˆä½¿ç”¨ common.osccal_word_count, è‹¥ä¸º0åˆ™æ ¹æ® baseline å­ç»“æ„ä½“åˆ¤æ–­
+ * @return æ ¡å‡†å­—ä¸ªæ•°, å¤±è´¥è¿”å›0
  */
 static uint8_t icspGetOsccalWordCountEffective(void)
 {
@@ -282,7 +287,7 @@ static uint8_t icspGetOsccalWordCountEffective(void)
         return 0U;
     if (icsp_pdev->common.osccal_word_count != 0U)
         return icsp_pdev->common.osccal_word_count;
-    /* baseline Æ÷¼ş: Èô osccal_addr »ò osccal_base ·ÇÁã, ÔòÖÁÉÙÓĞ1¸öĞ£×¼×Ö */
+    /* baseline å™¨ä»¶: è‹¥ osccal_addr æˆ– osccal_base éé›¶, åˆ™è‡³å°‘æœ‰1ä¸ªæ ¡å‡†å­— */
     if (ICSP_IS_BASELINE_FAST() &&
         (icsp_pdev->baseLine.osccal_addr != 0U || icsp_pdev->common.osccal_base != 0U))
         return 1U;
@@ -290,11 +295,11 @@ static uint8_t icspGetOsccalWordCountEffective(void)
 }
 
 /**
- * @brief  ¸ù¾İË÷Òı»ñÈ¡ÅäÖÃ×ÖµÄ¾ø¶ÔµØÖ·
- *         ÓÅÏÈÊ¹ÓÃ DCRDef ÖĞµÄ dcr_addr, ·ñÔò°´¼Ü¹¹¹æÔò¼ÆËã
- * @param  idx  ÅäÖÃ×ÖË÷Òı (0¿ªÊ¼)
- * @param  addr Êä³ö: ÅäÖÃ×ÖÔÚ±à³Ì¿Õ¼äÖĞµÄµØÖ·
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ë÷ÒıÔ½½ç»ò²ÎÊıÎŞĞ§
+ * @brief  æ ¹æ®ç´¢å¼•è·å–é…ç½®å­—çš„ç»å¯¹åœ°å€
+ *         ä¼˜å…ˆä½¿ç”¨ DCRDef ä¸­çš„ dcr_addr, å¦åˆ™æŒ‰æ¶æ„è§„åˆ™è®¡ç®—
+ * @param  idx  é…ç½®å­—ç´¢å¼• (0å¼€å§‹)
+ * @param  addr è¾“å‡º: é…ç½®å­—åœ¨ç¼–ç¨‹ç©ºé—´ä¸­çš„åœ°å€
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=ç´¢å¼•è¶Šç•Œæˆ–å‚æ•°æ— æ•ˆ
  */
 static uint8_t icspGetConfigAddressByIndex(uint8_t idx, uint32_t *addr)
 {
@@ -306,7 +311,7 @@ static uint8_t icspGetConfigAddressByIndex(uint8_t idx, uint32_t *addr)
     if (idx >= count)
         return ICSP_ERR;
 
-    /* ÓÅÏÈÊ¹ÓÃ DCRDef ÖĞ¼ÇÂ¼µÄÎïÀíµØÖ· */
+    /* ä¼˜å…ˆä½¿ç”¨ DCRDef ä¸­è®°å½•çš„ç‰©ç†åœ°å€ */
     if (!ICSP_IS_BASELINE_FAST() &&
         icsp_pdev->common.config_dcr[idx].dcr_addr != 0U)
     {
@@ -314,24 +319,24 @@ static uint8_t icspGetConfigAddressByIndex(uint8_t idx, uint32_t *addr)
         return ICSP_OK;
     }
 
-    /* baseline Æ÷¼ş: Ê¹ÓÃ config_shadow_addr »ò°´Æ«ÒÆ¼ÆËã */
+    /* baseline å™¨ä»¶: ä½¿ç”¨ config_shadow_addr æˆ–æŒ‰åç§»è®¡ç®— */
     if (ICSP_IS_BASELINE_FAST())
     {
         *addr = icspGetBaselineConfigPhys();
         return ICSP_OK;
     }
 
-    /* 14-bit / Enhanced: config_addr + Ë÷ÒıÆ«ÒÆ */
+    /* 14-bit / Enhanced: config_addr + ç´¢å¼•åç§» */
     *addr = icsp_pdev->common.config_addr + idx;
     return ICSP_OK;
 }
 
 /**
- * @brief  ¸ù¾İË÷Òı»ñÈ¡ OSCCAL Ğ£×¼×ÖµÄ¾ø¶ÔµØÖ·
- *         Í¨¹ı osccal_addr (baseline) »ò osccal_base + idx (14-bit) ²éÕÒ
- * @param  idx  Ğ£×¼×ÖË÷Òı (0¿ªÊ¼)
- * @param  addr Êä³ö: Ğ£×¼×ÖÔÚ±à³Ì¿Õ¼äÖĞµÄµØÖ·
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ë÷ÒıÔ½½ç»ò²ÎÊıÎŞĞ§
+ * @brief  æ ¹æ®ç´¢å¼•è·å– OSCCAL æ ¡å‡†å­—çš„ç»å¯¹åœ°å€
+ *         é€šè¿‡ osccal_addr (baseline) æˆ– osccal_base + idx (14-bit) æŸ¥æ‰¾
+ * @param  idx  æ ¡å‡†å­—ç´¢å¼• (0å¼€å§‹)
+ * @param  addr è¾“å‡º: æ ¡å‡†å­—åœ¨ç¼–ç¨‹ç©ºé—´ä¸­çš„åœ°å€
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=ç´¢å¼•è¶Šç•Œæˆ–å‚æ•°æ— æ•ˆ
  */
 static uint8_t icspGetOsccalAddressByIndex(uint8_t idx, uint32_t *addr)
 {
@@ -343,7 +348,7 @@ static uint8_t icspGetOsccalAddressByIndex(uint8_t idx, uint32_t *addr)
     if (idx >= count)
         return ICSP_ERR;
 
-    /* baseline Æ÷¼ş: Ê¹ÓÃ osccal_addr ¶ÀÁ¢µØÖ·»ò osccal_base */
+    /* baseline å™¨ä»¶: ä½¿ç”¨ osccal_addr ç‹¬ç«‹åœ°å€æˆ– osccal_base */
     if (ICSP_IS_BASELINE_FAST())
     {
         *addr = (icsp_pdev->baseLine.osccal_addr != 0U) ?
@@ -352,7 +357,7 @@ static uint8_t icspGetOsccalAddressByIndex(uint8_t idx, uint32_t *addr)
         return (*addr != 0U) ? ICSP_OK : ICSP_ERR;
     }
 
-    /* 14-bit / Enhanced: osccal_base + Æ«ÒÆ */
+    /* 14-bit / Enhanced: osccal_base + åç§» */
     if (icsp_pdev->common.osccal_base != 0U &&
         idx < icsp_pdev->common.osccal_word_count)
     {
@@ -364,18 +369,18 @@ static uint8_t icspGetOsccalAddressByIndex(uint8_t idx, uint32_t *addr)
 }
 
 /**
- * @brief  ¸ù¾İË÷Òı»ñÈ¡¶îÍâĞ£×¼Êı¾İµÄ¾ø¶ÔµØÖ·
- *         ÓÅÏÈÊ¹ÓÃ cal_data_base, ·ñÔò»ØÍËµ½ midRange ×Ó½á¹¹ÌåÖĞµÄ cal_word µØÖ·
- * @param  idx  ¶îÍâĞ£×¼Êı¾İË÷Òı (0¿ªÊ¼)
- * @param  addr Êä³ö: Ğ£×¼Êı¾İÔÚ±à³Ì¿Õ¼äÖĞµÄµØÖ·
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ë÷ÒıÔ½½ç»ò²ÎÊıÎŞĞ§
+ * @brief  æ ¹æ®ç´¢å¼•è·å–é¢å¤–æ ¡å‡†æ•°æ®çš„ç»å¯¹åœ°å€
+ *         ä¼˜å…ˆä½¿ç”¨ cal_data_base, å¦åˆ™å›é€€åˆ° midRange å­ç»“æ„ä½“ä¸­çš„ cal_word åœ°å€
+ * @param  idx  é¢å¤–æ ¡å‡†æ•°æ®ç´¢å¼• (0å¼€å§‹)
+ * @param  addr è¾“å‡º: æ ¡å‡†æ•°æ®åœ¨ç¼–ç¨‹ç©ºé—´ä¸­çš„åœ°å€
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=ç´¢å¼•è¶Šç•Œæˆ–å‚æ•°æ— æ•ˆ
  */
 static uint8_t icspGetExtraCalAddressByIndex(uint8_t idx, uint32_t *addr)
 {
     if (icsp_pdev == NULL || addr == NULL)
         return ICSP_ERR;
 
-    /* ÓÅÏÈÊ¹ÓÃÍ¨ÓÃ cal_data_base */
+    /* ä¼˜å…ˆä½¿ç”¨é€šç”¨ cal_data_base */
     if (icsp_pdev->common.cal_data_base != 0U &&
         idx < icsp_pdev->common.cal_data_word_count)
     {
@@ -383,7 +388,7 @@ static uint8_t icspGetExtraCalAddressByIndex(uint8_t idx, uint32_t *addr)
         return ICSP_OK;
     }
 
-    /* mid-range Æ÷¼şµÄ×¨ÓÃĞ£×¼×ÖµØÖ· */
+    /* mid-range å™¨ä»¶çš„ä¸“ç”¨æ ¡å‡†å­—åœ°å€ */
     if (icsp_pdev->common.core_family == PIC8_CORE_MIDRANGE_14BIT)
     {
         if (idx == 0U && icsp_pdev->midRange.cal_word1_addr != 0U)
@@ -402,11 +407,11 @@ static uint8_t icspGetExtraCalAddressByIndex(uint8_t idx, uint32_t *addr)
 }
 
 /**
- * @brief  ÔÚ³ÌĞòÇøÖ¸¶¨µØÖ·¶ÁÈ¡Ò»¸ö³ÌĞò×Ö
- *         ÏÈÍ¨¹ı icspSetProgramAddress ¶¨Î» PC, ÔÙ¶ÁÈ¡
- * @param  targetAddr Ä¿±ê³ÌĞò×ÖµØÖ·
- * @param  value      Êä³ö: ¶ÁÈ¡µ½µÄÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  åœ¨ç¨‹åºåŒºæŒ‡å®šåœ°å€è¯»å–ä¸€ä¸ªç¨‹åºå­—
+ *         å…ˆé€šè¿‡ icspSetProgramAddress å®šä½ PC, å†è¯»å–
+ * @param  targetAddr ç›®æ ‡ç¨‹åºå­—åœ°å€
+ * @param  value      è¾“å‡º: è¯»å–åˆ°çš„æ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 static uint8_t icspReadProgramWordAt(uint32_t targetAddr, uint16_t *value)
 {
@@ -419,12 +424,12 @@ static uint8_t icspReadProgramWordAt(uint32_t targetAddr, uint16_t *value)
 }
 
 /**
- * @brief  ÔÚ³ÌĞòÇøÖ¸¶¨µØÖ·Ğ´ÈëÒ»¸ö³ÌĞò×Ö
- *         baseline Æ÷¼şÖ±½Ó´Ó³ÌĞòÇø·ÃÎÊ, ÎŞĞè LoadConfig
- * @param  targetAddr Ä¿±ê³ÌĞò×ÖµØÖ·
- * @param  value      ÒªĞ´ÈëµÄÊı¾İ
- * @param  waitUs     ±à³ÌµÈ´ıÊ±¼ä (us)
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  åœ¨ç¨‹åºåŒºæŒ‡å®šåœ°å€å†™å…¥ä¸€ä¸ªç¨‹åºå­—
+ *         baseline å™¨ä»¶ç›´æ¥ä»ç¨‹åºåŒºè®¿é—®, æ— éœ€ LoadConfig
+ * @param  targetAddr ç›®æ ‡ç¨‹åºå­—åœ°å€
+ * @param  value      è¦å†™å…¥çš„æ•°æ®
+ * @param  waitUs     ç¼–ç¨‹ç­‰å¾…æ—¶é—´ (us)
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 static uint8_t icspWriteProgramWordAt(uint32_t targetAddr, uint16_t value, uint16_t waitUs)
 {
@@ -439,11 +444,11 @@ static uint8_t icspWriteProgramWordAt(uint32_t targetAddr, uint16_t value, uint1
 }
 
 /**
- * @brief  ¸ù¾İ¼Ü¹¹ÀàĞÍ, ÓÃ¾ø¶ÔµØÖ·¶ÁÈ¡Ò»¸ö×Ö
- *         baseline ×ß³ÌĞòÇøÂ·¾¶, 14-bit/Enhanced ×ßÅäÖÃ¿Õ¼äÂ·¾¶
- * @param  targetAddr Ä¿±ê¾ø¶ÔµØÖ·
- * @param  value      Êä³ö: ¶ÁÈ¡µ½µÄÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  æ ¹æ®æ¶æ„ç±»å‹, ç”¨ç»å¯¹åœ°å€è¯»å–ä¸€ä¸ªå­—
+ *         baseline èµ°ç¨‹åºåŒºè·¯å¾„, 14-bit/Enhanced èµ°é…ç½®ç©ºé—´è·¯å¾„
+ * @param  targetAddr ç›®æ ‡ç»å¯¹åœ°å€
+ * @param  value      è¾“å‡º: è¯»å–åˆ°çš„æ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 static uint8_t icspReadWordByAbsoluteAddress(uint32_t targetAddr, uint16_t *value)
 {
@@ -457,12 +462,12 @@ static uint8_t icspReadWordByAbsoluteAddress(uint32_t targetAddr, uint16_t *valu
 }
 
 /**
- * @brief  ¸ù¾İ¼Ü¹¹ÀàĞÍ, ÓÃ¾ø¶ÔµØÖ·Ğ´ÈëÒ»¸ö×Ö
- *         baseline ×ß³ÌĞòÇøÂ·¾¶, 14-bit/Enhanced ×ßÅäÖÃ¿Õ¼äÂ·¾¶
- * @param  targetAddr Ä¿±ê¾ø¶ÔµØÖ·
- * @param  value      ÒªĞ´ÈëµÄÊı¾İ
- * @param  waitUs     ±à³ÌµÈ´ıÊ±¼ä (us)
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  æ ¹æ®æ¶æ„ç±»å‹, ç”¨ç»å¯¹åœ°å€å†™å…¥ä¸€ä¸ªå­—
+ *         baseline èµ°ç¨‹åºåŒºè·¯å¾„, 14-bit/Enhanced èµ°é…ç½®ç©ºé—´è·¯å¾„
+ * @param  targetAddr ç›®æ ‡ç»å¯¹åœ°å€
+ * @param  value      è¦å†™å…¥çš„æ•°æ®
+ * @param  waitUs     ç¼–ç¨‹ç­‰å¾…æ—¶é—´ (us)
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 static uint8_t icspWriteWordByAbsoluteAddress(uint32_t targetAddr, uint16_t value, uint16_t waitUs)
 {
@@ -476,34 +481,34 @@ static uint8_t icspWriteWordByAbsoluteAddress(uint32_t targetAddr, uint16_t valu
 }
 
 /**
- * @brief  ¹¹½¨²Á³ıºó»Ö¸´ÅäÖÃ×ÖµÄÖµ
- *         ¸ù¾İ DCRDef µÄ impl_mask ºÍ unimpl_val,
- *         ½«±£´æµÄÖµÓëÎ´ÊµÏÖÎ»Ìî³äÖµºÏ²¢, Éú³ÉÕıÈ·µÄ»Ö¸´Öµ¡£
+ * @brief  æ„å»ºæ“¦é™¤åæ¢å¤é…ç½®å­—çš„å€¼
+ *         æ ¹æ® DCRDef çš„ impl_mask å’Œ unimpl_val,
+ *         å°†ä¿å­˜çš„å€¼ä¸æœªå®ç°ä½å¡«å……å€¼åˆå¹¶, ç”Ÿæˆæ­£ç¡®çš„æ¢å¤å€¼ã€‚
  *
- * »Ö¸´Âß¼­: (savedValue & implMask) | unimplFill
- * ÆäÖĞ unimplFill ¸ù¾İ unimpl_val ¾ö¶¨:
- *   - unimpl_val=1 ¡ú Î´ÊµÏÖÎ»Ìî1 (´ó¶àÊıÆ÷¼ş)
- *   - unimpl_val=0 ¡ú Î´ÊµÏÖÎ»Ìî²Á³ıÄ¬ÈÏÖµ
+ * æ¢å¤é€»è¾‘: (savedValue & implMask) | unimplFill
+ * å…¶ä¸­ unimplFill æ ¹æ® unimpl_val å†³å®š:
+ *   - unimpl_val=1 â†’ æœªå®ç°ä½å¡«1 (å¤§å¤šæ•°å™¨ä»¶)
+ *   - unimpl_val=0 â†’ æœªå®ç°ä½å¡«æ“¦é™¤é»˜è®¤å€¼
  *
- * @param  idx        ÅäÖÃ×ÖË÷Òı
- * @param  savedValue ²Á³ıÇ°±£´æµÄÅäÖÃ×ÖÔ­Ê¼Öµ
- * @return »Ö¸´Ê±Ó¦Ğ´ÈëµÄÅäÖÃ×ÖÖµ (ÒÑºÏ²¢Î´ÊµÏÖÎ»)
+ * @param  idx        é…ç½®å­—ç´¢å¼•
+ * @param  savedValue æ“¦é™¤å‰ä¿å­˜çš„é…ç½®å­—åŸå§‹å€¼
+ * @return æ¢å¤æ—¶åº”å†™å…¥çš„é…ç½®å­—å€¼ (å·²åˆå¹¶æœªå®ç°ä½)
  */
 
 /**
- * @brief  ¼ì²éÅäÖÃ×Öµ±Ç°ÊÇ·ñ´¦ÓÚÒÑ²Á³ı×´Ì¬
- *         ÓÃ¶ÁÈ¡ÖµÓë DCRDef ÖĞµÄ impl_mask/default_value ±È½Ï,
- *         ÅĞ¶ÏÊÇ·ñÒÑ±»²Á³ı (È«1) »òÈÔÈ»±£ÁôÔ­Öµ¡£
- * @param  idx       ÅäÖÃ×ÖË÷Òı
- * @param  readValue ´ÓÆ÷¼ş¶ÁÈ¡µ½µÄµ±Ç°ÅäÖÃ×ÖÖµ
- * @return 1=ÒÑ²Á³ı, 0=Î´²Á³ı (ÈÔÓĞÊı¾İ)
+ * @brief  æ£€æŸ¥é…ç½®å­—å½“å‰æ˜¯å¦å¤„äºå·²æ“¦é™¤çŠ¶æ€
+ *         ç”¨è¯»å–å€¼ä¸ DCRDef ä¸­çš„ impl_mask/default_value æ¯”è¾ƒ,
+ *         åˆ¤æ–­æ˜¯å¦å·²è¢«æ“¦é™¤ (å…¨1) æˆ–ä»ç„¶ä¿ç•™åŸå€¼ã€‚
+ * @param  idx       é…ç½®å­—ç´¢å¼•
+ * @param  readValue ä»å™¨ä»¶è¯»å–åˆ°çš„å½“å‰é…ç½®å­—å€¼
+ * @return 1=å·²æ“¦é™¤, 0=æœªæ“¦é™¤ (ä»æœ‰æ•°æ®)
  */
 
 /**
- * @brief  ¼ì²éĞ£×¼×Öµ±Ç°ÊÇ·ñ´¦ÓÚÒÑ²Á³ı×´Ì¬ (È«1)
- *         Ğ£×¼×ÖÃ»ÓĞ DCRDef ÑÚÂë, Ö±½ÓÓÃÈ«1±È½Ï
- * @param  readValue ´ÓÆ÷¼ş¶ÁÈ¡µ½µÄµ±Ç°Ğ£×¼×ÖÖµ
- * @return 1=ÒÑ²Á³ı (È«1), 0=Î´²Á³ı
+ * @brief  æ£€æŸ¥æ ¡å‡†å­—å½“å‰æ˜¯å¦å¤„äºå·²æ“¦é™¤çŠ¶æ€ (å…¨1)
+ *         æ ¡å‡†å­—æ²¡æœ‰ DCRDef æ©ç , ç›´æ¥ç”¨å…¨1æ¯”è¾ƒ
+ * @param  readValue ä»å™¨ä»¶è¯»å–åˆ°çš„å½“å‰æ ¡å‡†å­—å€¼
+ * @return 1=å·²æ“¦é™¤ (å…¨1), 0=æœªæ“¦é™¤
  */
 static uint8_t icspIsCalWordErased(uint16_t readValue)
 {
@@ -517,8 +522,8 @@ static uint8_t icspIsCalWordErased(uint16_t readValue)
 }
 
 /**
- * @brief  Çå³ı²Á³ıÇ°±£´æµÄ²ÎÊı, È«²¿Ìî³ä 0xFF (²Á³ıÌ¬)
- *         ²¢½«ÓĞĞ§±êÖ¾ g_picSavedParamValid ÖÃÎª 0 (ÎŞĞ§)
+ * @brief  æ¸…é™¤æ“¦é™¤å‰ä¿å­˜çš„å‚æ•°, å…¨éƒ¨å¡«å…… 0xFF (æ“¦é™¤æ€)
+ *         å¹¶å°†æœ‰æ•ˆæ ‡å¿— g_picSavedParamValid ç½®ä¸º 0 (æ— æ•ˆ)
  */
 static void icspClearSavedParam(void)
 {
@@ -527,10 +532,10 @@ static void icspClearSavedParam(void)
 }
 
 /**
- * @brief  ÔÚÕûÆ¬²Á³ıÇ°, ±¸·İ¹Ø¼ü²ÎÊı (ÅäÖÃ×Ö/OSCCAL/Ğ£×¼Êı¾İ)
- *         ÒÀ´Î±¸·İ: ËùÓĞÅäÖÃ×Ö ¡ú OSCCAL ¡ú ¶îÍâĞ£×¼Êı¾İ
- *         ±¸·İ³É¹¦ºóÉèÖÃ g_picSavedParamValid = 1
- * @return ICSP_OK=³É¹¦, ICSP_ERR=±¸·İÊ§°Ü (Æ÷¼şÒì³£)
+ * @brief  åœ¨æ•´ç‰‡æ“¦é™¤å‰, å¤‡ä»½å…³é”®å‚æ•° (é…ç½®å­—/OSCCAL/æ ¡å‡†æ•°æ®)
+ *         ä¾æ¬¡å¤‡ä»½: æ‰€æœ‰é…ç½®å­— â†’ OSCCAL â†’ é¢å¤–æ ¡å‡†æ•°æ®
+ *         å¤‡ä»½æˆåŠŸåè®¾ç½® g_picSavedParamValid = 1
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤‡ä»½å¤±è´¥ (å™¨ä»¶å¼‚å¸¸)
  */
 /* OSCCAL erase pre-check helpers:
  * - OSCCAL inside the code area can be hidden by code protection (reads 0x0000)
@@ -569,7 +574,7 @@ static uint8_t icspBackupCriticalWords(void)
 
     icspClearSavedParam();
 
-    /* ±¸·İËùÓĞÅäÖÃ×Ö */
+    /* å¤‡ä»½æ‰€æœ‰é…ç½®å­— */
     count = icspGetConfigWordCountEffective();
     for (idx = 0U; idx < count && idx < MAX_CONFIG_WORDS; idx++)
     {
@@ -589,7 +594,7 @@ static uint8_t icspBackupCriticalWords(void)
         #endif
     }
 
-    /* ±¸·İ OSCCAL Ğ£×¼×Ö */
+    /* å¤‡ä»½ OSCCAL æ ¡å‡†å­— */
     if (icspGetOsccalWordCountEffective() != 0U)
     {
         slot = icspGetSavedCalSlot(0U);
@@ -626,7 +631,7 @@ static uint8_t icspBackupCriticalWords(void)
         #endif
     }
 
-    /* ±¸·İ¶îÍâĞ£×¼Êı¾İ */
+    /* å¤‡ä»½é¢å¤–æ ¡å‡†æ•°æ® */
     for (idx = 0U; idx < icsp_pdev->common.cal_data_word_count && idx < 2U; idx++)
     {
         uint32_t targetAddr;
@@ -654,10 +659,10 @@ static uint8_t icspBackupCriticalWords(void)
 }
 
 /**
- * @brief  ÔÚÕûÆ¬²Á³ıºó, »Ö¸´¹Ø¼ü²ÎÊı (ÅäÖÃ×Ö/OSCCAL/Ğ£×¼Êı¾İ)
- *         ¶ÔÃ¿¸ö±¸·İÏî: ÏÈ¶ÁÈ¡µ±Ç°Öµ, ÈôÒÑ²Á³ıÔòĞ´»Ø±¸·İÖµ¡£
- *         Ğ´»ØÊ±Ê¹ÓÃ icspBuildConfigRestoreValue ´¦ÀíÎ´ÊµÏÖÎ»Ìî³ä¡£
- * @return ICSP_OK=³É¹¦, ICSP_ERR=»Ö¸´Ê§°Ü
+ * @brief  åœ¨æ•´ç‰‡æ“¦é™¤å, æ¢å¤å…³é”®å‚æ•° (é…ç½®å­—/OSCCAL/æ ¡å‡†æ•°æ®)
+ *         å¯¹æ¯ä¸ªå¤‡ä»½é¡¹: å…ˆè¯»å–å½“å‰å€¼, è‹¥å·²æ“¦é™¤åˆ™å†™å›å¤‡ä»½å€¼ã€‚
+ *         å†™å›æ—¶ä½¿ç”¨ icspBuildConfigRestoreValue å¤„ç†æœªå®ç°ä½å¡«å……ã€‚
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=æ¢å¤å¤±è´¥
  */
 static uint8_t icspRestoreCriticalWords(void)
 {
@@ -670,7 +675,7 @@ static uint8_t icspRestoreCriticalWords(void)
     if (icsp_pdev == NULL || g_picSavedParamValid == 0U)
         return ICSP_ERR;
 
-    /* »Ö¸´ËùÓĞÅäÖÃ×Ö */
+    /* æ¢å¤æ‰€æœ‰é…ç½®å­— */
     /* Restore only the bits OUTSIDE impl_mask after erase (calibration/factory
      * content); impl bits stay all-ones (erased) so a code-protected
      * (CP/CPD = 0) config is NOT re-enabled and program reads stay open.
@@ -722,7 +727,7 @@ static uint8_t icspRestoreCriticalWords(void)
         #endif
     }
 
-    /* »Ö¸´ OSCCAL Ğ£×¼×Ö */
+    /* æ¢å¤ OSCCAL æ ¡å‡†å­— */
     if (icspGetOsccalWordCountEffective() != 0U)
     {
         slot = icspGetSavedCalSlot(0U);
@@ -747,7 +752,7 @@ static uint8_t icspRestoreCriticalWords(void)
         }
     }
 
-    /* »Ö¸´¶îÍâĞ£×¼Êı¾İ */
+    /* æ¢å¤é¢å¤–æ ¡å‡†æ•°æ® */
     for (idx = 0U; idx < icsp_pdev->common.cal_data_word_count && idx < 2U; idx++)
     {
         slot = icspGetSavedCalSlot((uint8_t)(idx + 1U));
@@ -779,10 +784,10 @@ static uint8_t icspRestoreCriticalWords(void)
 }
 
 /**
- * @brief  »ñÈ¡ÑÓÊ±Öµ£¬Èç¹û²ÎÊıÎª0ÔòÊ¹ÓÃÄ¬ÈÏÖµ
- * @param  value       ²ÎÊıÑÓÊ±Öµ
- * @param  defaultValue Ä¬ÈÏÑÓÊ±Öµ
- * @return ÓĞĞ§ÑÓÊ±Öµ
+ * @brief  è·å–å»¶æ—¶å€¼ï¼Œå¦‚æœå‚æ•°ä¸º0åˆ™ä½¿ç”¨é»˜è®¤å€¼
+ * @param  value       å‚æ•°å»¶æ—¶å€¼
+ * @param  defaultValue é»˜è®¤å»¶æ—¶å€¼
+ * @return æœ‰æ•ˆå»¶æ—¶å€¼
  */
 static uint16_t icspGetDelayOrDefault(uint16_t value, uint16_t defaultValue)
 {
@@ -790,10 +795,10 @@ static uint16_t icspGetDelayOrDefault(uint16_t value, uint16_t defaultValue)
 }
 
 /**
- * @brief  Enhanced Mid-Range Ê¹ÓÃ Reset Address ½«PC¸´Î»µ½0x0000
+ * @brief  Enhanced Mid-Range ä½¿ç”¨ Reset Address å°†PCå¤ä½åˆ°0x0000
  *
- * ×¢Òâ: ´Ë²Ù×÷ºó PC ±»¸´Î»µ½ 0x0000 (³ÌĞòÇøÆğÊ¼),
- *       Òò´ËĞèÒªÍ¬²½¸üĞÂ¸ú×Ù±äÁ¿¡£
+ * æ³¨æ„: æ­¤æ“ä½œå PC è¢«å¤ä½åˆ° 0x0000 (ç¨‹åºåŒºèµ·å§‹),
+ *       å› æ­¤éœ€è¦åŒæ­¥æ›´æ–°è·Ÿè¸ªå˜é‡ã€‚
  */
 static void icspResetAddressRaw(void)
 {
@@ -805,8 +810,8 @@ static void icspResetAddressRaw(void)
         icspLoadCmd(CMD_RESET_ADDR);
         ICSP_CMD_GAP_FAST();
         /*
-         * CMD_RESET_ADDR ½« PC ¸´Î»µ½ 0x0000 (³ÌĞòÇøÆğÊ¼),
-         * Í¬²½¸üĞÂ¸ú×Ù±äÁ¿¡£
+         * CMD_RESET_ADDR å°† PC å¤ä½åˆ° 0x0000 (ç¨‹åºåŒºèµ·å§‹),
+         * åŒæ­¥æ›´æ–°è·Ÿè¸ªå˜é‡ã€‚
          */
         g_picCurrentArea = ICSP_AREA_PROGRAM;
         g_picCurrentAddress = 0U;
@@ -814,10 +819,10 @@ static void icspResetAddressRaw(void)
 }
 
 /**
- * @brief  ÔÚµ±Ç°PCµØÖ·Ö´ĞĞÒ»ÕûĞĞ²Á³ı£¨½ö enhanced mid-range Ö§³Ö£©
- * @return ICSP_OK=³É¹¦, ICSP_ERR=µ±Ç°Æ÷¼ş²»Ö§³Ö
+ * @brief  åœ¨å½“å‰PCåœ°å€æ‰§è¡Œä¸€æ•´è¡Œæ“¦é™¤ï¼ˆä»… enhanced mid-range æ”¯æŒï¼‰
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å½“å‰å™¨ä»¶ä¸æ”¯æŒ
  *
- * ×¢Òâ: Row Erase ²»¸Ä±ä PC Î»ÖÃ, Òò´Ë²»ĞèÒª¸üĞÂ¸ú×Ù±äÁ¿¡£
+ * æ³¨æ„: Row Erase ä¸æ”¹å˜ PC ä½ç½®, å› æ­¤ä¸éœ€è¦æ›´æ–°è·Ÿè¸ªå˜é‡ã€‚
  */
 static uint8_t icspRowEraseCurrentAddress(void)
 {
@@ -835,16 +840,16 @@ static uint8_t icspRowEraseCurrentAddress(void)
 }
 
 /**
- * @brief  Ìø×ªµ½ÅäÖÃ¿Õ¼äµÄÖ¸¶¨µØÖ· (ÖÇÄÜÑ°Ö·)
+ * @brief  è·³è½¬åˆ°é…ç½®ç©ºé—´çš„æŒ‡å®šåœ°å€ (æ™ºèƒ½å¯»å€)
  *
- * ÓÅ»¯²ßÂÔ:
- *   - Èôµ±Ç°ÒÑÔÚÅäÖÃ¿Õ¼äÇÒÄ¿±êµØÖ· >= µ±Ç°µØÖ·:
- *     ½öÍ¨¹ı Increment ÒÆ¶¯µ½Ä¿±ê (±ÜÃâ¸´Î»+È«Â·¾¶µİÔö)
- *   - ·ñÔò: Ö´ĞĞÍêÕûÂ·¾¶ (Reset ¡ú Load Config ¡ú Increment)
- *   - ÈôÄ¿±êµØÖ·Ç¡ºÃµÈÓÚµ±Ç°µØÖ·: Ö±½Ó·µ»Ø, Áã²Ù×÷
+ * ä¼˜åŒ–ç­–ç•¥:
+ *   - è‹¥å½“å‰å·²åœ¨é…ç½®ç©ºé—´ä¸”ç›®æ ‡åœ°å€ >= å½“å‰åœ°å€:
+ *     ä»…é€šè¿‡ Increment ç§»åŠ¨åˆ°ç›®æ ‡ (é¿å…å¤ä½+å…¨è·¯å¾„é€’å¢)
+ *   - å¦åˆ™: æ‰§è¡Œå®Œæ•´è·¯å¾„ (Reset â†’ Load Config â†’ Increment)
+ *   - è‹¥ç›®æ ‡åœ°å€æ°å¥½ç­‰äºå½“å‰åœ°å€: ç›´æ¥è¿”å›, é›¶æ“ä½œ
  *
- * @param  targetAddr  Ä¿±êÅäÖÃµØÖ· (±ØĞë >= config_space_base)
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @param  targetAddr  ç›®æ ‡é…ç½®åœ°å€ (å¿…é¡» >= config_space_base)
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 static uint8_t icspGotoConfigAddress(uint32_t targetAddr)
 {
@@ -857,11 +862,11 @@ static uint8_t icspGotoConfigAddress(uint32_t targetAddr)
     if (targetAddr < icsp_pdev->common.config_space_base)
         return ICSP_ERR;
 
-    /* === Çé¿ö1: ÒÑÔÚÄ¿±êµØÖ·, Áã²Ù×÷ === */
+    /* === æƒ…å†µ1: å·²åœ¨ç›®æ ‡åœ°å€, é›¶æ“ä½œ === */
     if (g_picCurrentArea == ICSP_AREA_CONFIG && g_picCurrentAddress == targetAddr)
         return ICSP_OK;
 
-    /* === Çé¿ö2: µ±Ç°ÔÚÅäÖÃ¿Õ¼ä, Ä¿±êµØÖ·¸ü´ó ¡ú ½öµİÔö === */
+    /* === æƒ…å†µ2: å½“å‰åœ¨é…ç½®ç©ºé—´, ç›®æ ‡åœ°å€æ›´å¤§ â†’ ä»…é€’å¢ === */
     if (g_picCurrentArea == ICSP_AREA_CONFIG && targetAddr > g_picCurrentAddress)
     {
         stepCount = targetAddr - g_picCurrentAddress;
@@ -874,9 +879,9 @@ static uint8_t icspGotoConfigAddress(uint32_t targetAddr)
     }
 
     /*
-     * === Çé¿ö3: ĞèÒªÍêÕûÂ·¾¶ ===
-     * Ìõ¼ş: µ±Ç°²»ÔÚÅäÖÃ¿Õ¼ä, »òÄ¿±êµØÖ·Ğ¡ÓÚµÈÓÚµ±Ç°µØÖ·
-     * (ICSP PC ²»ÄÜµİ¼õ, Ö»ÄÜ¸´Î»ºóÖØĞÂµİÔö)
+     * === æƒ…å†µ3: éœ€è¦å®Œæ•´è·¯å¾„ ===
+     * æ¡ä»¶: å½“å‰ä¸åœ¨é…ç½®ç©ºé—´, æˆ–ç›®æ ‡åœ°å€å°äºç­‰äºå½“å‰åœ°å€
+     * (ICSP PC ä¸èƒ½é€’å‡, åªèƒ½å¤ä½åé‡æ–°é€’å¢)
      */
     stepCount = targetAddr - icsp_pdev->common.config_space_base;
 
@@ -896,21 +901,27 @@ static uint8_t icspGotoConfigAddress(uint32_t targetAddr)
 }
 
 /**
- * @brief  ÖØĞÂ»Øµ½³ÌĞòÇøÆğµã£¬ÓÃÓÚ°´¾ø¶ÔµØÖ·ÖØĞÂ¶¨Î»PC
+ * @brief  é‡æ–°å›åˆ°ç¨‹åºåŒºèµ·ç‚¹ï¼Œç”¨äºæŒ‰ç»å¯¹åœ°å€é‡æ–°å®šä½PC
  *
- * ×¢Òâ: ÍË³öÔÙÖØĞÂ½øÈë±à³ÌÄ£Ê½ºó, PC »Øµ½³õÊ¼×´Ì¬
- *       (Í¨³£Îª 0x0000 »ò baseline Æ÷¼şµÄ³ÌĞòÄ©¶Ë),
- *       Òò´Ë¸ú×Ù±äÁ¿±»ÖØÖÃÎª³ÌĞòÇø³õÊ¼µØÖ·¡£
+ * æ³¨æ„: é€€å‡ºå†é‡æ–°è¿›å…¥ç¼–ç¨‹æ¨¡å¼å, PC å›åˆ°åˆå§‹çŠ¶æ€
+ *       (é€šå¸¸ä¸º 0x0000 æˆ– baseline å™¨ä»¶çš„ç¨‹åºæœ«ç«¯),
+ *       å› æ­¤è·Ÿè¸ªå˜é‡è¢«é‡ç½®ä¸ºç¨‹åºåŒºåˆå§‹åœ°å€ã€‚
  *
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 static uint32_t icspGetBaselineConfigPhys(void)
 {
     if (icsp_pdev == NULL)
         return 0U;
-    if (icsp_pdev->baseLine.config_shadow_addr != 0U)
-        return icsp_pdev->baseLine.config_shadow_addr;
-    return (icsp_pdev->common.code_end_addr << 1) - 1U;
+    /*
+     * Baseline HEX config address (normally 0xFFF) is logical only. The
+     * physical Program/Verify PC starts at the last address of the doubled
+     * program space: 0x7FF for PIC12F509. Config becomes inaccessible after
+     * the first Increment Address command, so never use the logical address.
+     */
+    if (icsp_pdev->common.code_end_addr != 0U)
+        return (icsp_pdev->common.code_end_addr << 1) - 1U;
+    return icsp_pdev->baseLine.config_shadow_addr;
 }
 
 static uint32_t icspGetBaselinePcSpace(void)
@@ -946,10 +957,10 @@ static uint8_t icspRestartAndSyncCodeBase(void)
     g_picProgmodeActive = 1U;
 
     /*
-     * ÖØĞÂ½øÈë±à³ÌÄ£Ê½ºó, PC »Øµ½Æ÷¼ş³õÊ¼Öµ:
+     * é‡æ–°è¿›å…¥ç¼–ç¨‹æ¨¡å¼å, PC å›åˆ°å™¨ä»¶åˆå§‹å€¼:
      * - 14-bit (mid-range/enhanced): PC = 0x0000
-     * - baseline (12-bit): ¿ÉÄÜÎª code_end-1 »ò config_shadow_addr
-     * ÏÂÃæ¸ù¾İ pc_init_mode ¼ÆËã³õÊ¼ PC Öµ¡£
+     * - baseline (12-bit): å¯èƒ½ä¸º code_end-1 æˆ– config_shadow_addr
+     * ä¸‹é¢æ ¹æ® pc_init_mode è®¡ç®—åˆå§‹ PC å€¼ã€‚
      */
     if (ICSP_IS_BASELINE_FAST())
     {
@@ -972,7 +983,7 @@ static uint8_t icspRestartAndSyncCodeBase(void)
         }
     }
 
-    #if UART1_TRACE
+    #if ICSP_UART_DETAIL_TRACE
     uart1_WriteString("ICSP restart init=0x");
     uart1_WriteHex16((uint16_t)initAddr);
     uart1_WriteString("\r\n");
@@ -983,19 +994,16 @@ static uint8_t icspRestartAndSyncCodeBase(void)
 }
 
 /**
- * @brief  ¼ÆËã baseline Æ÷¼ş´Ó³õÊ¼PCÎ»ÖÃ×ßµ½Ä¿±ê³ÌĞòµØÖ·ËùĞèµÄµİÔö´ÎÊı
- * @param  targetAddr Ä¿±ê³ÌĞòµØÖ·
- * @return µİÔö´ÎÊı
+ * @brief  è®¡ç®— baseline å™¨ä»¶ä»åˆå§‹PCä½ç½®èµ°åˆ°ç›®æ ‡ç¨‹åºåœ°å€æ‰€éœ€çš„é€’å¢æ¬¡æ•°
+ * @param  targetAddr ç›®æ ‡ç¨‹åºåœ°å€
+ * @return é€’å¢æ¬¡æ•°
  */
 static uint8_t icspEnsureBaselineAtConfig(void)
 {
-    uint32_t cfgPhys;
-
     if (icsp_pdev == NULL)
         return ICSP_ERR;
-    cfgPhys = icspGetBaselineConfigPhys();
-    if (g_picCurrentArea == ICSP_AREA_PROGRAM && g_picCurrentAddress == cfgPhys)
-        return ICSP_OK;
+
+    /* A baseline configuration word is accessible only immediately on entry. */
     return icspRestartAndSyncCodeBase();
 }
 
@@ -1029,11 +1037,11 @@ static uint32_t icspGetBaselineProgramSteps(uint32_t targetAddr)
 }
 
 /**
- * @brief  ÔÚÅäÖÃ¿Õ¼äÖ¸¶¨µØÖ·Ğ´ÈëÒ»¸öÅäÖÃ×Ö (ÖÇÄÜÑ°Ö·)
- * @param  targetAddr  Ä¿±êÅäÖÃµØÖ·
- * @param  value       ÒªĞ´ÈëµÄÅäÖÃ×ÖÊı¾İ
- * @param  waitUs      ±à³ÌµÈ´ıÊ±¼ä£¨Î¢Ãë£©
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  åœ¨é…ç½®ç©ºé—´æŒ‡å®šåœ°å€å†™å…¥ä¸€ä¸ªé…ç½®å­— (æ™ºèƒ½å¯»å€)
+ * @param  targetAddr  ç›®æ ‡é…ç½®åœ°å€
+ * @param  value       è¦å†™å…¥çš„é…ç½®å­—æ•°æ®
+ * @param  waitUs      ç¼–ç¨‹ç­‰å¾…æ—¶é—´ï¼ˆå¾®ç§’ï¼‰
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 /* Reset the four write latches by loading all of them with '1's.
  * Required after programming user ID / configuration words on 14-bit
@@ -1059,6 +1067,25 @@ static uint8_t icspResetWriteLatches(void)
 
 static uint8_t icspWriteConfigWordAt(uint32_t targetAddr, uint16_t value, uint16_t waitUs)
 {
+    if (ICSP_IS_BASELINE_FAST())
+    {
+        /* DS41227E: Config is writable only immediately after HV entry. */
+        if (icspEnsureBaselineAtConfig() != ICSP_OK)
+            return ICSP_ERR;
+        #if UART1_TRACE
+        uart1_WriteString("ICSP BL cfgW pc=0x");
+        uart1_WriteHex16((uint16_t)g_picCurrentAddress);
+        uart1_WriteString(" val=0x");
+        uart1_WriteHex16(value);
+        uart1_WriteString("\r\n");
+        #endif
+        icspLoadCmd(CMD_LOAD_PROG);
+        ICSP_CMD_GAP_FAST();
+        icspLoadData(value, g_picDataWidth);
+        ICSP_BEGIN_PROGRAM_FAST(waitUs);
+        return ICSP_OK;
+    }
+
     if (icspGotoConfigAddress(targetAddr) != ICSP_OK)
         return ICSP_ERR;
 
@@ -1082,15 +1109,34 @@ static uint8_t icspWriteConfigWordAt(uint32_t targetAddr, uint16_t value, uint16
 
 
 /**
- * @brief  ´ÓÅäÖÃ¿Õ¼äÖ¸¶¨µØÖ·¶ÁÈ¡Ò»¸öÅäÖÃ×Ö (ÖÇÄÜÑ°Ö·)
- * @param  targetAddr  Ä¿±êÅäÖÃµØÖ·
- * @param  value       Êä³ö»º³åÇø£¬´æ·Å¶ÁÈ¡µ½µÄÅäÖÃ×ÖÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  ä»é…ç½®ç©ºé—´æŒ‡å®šåœ°å€è¯»å–ä¸€ä¸ªé…ç½®å­— (æ™ºèƒ½å¯»å€)
+ * @param  targetAddr  ç›®æ ‡é…ç½®åœ°å€
+ * @param  value       è¾“å‡ºç¼“å†²åŒºï¼Œå­˜æ”¾è¯»å–åˆ°çš„é…ç½®å­—æ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 static uint8_t icspReadConfigWordAt(uint32_t targetAddr, uint16_t *value)
 {
     if (value == NULL)
         return ICSP_ERR;
+
+    if (ICSP_IS_BASELINE_FAST())
+    {
+        /* No address navigation is permitted between entry and Config read. */
+        if (icspEnsureBaselineAtConfig() != ICSP_OK)
+            return ICSP_ERR;
+        icspLoadCmd(CMD_READ_PROG);
+        ICSP_CMD_GAP_FAST();
+        *value = icspReadData(g_picDataWidth);
+        #if UART1_TRACE
+        uart1_WriteString("ICSP BL cfgR pc=0x");
+        uart1_WriteHex16((uint16_t)g_picCurrentAddress);
+        uart1_WriteString(" val=0x");
+        uart1_WriteHex16(*value);
+        uart1_WriteString("\r\n");
+        #endif
+        return ICSP_OK;
+    }
+
     if (icspGotoConfigAddress(targetAddr) != ICSP_OK)
         return ICSP_ERR;
 
@@ -1099,7 +1145,7 @@ static uint8_t icspReadConfigWordAt(uint32_t targetAddr, uint16_t *value)
     *value = icspReadData(g_picDataWidth);
 
     /*
-     * ¶Á²Ù×÷²»¸Ä±ä PC Î»ÖÃ, ±£³Ö g_picCurrentArea / g_picCurrentAddress ²»±ä¡£
+     * è¯»æ“ä½œä¸æ”¹å˜ PC ä½ç½®, ä¿æŒ g_picCurrentArea / g_picCurrentAddress ä¸å˜ã€‚
      */
     return ICSP_OK;
 }
@@ -1107,45 +1153,45 @@ static uint8_t icspReadConfigWordAt(uint32_t targetAddr, uint16_t *value)
 
 
 
-/* Ê±ĞòÃô¸Ğ´úÂë¶Î: ¾Ö²¿ÌáÉıÓÅ»¯µÈ¼¶, Ê¹ BSRR ×Ö³£Á¿ÓëµØÖ·»º´æÔÚ¼Ä´æÆ÷,
- * Ïû³ıÖğ bit µÄ×ÖÃæÁ¿¼ÓÔØ; ¶ÎÍâ»Ö¸´¹¤³ÌÄ¬ÈÏÓÅ»¯µÈ¼¶ */
+/* æ—¶åºæ•æ„Ÿä»£ç æ®µ: å±€éƒ¨æå‡ä¼˜åŒ–ç­‰çº§, ä½¿ BSRR å­—å¸¸é‡ä¸åœ°å€ç¼“å­˜åœ¨å¯„å­˜å™¨,
+ * æ¶ˆé™¤é€ bit çš„å­—é¢é‡åŠ è½½; æ®µå¤–æ¢å¤å·¥ç¨‹é»˜è®¤ä¼˜åŒ–ç­‰çº§ */
 #pragma push
 #pragma O2
 /*
- * ---- ĞÔÄÜÓÅ»¯: BSRR ºÏ²¢·¢ËÍ ----
+ * ---- æ€§èƒ½ä¼˜åŒ–: BSRR åˆå¹¶å‘é€ ----
  *
- * ICSPCLK(PB3) Óë ICSPDAT(PB4) Í¬ÔÚ GPIOB, ·¢ËÍÊ±Ğò¸ÄÎª:
- *   ¸ßÏàÎ»: Ò»´Î BSRR Ğ´Í¬Ê±Êä³ö CLK=1 Óë DAT=±¾Î»Öµ
- *   µÍÏàÎ»: Ò»´Î BSRR Ğ´½öÀ­µÍ CLK, DAT ±£³Öµ½ÏÂ½µÑØ±»Ëø´æ
- * Ïà±ÈÔ­À´Ã¿ bit 3 ´ÎÎ»´øĞ´ (ICSP_CLK_H/ICSP_DAT_W/ICSP_CLK_L):
- *   - Î»´øĞ´ÔÚ×ÜÏß¾ØÕóÖĞ±»·­ÒëÎª¶Ô ODR µÄ¶Á-¸Ä-Ğ´, µ¥´Î¿ªÏú¸ü´ó
- *   - BSRR ÎªÆÕÍ¨ 32-bit ´æ´¢, ÇÒ CLK/DAT ºÏ²¢ÉÙÒ»´Î×ÜÏßĞ´
- *   - ÅäºÏÑ­»·È«Õ¹¿ª, Ïû³ıÑ­»·¿ØÖÆ¿ªÏú
+ * ICSPCLK(PB3) ä¸ ICSPDAT(PB4) åŒåœ¨ GPIOB, å‘é€æ—¶åºæ”¹ä¸º:
+ *   é«˜ç›¸ä½: ä¸€æ¬¡ BSRR å†™åŒæ—¶è¾“å‡º CLK=1 ä¸ DAT=æœ¬ä½å€¼
+ *   ä½ç›¸ä½: ä¸€æ¬¡ BSRR å†™ä»…æ‹‰ä½ CLK, DAT ä¿æŒåˆ°ä¸‹é™æ²¿è¢«é”å­˜
+ * ç›¸æ¯”åŸæ¥æ¯ bit 3 æ¬¡ä½å¸¦å†™ (ICSP_CLK_H/ICSP_DAT_W/ICSP_CLK_L):
+ *   - ä½å¸¦å†™åœ¨æ€»çº¿çŸ©é˜µä¸­è¢«ç¿»è¯‘ä¸ºå¯¹ ODR çš„è¯»-æ”¹-å†™, å•æ¬¡å¼€é”€æ›´å¤§
+ *   - BSRR ä¸ºæ™®é€š 32-bit å­˜å‚¨, ä¸” CLK/DAT åˆå¹¶å°‘ä¸€æ¬¡æ€»çº¿å†™
+ *   - é…åˆå¾ªç¯å…¨å±•å¼€, æ¶ˆé™¤å¾ªç¯æ§åˆ¶å¼€é”€
  *
- * ×¢Òâ:
- *   1. ±¾·½°¸ÒªÇó CLK Óë DAT Òı½ÅÍ¬ÊôÒ»¸ö GPIO ¶Ë¿Ú (µ±Ç°¾ùÎª GPIOB),
- *      ÈôÈÕºóÒı½Å·ÖÊô²»Í¬¶Ë¿Ú, ĞèÍË»ØÎ»´øĞ´ÊµÏÖ
- *   2. BSRR µÄ set Çø (bit0..15) ÓÅÏÈ¼¶¸ßÓÚ reset Çø (bit16..31),
- *      Òò´Ë "ÖÃÎ»DAT|¸´Î»DAT" ×éºÏ×ÖµÈĞ§ÓÚ DAT=1, ¿ÉÓÃËãÊõÖ±½ÓÉú³É
- *   3. ICSP_CLK_DELAY ÎªÔËĞĞÊ±¿Éµ÷ÏàÎ»Ìî³ä (¼û icsp.h µÄ icspSetIcspClock)
+ * æ³¨æ„:
+ *   1. æœ¬æ–¹æ¡ˆè¦æ±‚ CLK ä¸ DAT å¼•è„šåŒå±ä¸€ä¸ª GPIO ç«¯å£ (å½“å‰å‡ä¸º GPIOB),
+ *      è‹¥æ—¥åå¼•è„šåˆ†å±ä¸åŒç«¯å£, éœ€é€€å›ä½å¸¦å†™å®ç°
+ *   2. BSRR çš„ set åŒº (bit0..15) ä¼˜å…ˆçº§é«˜äº reset åŒº (bit16..31),
+ *      å› æ­¤ "ç½®ä½DAT|å¤ä½DAT" ç»„åˆå­—ç­‰æ•ˆäº DAT=1, å¯ç”¨ç®—æœ¯ç›´æ¥ç”Ÿæˆ
+ *   3. ICSP_CLK_DELAY ä¸ºè¿è¡Œæ—¶å¯è°ƒç›¸ä½å¡«å…… (è§ icsp.h çš„ icspSetIcspClock)
  */
 #define ICSP_BSRR_SET(pin)      (1UL << (pin))
 #define ICSP_BSRR_RESET(pin)    (1UL << ((pin) + 16UL))
 
-/* Á½¼¶Õ¹¿ª: ÏÈ°Ñ "B,3" ²ğ³ö¶Ë¿Ú B, ÔÙÆ´³ö GPIOB */
+/* ä¸¤çº§å±•å¼€: å…ˆæŠŠ "B,3" æ‹†å‡ºç«¯å£ B, å†æ‹¼å‡º GPIOB */
 #define ICSP_TX_GPIO_(_port)    STM_IO_GPIO(_port)
 #define ICSP_TX_GPIO            ICSP_TX_GPIO_(GET_PORT_FROM(HWPIN_ICSP_CLK))
 #define ICSP_TX_CLK_PIN         GET_PIN_FROM(HWPIN_ICSP_CLK)
 #define ICSP_TX_DAT_PIN         GET_PIN_FROM(HWPIN_ICSP_DAT)
 
-/* ¸ßÏàÎ»×Ö: CLK=1, DAT °´±¾Î»ÖµÖÃÎ»/¸´Î» */
+/* é«˜ç›¸ä½å­—: CLK=1, DAT æŒ‰æœ¬ä½å€¼ç½®ä½/å¤ä½ */
 #define ICSP_TX_BSRR_HI(_p)     (ICSP_BSRR_SET(ICSP_TX_CLK_PIN) | \
                                  ICSP_BSRR_RESET(ICSP_TX_DAT_PIN) | \
                                  ((uint32_t)((_p) & 1UL) << ICSP_TX_DAT_PIN))
-/* µÍÏàÎ»×Ö: ½ö CLK=0, DAT ±£³Ö */
+/* ä½ç›¸ä½å­—: ä»… CLK=0, DAT ä¿æŒ */
 #define ICSP_TX_BSRR_LO()       (ICSP_BSRR_RESET(ICSP_TX_CLK_PIN))
 
-/* ·¢ËÍ 1 bit: ¸ßÏàÎ»(CLK+DAT Í¬²½) + TDLY + µÍÏàÎ» + TDLY */
+/* å‘é€ 1 bit: é«˜ç›¸ä½(CLK+DAT åŒæ­¥) + TDLY + ä½ç›¸ä½ + TDLY */
 #define ICSP_TX_BIT(_p)         do { \
                                     ICSP_TX_GPIO->BSRR = ICSP_TX_BSRR_HI(_p); \
                                     ICSP_CLK_DELAY; \
@@ -1154,18 +1200,18 @@ static uint8_t icspReadConfigWordAt(uint32_t targetAddr, uint16_t *value)
                                 } while (0)
 
 /**
- * @brief  ·¢ËÍ6Î»ÃüÁî (LSB first)
- *         Ê±Ğò: ¸ßÏàÎ»(CLK=1ÓëDATÍ¬²½Êä³ö)¡úTDLY¡úµÍÏàÎ»(CLK=0,DAT±£³Ö)¡úTDLY
- *         ÃüÁî¼äÖÁÉÙ 1us (TDLY1)
- * @param  cmd  6-bit ÃüÁîÂë
+ * @brief  å‘é€6ä½å‘½ä»¤ (LSB first)
+ *         æ—¶åº: é«˜ç›¸ä½(CLK=1ä¸DATåŒæ­¥è¾“å‡º)â†’TDLYâ†’ä½ç›¸ä½(CLK=0,DATä¿æŒ)â†’TDLY
+ *         å‘½ä»¤é—´è‡³å°‘ 1us (TDLY1)
+ * @param  cmd  6-bit å‘½ä»¤ç 
  */
 void icspLoadCmd(uint8_t cmd)
 {
     uint8_t i;
 
     /*
-     * ¹Ì¶¨ 6-bit ÃüÁîÖğÎ»È«Õ¹¿ª (g_picCmdWidth ºãÎª 6),
-     * Ïû³ıÑ­»·¿ØÖÆ¿ªÏú; Î»¿íÒì³£Ê±»ØÍËÍ¨ÓÃÑ­»·±£Ö¤¼æÈİ
+     * å›ºå®š 6-bit å‘½ä»¤é€ä½å…¨å±•å¼€ (g_picCmdWidth æ’ä¸º 6),
+     * æ¶ˆé™¤å¾ªç¯æ§åˆ¶å¼€é”€; ä½å®½å¼‚å¸¸æ—¶å›é€€é€šç”¨å¾ªç¯ä¿è¯å…¼å®¹
      */
     ICSP_DAT_OUT();
     if (g_picCmdWidth == 6U)
@@ -1185,27 +1231,27 @@ void icspLoadCmd(uint8_t cmd)
             cmd >>= 1U;
         }
     }
-    ICSP_DAT_L();                   /* ·¢ËÍÍê³ÉºóÊı¾İÏßÀ­µÍ */
-    ICSP_DAT_IN();                  /* Êı¾İÏßÖØĞÂÇĞ»»ÎªÊäÈë */
+    ICSP_DAT_L();                   /* å‘é€å®Œæˆåæ•°æ®çº¿æ‹‰ä½ */
+    ICSP_DAT_IN();                  /* æ•°æ®çº¿é‡æ–°åˆ‡æ¢ä¸ºè¾“å…¥ */
 }
 
 /**
- * @brief  ·¢ËÍÊı¾İ×Ö£¬¹Ì¶¨16¸öÊ±ÖÓÖÜÆÚ
- *         Ê±Ğò: Ç°µ¼(0) + data(width bit, LSB first) + ²¹Î»(0)
- *         ¹²16¸öÊ±ÖÓÖÜÆÚ
- * @param  data   Òª·¢ËÍµÄÊı¾İ
- * @param  width  Êı¾İÎ»¿í
+ * @brief  å‘é€æ•°æ®å­—ï¼Œå›ºå®š16ä¸ªæ—¶é’Ÿå‘¨æœŸ
+ *         æ—¶åº: å‰å¯¼(0) + data(width bit, LSB first) + è¡¥ä½(0)
+ *         å…±16ä¸ªæ—¶é’Ÿå‘¨æœŸ
+ * @param  data   è¦å‘é€çš„æ•°æ®
+ * @param  width  æ•°æ®ä½å®½
  */
 void icspLoadData(uint16_t data, uint8_t width)
 {
     uint16_t pattern;
 
     /*
-     * Ô¤ÏÈÒ»´ÎĞÔ¹¹Ôì³ö16Î»·¢ËÍĞòÁĞ (LSB first):
-     *   bit0          = 0                  (Ç°µ¼Î»)
-     *   bit1..bitN    = data Î»             (N = width)
-     *   bitN+1..bit15 = 0                  (Ê£ÓàÊ±ÖÓÖÜÆÚ²¹0)
-     * 16 ¸öÊ±ÖÓÖÜÆÚÎª¹Ì¶¨Ö¡³¤, ÖğÎ»È«Õ¹¿ªÏû³ıÑ­»·¿ªÏú
+     * é¢„å…ˆä¸€æ¬¡æ€§æ„é€ å‡º16ä½å‘é€åºåˆ— (LSB first):
+     *   bit0          = 0                  (å‰å¯¼ä½)
+     *   bit1..bitN    = data ä½             (N = width)
+     *   bitN+1..bit15 = 0                  (å‰©ä½™æ—¶é’Ÿå‘¨æœŸè¡¥0)
+     * 16 ä¸ªæ—¶é’Ÿå‘¨æœŸä¸ºå›ºå®šå¸§é•¿, é€ä½å…¨å±•å¼€æ¶ˆé™¤å¾ªç¯å¼€é”€
      */
     pattern = (uint16_t)((uint16_t)(data << 1U) &
                          (uint16_t)((1U << (width + 1U)) - 1U));
@@ -1227,30 +1273,30 @@ void icspLoadData(uint16_t data, uint8_t width)
     ICSP_TX_BIT(pattern);  pattern >>= 1U;
     ICSP_TX_BIT(pattern);  pattern >>= 1U;
     ICSP_TX_BIT(pattern);
-    ICSP_DAT_L();                    /* ·¢ËÍ½áÊø, Êı¾İÏßÀ­µÍ */
-    ICSP_DAT_IN();                   /* ·¢ËÍÍê³ÉºóÇĞ»»ÎªÊäÈë */
+    ICSP_DAT_L();                    /* å‘é€ç»“æŸ, æ•°æ®çº¿æ‹‰ä½ */
+    ICSP_DAT_IN();                   /* å‘é€å®Œæˆååˆ‡æ¢ä¸ºè¾“å…¥ */
 }
 #pragma pop
 
 
 /**
- * @brief  ½ÓÊÕÊı¾İ×Ö£¬¹Ì¶¨16¸öÊ±ÖÓÖÜÆÚ
- *         Ê±Ğò: Ç°µ¼Ê±ÖÓ + data(width bit, LSB first) + ²¹Î»Ê±ÖÓ
- *         ¹²16¸öÊ±ÖÓÖÜÆÚ£¬´ÓµÚ2¸öÊ±ÖÓ¿ªÊ¼¶ÁÈ¡Êı¾İ
- * @param  width  Êı¾İÎ»¿í
- * @return µÍÎ»¶ÔÆëµÄ width Î»Êı¾İ
+ * @brief  æ¥æ”¶æ•°æ®å­—ï¼Œå›ºå®š16ä¸ªæ—¶é’Ÿå‘¨æœŸ
+ *         æ—¶åº: å‰å¯¼æ—¶é’Ÿ + data(width bit, LSB first) + è¡¥ä½æ—¶é’Ÿ
+ *         å…±16ä¸ªæ—¶é’Ÿå‘¨æœŸï¼Œä»ç¬¬2ä¸ªæ—¶é’Ÿå¼€å§‹è¯»å–æ•°æ®
+ * @param  width  æ•°æ®ä½å®½
+ * @return ä½ä½å¯¹é½çš„ width ä½æ•°æ®
  */
 uint16_t icspReadData(uint8_t width)
 {
     uint16_t val = 0;
     uint8_t  i;
-    uint8_t  nbits;                       /* Êµ¼ÊÓĞĞ§Êı¾İÎ»Êı */
+    uint8_t  nbits;                       /* å®é™…æœ‰æ•ˆæ•°æ®ä½æ•° */
 
     /*
-     * 16 Ê±ÖÓÖ¡: Ç°µ¼(1¸ö) + Êı¾İÎ»(×î¶à15¸ö), ¹ÊÊµ¼ÊÓĞĞ§Êı¾İÎ»ÊıÎª:
+     * 16 æ—¶é’Ÿå¸§: å‰å¯¼(1ä¸ª) + æ•°æ®ä½(æœ€å¤š15ä¸ª), æ•…å®é™…æœ‰æ•ˆæ•°æ®ä½æ•°ä¸º:
      *   nbits = min(width, 15)
-     * Ñ­»·ÄÚ²»×ö"µ±Ç°Ê±ÖÓÊÇ·ñÓĞĞ§"µÄÅĞ¶Ï, 16 ¸öÊ±ÖÓÈ«²¿ÓÒÒÆÀÛ»ı¶ÁÈ¡
-     * (bit0 ÎªÇ°µ¼Î», ÎŞĞ§), Ñ­»·½áÊøºóÒ»´ÎĞÔ ÒÆÎ»+ÑÚÂë Ïû³ıÇ°µ¼/²¹Î»
+     * å¾ªç¯å†…ä¸åš"å½“å‰æ—¶é’Ÿæ˜¯å¦æœ‰æ•ˆ"çš„åˆ¤æ–­, 16 ä¸ªæ—¶é’Ÿå…¨éƒ¨å³ç§»ç´¯ç§¯è¯»å–
+     * (bit0 ä¸ºå‰å¯¼ä½, æ— æ•ˆ), å¾ªç¯ç»“æŸåä¸€æ¬¡æ€§ ç§»ä½+æ©ç  æ¶ˆé™¤å‰å¯¼/è¡¥ä½
      */
     nbits = (width < 16U) ? width : 15U;
 
@@ -1259,46 +1305,47 @@ uint16_t icspReadData(uint8_t width)
     {
         ICSP_CLK_H();
         ICSP_CLK_DELAY;
-        val >>= 1U;                       /* ÒÑÓĞÎ»ÓÒÒÆÌÚÎ» */
+        val >>= 1U;                       /* å·²æœ‰ä½å³ç§»è…¾ä½ */
         if (ICSP_DAT_R())
-            val |= 0x8000U;               /* ĞÂÎ»½ø×î¸ßÎ», LSB first */
+            val |= 0x8000U;               /* æ–°ä½è¿›æœ€é«˜ä½, LSB first */
         ICSP_CLK_L();
         ICSP_CLK_DELAY;
     }
-    return (uint16_t)((val >> 1U) & ((1U << nbits) - 1U)); /* Ïû³ıÇ°µ¼/²¹Î» */
+    return (uint16_t)((val >> 1U) & ((1U << nbits) - 1U)); /* æ¶ˆé™¤å‰å¯¼/è¡¥ä½ */
 }
 
 /* ================================================================= */
-/* C²ã: ±à³ÌÄ£Ê½½øÈë/ÍË³ö                                               */
+/* Cå±‚: ç¼–ç¨‹æ¨¡å¼è¿›å…¥/é€€å‡º                                               */
 /* ================================================================= */
 
 /**
- * @brief  ¸ßÑ¹½øÈë±à³ÌÄ£Ê½ (VPP-first »ò VDD-first)
- *         ¸ù¾İÆ÷¼ş²ÎÊı×Ô¶¯Ñ¡ÔñVPP-first»òVDD-firstË³Ğò
- *         ²»Í¬ÏµÁĞµçÑ¹:
+ * @brief  é«˜å‹è¿›å…¥ç¼–ç¨‹æ¨¡å¼ (VPP-first æˆ– VDD-first)
+ *         æ ¹æ®å™¨ä»¶å‚æ•°è‡ªåŠ¨é€‰æ‹©VPP-firstæˆ–VDD-firsté¡ºåº
+ *         ä¸åŒç³»åˆ—ç”µå‹:
  *           baseline(12-bit): VPP=12.5~13.5V, VDD=5.0V
  *           mid-range(14-bit): VPP=10.0~13.5V, VDD=5.0V
- *           enhanced(ÔöÇ¿14-bit): VPP=8.0~9.0V, VDD=5.0V
- * @param  dev  Æ÷¼ş²ÎÊıÖ¸Õë
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ *           enhanced(å¢å¼º14-bit): VPP=8.0~9.0V, VDD=5.0V
+ * @param  dev  å™¨ä»¶å‚æ•°æŒ‡é’ˆ
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspEnterHV(const pic_prog_params_t *dev)
 {
     if (dev == NULL) return ICSP_ERR;
 
-    /* CLK=0, DAT=0, LVP/PGM=0, ¾ùÎªÊä³ö */
+    /* CLK=0, DAT=0, LVP/PGM=0, å‡ä¸ºè¾“å‡º */
     ICSP_CLK_OUT(); ICSP_DAT_OUT(); ICSP_LVP_OUT();
     ICSP_CLK_L();   ICSP_DAT_L();   ICSP_LVP_L();
     ICSP_DELAY_US(10);
 
-    /* ¹ØVDD/VPP */
+    /* å…³VDD/VPP */
     ICSP_VDD_OFF();
     ICSP_VPP_OFF();
     ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_off_delay_us, 10U));
 
-    if(dev->common.has_vpp_first)
+    /* DS41227E baseline entry is CLK/DAT low, VDD rising, then VPP rising. */
+    if (dev->common.core_family != PIC8_CORE_BASELINE_12BIT && dev->common.has_vpp_first)
     {
-        /* ÏÈÉıVPPÔÙÉıVDD (VPP-first) */
+        /* å…ˆå‡VPPå†å‡VDD (VPP-first) */
         ICSP_VPP_ON();
         ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_vpp_first_delay_us, 5000U));
         ICSP_VDD_ON();
@@ -1306,7 +1353,7 @@ uint8_t icspEnterHV(const pic_prog_params_t *dev)
     }
     else
     {
-        /* ÏÈÉıVDDÔÙÉıVPP (VDD-first) */
+        /* å…ˆå‡VDDå†å‡VPP (VDD-first) */
         ICSP_VDD_ON();
         ICSP_DELAY_US(icspGetDelayOrDefault(dev->common.icsp_enter_vdd_delay_us, 2000U));
         ICSP_VPP_ON();
@@ -1317,11 +1364,11 @@ uint8_t icspEnterHV(const pic_prog_params_t *dev)
 }
 
 /**
- * @brief  µÍÑ¹(LVP)½øÈë±à³ÌÄ£Ê½
- *         ´«Í³LVP(ÈçPIC16F627A): VDD=5V, MCLR=VDD, PGM=1
- *         ÃÜÔ¿LVP(ÈçPIC16F1825): VDD=5V, MCLR=0, ·¢"MCHP"ÃÜÔ¿
- * @param  dev  Æ÷¼ş²ÎÊıÖ¸Õë
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  ä½å‹(LVP)è¿›å…¥ç¼–ç¨‹æ¨¡å¼
+ *         ä¼ ç»ŸLVP(å¦‚PIC16F627A): VDD=5V, MCLR=VDD, PGM=1
+ *         å¯†é’¥LVP(å¦‚PIC16F1825): VDD=5V, MCLR=0, å‘"MCHP"å¯†é’¥
+ * @param  dev  å™¨ä»¶å‚æ•°æŒ‡é’ˆ
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspEnterLV(const pic_prog_params_t *dev)
 {
@@ -1341,7 +1388,7 @@ uint8_t icspEnterLV(const pic_prog_params_t *dev)
 
     if (dev->common.lvp_mode == PIC8_LVP_MCHP_KEY)
     {
-        /* ÃÜÔ¿ĞÍ LVP: MCLR=µÍ, ·¢32Î» "MCHP" ÀàÃÜÔ¿ */
+        /* å¯†é’¥å‹ LVP: MCLR=ä½, å‘32ä½ "MCHP" ç±»å¯†é’¥ */
         uint32_t key = dev->common.lvp_key_value;
         ICSP_VPP_OFF();
         ICSP_DAT_OUT();
@@ -1357,7 +1404,7 @@ uint8_t icspEnterLV(const pic_prog_params_t *dev)
     }
     else
     {
-        /* ´«Í³ LVP: PGM À­¸ßºóµÈ´ıÆ÷¼ş½øÈëµÍÑ¹±à³Ì */
+        /* ä¼ ç»Ÿ LVP: PGM æ‹‰é«˜åç­‰å¾…å™¨ä»¶è¿›å…¥ä½å‹ç¼–ç¨‹ */
         ICSP_VPP_ON();
         ICSP_LVP_H();
         ICSP_DELAY_US(entryDelay);
@@ -1366,8 +1413,8 @@ uint8_t icspEnterLV(const pic_prog_params_t *dev)
 }
 
 /**
- * @brief  ÍË³ö±à³ÌÄ£Ê½
- *         ½«¸ú×Ù±äÁ¿ÖØÖÃÎª ICSP_AREA_NONE
+ * @brief  é€€å‡ºç¼–ç¨‹æ¨¡å¼
+ *         å°†è·Ÿè¸ªå˜é‡é‡ç½®ä¸º ICSP_AREA_NONE
  */
 void icspExit(void)
 {
@@ -1380,7 +1427,7 @@ void icspExit(void)
      * floating the rail may leave the part inside programming mode and the
      * PC is then NOT reset to 0x0000 on the next entry. */
     ICSP_VPP_GND();
-    #if UART1_TRACE
+    #if ICSP_UART_DETAIL_TRACE
     uart1_WriteString("ICSP exit: VPP->GND\r\n");
     #endif
     ICSP_DELAY_US(1000);
@@ -1393,21 +1440,21 @@ void icspExit(void)
     ICSP_VDD_OFF();
 
     /*
-     * ÍË³ö±à³ÌÄ£Ê½ºó, PC ×´Ì¬²»ÔÙÓĞĞ§,
-     * ½«¸ú×Ù±äÁ¿ÖØÖÃ, È·±£ÏÂ´Î½øÈëºóÇ¿ÖÆ×ßÍêÕûÂ·¾¶¡£
+     * é€€å‡ºç¼–ç¨‹æ¨¡å¼å, PC çŠ¶æ€ä¸å†æœ‰æ•ˆ,
+     * å°†è·Ÿè¸ªå˜é‡é‡ç½®, ç¡®ä¿ä¸‹æ¬¡è¿›å…¥åå¼ºåˆ¶èµ°å®Œæ•´è·¯å¾„ã€‚
      */
     g_picCurrentArea = ICSP_AREA_NONE;
     g_picCurrentAddress = 0U;
 }
 
 /* ================================================================= */
-/* D²ã: Æ÷¼ş±à³ÌÔ­ÓïÓëµØÖ··ÃÎÊ                                         */
+/* Då±‚: å™¨ä»¶ç¼–ç¨‹åŸè¯­ä¸åœ°å€è®¿é—®                                         */
 /* ================================================================= */
 
 /**
- * @brief  ¶ÁÈ¡Æ÷¼şID£¨Device ID£©
- *         Í¨¹ıÅäÖÃ¿Õ¼ä·ÃÎÊDevice IDµØÖ·£¬»ñÈ¡Æ÷¼ş±êÊ¶
- * @return Æ÷¼şIDÖµ£¬Ê§°Ü·µ»Ø0
+ * @brief  è¯»å–å™¨ä»¶IDï¼ˆDevice IDï¼‰
+ *         é€šè¿‡é…ç½®ç©ºé—´è®¿é—®Device IDåœ°å€ï¼Œè·å–å™¨ä»¶æ ‡è¯†
+ * @return å™¨ä»¶IDå€¼ï¼Œå¤±è´¥è¿”å›0
  */
 uint32_t icspReadDevID(void)
 {
@@ -1421,10 +1468,10 @@ uint32_t icspReadDevID(void)
 }
 
 /**
- * @brief  ¶ÁÈ¡Æ÷¼şÇ©Ãû£¨Device Signature£©
- *         ÊµÖÊÊÇ¶ÁÈ¡Device ID
- * @param  sig  Êä³ö»º³åÇø£¬´æ·ÅÇ©ÃûÖµ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  è¯»å–å™¨ä»¶ç­¾åï¼ˆDevice Signatureï¼‰
+ *         å®è´¨æ˜¯è¯»å–Device ID
+ * @param  sig  è¾“å‡ºç¼“å†²åŒºï¼Œå­˜æ”¾ç­¾åå€¼
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspReadSignature(uint16_t *sig)
 {
@@ -1440,14 +1487,14 @@ uint8_t icspReadSignature(uint16_t *sig)
 }
 
 /**
- * @brief  ÕûÆ¬²Á³ı£¨Bulk Erase£©
- *         BaselineÏµÁĞ·¢ËÍCMD12_BULK_ERASE
- *         14-bitÏµÁĞÏÈLoad ConfigÔÙ·¢EraseÃüÁî
+ * @brief  æ•´ç‰‡æ“¦é™¤ï¼ˆBulk Eraseï¼‰
+ *         Baselineç³»åˆ—å‘é€CMD12_BULK_ERASE
+ *         14-bitç³»åˆ—å…ˆLoad Configå†å‘Eraseå‘½ä»¤
  *
- * ×¢Òâ: ²Á³ıºó PC ×´Ì¬Óë±à³ÌÄ£Ê½³õÊ¼×´Ì¬Ò»ÖÂ,
- *       Òò´ËÖØÖÃ¸ú×Ù±äÁ¿¡£
+ * æ³¨æ„: æ“¦é™¤å PC çŠ¶æ€ä¸ç¼–ç¨‹æ¨¡å¼åˆå§‹çŠ¶æ€ä¸€è‡´,
+ *       å› æ­¤é‡ç½®è·Ÿè¸ªå˜é‡ã€‚
  *
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspBulkErase(void)
 {
@@ -1477,8 +1524,8 @@ uint8_t icspBulkErase(void)
         icspLoadCmd(CMD_ERASE_PROG);
         ICSP_DELAY_US(icsp_pdev->common.wait_erase_us);
         /*
-         * 14-bit Bulk Erase ºó PC Î»ÓÚÅäÖÃ¿Õ¼äÆğÊ¼,
-         * ¸üĞÂ¸ú×Ù±äÁ¿¡£
+         * 14-bit Bulk Erase å PC ä½äºé…ç½®ç©ºé—´èµ·å§‹,
+         * æ›´æ–°è·Ÿè¸ªå˜é‡ã€‚
          */
         g_picCurrentArea = ICSP_AREA_CONFIG;
         g_picCurrentAddress = icsp_pdev->common.config_space_base;
@@ -1488,8 +1535,8 @@ uint8_t icspBulkErase(void)
     #endif
 
     /*
-     * Baseline Æ÷¼ş: Bulk Erase ºó×´Ì¬½ÏÎªÌØÊâ,
-     * Îª±£ÏÕÆğ¼ûÖØÖÃ¸ú×Ù±äÁ¿, ÏÂ´Î²Ù×÷×ßÍêÕûÂ·¾¶¡£
+     * Baseline å™¨ä»¶: Bulk Erase åçŠ¶æ€è¾ƒä¸ºç‰¹æ®Š,
+     * ä¸ºä¿é™©èµ·è§é‡ç½®è·Ÿè¸ªå˜é‡, ä¸‹æ¬¡æ“ä½œèµ°å®Œæ•´è·¯å¾„ã€‚
      */
     if (ICSP_IS_BASELINE_FAST())
     {
@@ -1501,14 +1548,14 @@ uint8_t icspBulkErase(void)
 }
 
 /**
- * @brief  ±à³ÌÒ»¸ö×Öµ½³ÌĞò´æ´¢Æ÷
- *         ÏÈ·¢ËÍLoadÃüÁî×°ÈëÊı¾İ£¬ÔÙ·¢ËÍBeginÃüÁîÆô¶¯±à³Ì
+ * @brief  ç¼–ç¨‹ä¸€ä¸ªå­—åˆ°ç¨‹åºå­˜å‚¨å™¨
+ *         å…ˆå‘é€Loadå‘½ä»¤è£…å…¥æ•°æ®ï¼Œå†å‘é€Beginå‘½ä»¤å¯åŠ¨ç¼–ç¨‹
  *
- * ×¢Òâ: ±à³Ì²Ù×÷²»¸Ä±ä PC µØÖ·, µ«µ÷ÓÃ·½Í¨³£ÔÚÑ­»·ÖĞ
- *       ÏÔÊ½µ÷ÓÃ Increment Address ºÍ icspSetProgramAddress À´ÍÆ½ø¡£
+ * æ³¨æ„: ç¼–ç¨‹æ“ä½œä¸æ”¹å˜ PC åœ°å€, ä½†è°ƒç”¨æ–¹é€šå¸¸åœ¨å¾ªç¯ä¸­
+ *       æ˜¾å¼è°ƒç”¨ Increment Address å’Œ icspSetProgramAddress æ¥æ¨è¿›ã€‚
  *
- * @param  data  Òª±à³ÌµÄÖ¸Áî×ÖÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @param  data  è¦ç¼–ç¨‹çš„æŒ‡ä»¤å­—æ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspProgWord(uint16_t data)
 {
@@ -1523,12 +1570,12 @@ uint8_t icspProgWord(uint16_t data)
 }
 
 /**
- * @brief  ´Ó³ÌĞò´æ´¢Æ÷¶ÁÈ¡Ò»¸ö×Ö
- *         ÏÈ·¢ËÍReadÃüÁî£¬ÔÙ½ÓÊÕÊı¾İ
+ * @brief  ä»ç¨‹åºå­˜å‚¨å™¨è¯»å–ä¸€ä¸ªå­—
+ *         å…ˆå‘é€Readå‘½ä»¤ï¼Œå†æ¥æ”¶æ•°æ®
  *
- * ×¢Òâ: ¶Á²Ù×÷²»¸Ä±ä PC µØÖ·¡£
+ * æ³¨æ„: è¯»æ“ä½œä¸æ”¹å˜ PC åœ°å€ã€‚
  *
- * @return ¶ÁÈ¡µ½µÄÖ¸Áî×ÖÊı¾İ£¬Ê§°Ü·µ»Ø0xFFFF
+ * @return è¯»å–åˆ°çš„æŒ‡ä»¤å­—æ•°æ®ï¼Œå¤±è´¥è¿”å›0xFFFF
  */
 uint16_t icspReadWord(void)
 {
@@ -1542,15 +1589,15 @@ uint16_t icspReadWord(void)
 }
 
 /**
- * @brief  ±à³ÌÒ»ĞĞÊı¾İµ½³ÌĞò´æ´¢Æ÷£¨Á¬ĞøµØÖ·£©
- *         Ã¿±à³ÌÒ»¸öÊı¾İºó×Ô¶¯µİÔöµØÖ·
+ * @brief  ç¼–ç¨‹ä¸€è¡Œæ•°æ®åˆ°ç¨‹åºå­˜å‚¨å™¨ï¼ˆè¿ç»­åœ°å€ï¼‰
+ *         æ¯ç¼–ç¨‹ä¸€ä¸ªæ•°æ®åè‡ªåŠ¨é€’å¢åœ°å€
  *
- * ×¢Òâ: Ã¿±à³ÌÒ»¸öÊı¾İºó×Ô¶¯µİÔöµØÖ·,
- *       Òò´Ë¸ú×Ù±äÁ¿ g_picCurrentAddress Í¬²½µİÔö¡£
+ * æ³¨æ„: æ¯ç¼–ç¨‹ä¸€ä¸ªæ•°æ®åè‡ªåŠ¨é€’å¢åœ°å€,
+ *       å› æ­¤è·Ÿè¸ªå˜é‡ g_picCurrentAddress åŒæ­¥é€’å¢ã€‚
  *
- * @param  buf  Êı¾İ»º³åÇø
- * @param  cnt  Êı¾İ¸öÊı
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @param  buf  æ•°æ®ç¼“å†²åŒº
+ * @param  cnt  æ•°æ®ä¸ªæ•°
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspProgRow(const uint16_t *buf, uint32_t cnt)
 {
@@ -1617,16 +1664,16 @@ uint8_t icspProgRow(const uint16_t *buf, uint32_t cnt)
 
 
 /**
- * @brief  ½«³ÌĞò´æ´¢Æ÷PC¶¨Î»µ½Ö¸¶¨Âß¼­µØÖ· (ÖÇÄÜÑ°Ö·)
+ * @brief  å°†ç¨‹åºå­˜å‚¨å™¨PCå®šä½åˆ°æŒ‡å®šé€»è¾‘åœ°å€ (æ™ºèƒ½å¯»å€)
  *
- * ÓÅ»¯²ßÂÔ:
- *   - Èôµ±Ç°ÒÑÔÚ³ÌĞòÇøÇÒÄ¿±êµØÖ· >= µ±Ç°µØÖ·:
- *     ½öÍ¨¹ı Increment ÒÆ¶¯µ½Ä¿±ê (±ÜÃâÍË³ö/ÖØĞÂ½øÈë±à³ÌÄ£Ê½)
- *   - ÈôÄ¿±êµØÖ·µÈÓÚµ±Ç°µØÖ·: Áã²Ù×÷Ö±½Ó·µ»Ø
- *   - ·ñÔò: ÍË³ö±à³ÌÄ£Ê½ ¡ú ÖØĞÂ½øÈë ¡ú µİÔöÖÁÄ¿±ê
+ * ä¼˜åŒ–ç­–ç•¥:
+ *   - è‹¥å½“å‰å·²åœ¨ç¨‹åºåŒºä¸”ç›®æ ‡åœ°å€ >= å½“å‰åœ°å€:
+ *     ä»…é€šè¿‡ Increment ç§»åŠ¨åˆ°ç›®æ ‡ (é¿å…é€€å‡º/é‡æ–°è¿›å…¥ç¼–ç¨‹æ¨¡å¼)
+ *   - è‹¥ç›®æ ‡åœ°å€ç­‰äºå½“å‰åœ°å€: é›¶æ“ä½œç›´æ¥è¿”å›
+ *   - å¦åˆ™: é€€å‡ºç¼–ç¨‹æ¨¡å¼ â†’ é‡æ–°è¿›å…¥ â†’ é€’å¢è‡³ç›®æ ‡
  *
- * @param  addr Ä¿±ê³ÌĞò×ÖµØÖ·
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @param  addr ç›®æ ‡ç¨‹åºå­—åœ°å€
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspSetProgramAddress(uint32_t addr)
 {
@@ -1634,7 +1681,7 @@ uint8_t icspSetProgramAddress(uint32_t addr)
 
     if (icsp_pdev == NULL)
         return ICSP_ERR;
-    #if UART1_TRACE
+    #if ICSP_UART_DETAIL_TRACE
     uart1_WriteString("ICSP setPA req=0x");
     uart1_WriteHex16((uint16_t)addr);
     uart1_WriteString(" area=");
@@ -1644,11 +1691,11 @@ uint8_t icspSetProgramAddress(uint32_t addr)
     uart1_WriteString("\r\n");
     #endif
 
-    /* === Çé¿ö1: ÒÑÔÚÄ¿±êµØÖ·, Áã²Ù×÷ === */
+    /* === æƒ…å†µ1: å·²åœ¨ç›®æ ‡åœ°å€, é›¶æ“ä½œ === */
     if (g_picCurrentArea == ICSP_AREA_PROGRAM && g_picCurrentAddress == addr)
         return ICSP_OK;
 
-    /* === Çé¿ö2: µ±Ç°ÔÚ³ÌĞòÇø, Ä¿±êµØÖ·¸ü´ó ¡ú ½öµİÔö === */
+    /* === æƒ…å†µ2: å½“å‰åœ¨ç¨‹åºåŒº, ç›®æ ‡åœ°å€æ›´å¤§ â†’ ä»…é€’å¢ === */
     if (g_picCurrentArea == ICSP_AREA_PROGRAM && addr > g_picCurrentAddress)
     {
         stepCount = addr - g_picCurrentAddress;
@@ -1661,22 +1708,22 @@ uint8_t icspSetProgramAddress(uint32_t addr)
     }
 
     /*
-     * === Çé¿ö3: ĞèÒªÍêÕûÂ·¾¶ ===
-     * Ìõ¼ş: µ±Ç°²»ÔÚ³ÌĞòÇø, »òÄ¿±êµØÖ·Ğ¡ÓÚµÈÓÚµ±Ç°µØÖ·
-     * (ICSP PC ²»ÄÜµİ¼õ, ±ØĞëÍË³öºóÖØĞÂ½øÈëÔÙµİÔö)
+     * === æƒ…å†µ3: éœ€è¦å®Œæ•´è·¯å¾„ ===
+     * æ¡ä»¶: å½“å‰ä¸åœ¨ç¨‹åºåŒº, æˆ–ç›®æ ‡åœ°å€å°äºç­‰äºå½“å‰åœ°å€
+     * (ICSP PC ä¸èƒ½é€’å‡, å¿…é¡»é€€å‡ºåé‡æ–°è¿›å…¥å†é€’å¢)
      */
     if (icspRestartAndSyncCodeBase() != ICSP_OK)
         return ICSP_ERR;
 
     /*
-     * icspRestartAndSyncCodeBase ÒÑ¾­½« g_picCurrentArea/Address
-     * ÖØÖÃÎª³ÌĞòÇø³õÊ¼Öµ, ÏÂÃæ¼ÆËã´Ó³õÊ¼µØÖ·µ½Ä¿±êµØÖ·µÄ²½Êı¡£
+     * icspRestartAndSyncCodeBase å·²ç»å°† g_picCurrentArea/Address
+     * é‡ç½®ä¸ºç¨‹åºåŒºåˆå§‹å€¼, ä¸‹é¢è®¡ç®—ä»åˆå§‹åœ°å€åˆ°ç›®æ ‡åœ°å€çš„æ­¥æ•°ã€‚
      */
     if (ICSP_IS_BASELINE_FAST())
     {
-        /* baseline ´Ó³õÊ¼Î»ÖÃµ½Ä¿±êĞè¾­¹ıµÄ²½ÊıÓÉ·â×°º¯Êı¼ÆËã */
+        /* baseline ä»åˆå§‹ä½ç½®åˆ°ç›®æ ‡éœ€ç»è¿‡çš„æ­¥æ•°ç”±å°è£…å‡½æ•°è®¡ç®— */
         stepCount = icspGetBaselineProgramSteps(addr);
-        /* µ« g_picCurrentAddress ÒÑ±»ÉèÎª³õÊ¼µØÖ·, ºóĞøµİÔö»á×Ô¶¯¸üĞÂËü */
+        /* ä½† g_picCurrentAddress å·²è¢«è®¾ä¸ºåˆå§‹åœ°å€, åç»­é€’å¢ä¼šè‡ªåŠ¨æ›´æ–°å®ƒ */
     }
     else
     {
@@ -1686,25 +1733,25 @@ uint8_t icspSetProgramAddress(uint32_t addr)
     while (stepCount-- != 0U)
     {
         /*
-         * ICSP_INCREMENT_ADDRESS_FAST ÄÚ²¿°üº¬ g_picCurrentAddress++,
-         * ËùÒÔ²»ĞèÒª¶îÍâ¸üĞÂ¸ú×Ù±äÁ¿¡£
-         * Ñ­»·½áÊøºó g_picCurrentAddress »á×Ô¶¯±äÎª addr¡£
+         * ICSP_INCREMENT_ADDRESS_FAST å†…éƒ¨åŒ…å« g_picCurrentAddress++,
+         * æ‰€ä»¥ä¸éœ€è¦é¢å¤–æ›´æ–°è·Ÿè¸ªå˜é‡ã€‚
+         * å¾ªç¯ç»“æŸå g_picCurrentAddress ä¼šè‡ªåŠ¨å˜ä¸º addrã€‚
          */
         ICSP_INCREMENT_ADDRESS_FAST();
         /*
-         * ×¢Òâ: g_picCurrentAddress ÔÚºêÄÚ²¿µİÔö, µ«ÎÒÃÇĞèÒªÔÚÑ­»·
-         * ½áÊøºóÈ·ÈÏÆäÖµµÈÓÚ addr¡£ÓÉÓÚ stepCount = addr (non-baseline),
-         * ´Ó 0 µİÔö addr ´Îºó g_picCurrentAddress = addr¡£
-         * ¶ÔÓÚ baseline, ²½Êı¼ÆËã½á¹û¿ÉÄÜ°üº¬Ä£ÔËËã, µ«×îÖÕÒ²ÄÜµ½´ï target¡£
+         * æ³¨æ„: g_picCurrentAddress åœ¨å®å†…éƒ¨é€’å¢, ä½†æˆ‘ä»¬éœ€è¦åœ¨å¾ªç¯
+         * ç»“æŸåç¡®è®¤å…¶å€¼ç­‰äº addrã€‚ç”±äº stepCount = addr (non-baseline),
+         * ä» 0 é€’å¢ addr æ¬¡å g_picCurrentAddress = addrã€‚
+         * å¯¹äº baseline, æ­¥æ•°è®¡ç®—ç»“æœå¯èƒ½åŒ…å«æ¨¡è¿ç®—, ä½†æœ€ç»ˆä¹Ÿèƒ½åˆ°è¾¾ targetã€‚
          */
     }
 
     /*
-     * ÒÔÏÂ×¢ÊÍÎªÁËÇåÎúËµÃ÷: Ñ­»·½áÊøÊ±,
-     * g_picCurrentArea ÒÑÔÚ icspRestartAndSyncCodeBase ÖĞÉèÎª ICSP_AREA_PROGRAM,
-     * g_picCurrentAddress ÓÉÓÚÃ¿´Î Increment ¶¼×Ô¶¯ +1, ×îÖÕµÈÓÚ addr¡£
-     * µ«ÓÉÓÚ stepCount ¿ÉÄÜÎª 0, ÇÒ baseline ÓĞÈ¡Ä£ÔËËã,
-     * ÎÒÃÇÏÔÊ½¸üĞÂÒÔÈ·±£Ò»ÖÂĞÔ¡£
+     * ä»¥ä¸‹æ³¨é‡Šä¸ºäº†æ¸…æ™°è¯´æ˜: å¾ªç¯ç»“æŸæ—¶,
+     * g_picCurrentArea å·²åœ¨ icspRestartAndSyncCodeBase ä¸­è®¾ä¸º ICSP_AREA_PROGRAM,
+     * g_picCurrentAddress ç”±äºæ¯æ¬¡ Increment éƒ½è‡ªåŠ¨ +1, æœ€ç»ˆç­‰äº addrã€‚
+     * ä½†ç”±äº stepCount å¯èƒ½ä¸º 0, ä¸” baseline æœ‰å–æ¨¡è¿ç®—,
+     * æˆ‘ä»¬æ˜¾å¼æ›´æ–°ä»¥ç¡®ä¿ä¸€è‡´æ€§ã€‚
      */
     g_picCurrentArea = ICSP_AREA_PROGRAM;
     g_picCurrentAddress = addr;
@@ -1712,15 +1759,15 @@ uint8_t icspSetProgramAddress(uint32_t addr)
 }
 
 /**
- * @brief  ½«Êı¾İEEPROMµØÖ·¶¨Î»µ½Ö¸¶¨×Ö½ÚµØÖ· (ÖÇÄÜÑ°Ö·)
+ * @brief  å°†æ•°æ®EEPROMåœ°å€å®šä½åˆ°æŒ‡å®šå­—èŠ‚åœ°å€ (æ™ºèƒ½å¯»å€)
  *
- * EEPROM µÄµØÖ·µ¼º½ÓëÅäÖÃ¿Õ¼ä¹²Ïí CMD_LOAD_CFG + Increment »úÖÆ,
- * Òò´ËÊ¹ÓÃ icspGotoConfigAddress ¶¨Î», ÊµÏÖ PC ¸ú×Ù¸´ÓÃ¡£
+ * EEPROM çš„åœ°å€å¯¼èˆªä¸é…ç½®ç©ºé—´å…±äº« CMD_LOAD_CFG + Increment æœºåˆ¶,
+ * å› æ­¤ä½¿ç”¨ icspGotoConfigAddress å®šä½, å®ç° PC è·Ÿè¸ªå¤ç”¨ã€‚
  *
- * ÓÅ»¯²ßÂÔÍ¬ icspGotoConfigAddress¡£
+ * ä¼˜åŒ–ç­–ç•¥åŒ icspGotoConfigAddressã€‚
  *
- * @param  addr EEPROM ×Ö½ÚÆ«ÒÆµØÖ·
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @param  addr EEPROM å­—èŠ‚åç§»åœ°å€
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspSetEeAddress(uint32_t addr)
 {
@@ -1736,18 +1783,18 @@ uint8_t icspSetEeAddress(uint32_t addr)
     targetAddr = icsp_pdev->common.eedata_base + addr;
 
     /*
-     * ÀûÓÃ icspGotoConfigAddress µÄÖÇÄÜÑ°Ö·:
-     * - Èôµ±Ç°ÒÑÔÚÅäÖÃ¿Õ¼äÇÒ targetAddr >= µ±Ç°µØÖ· ¡ú ÔöÁ¿Ê½ÒÆ¶¯
-     * - ·ñÔò×ßÍêÕûÂ·¾¶
-     * - ÈôÒÑ¾­ÔÚ¸ÃµØÖ· ¡ú Áã²Ù×÷
+     * åˆ©ç”¨ icspGotoConfigAddress çš„æ™ºèƒ½å¯»å€:
+     * - è‹¥å½“å‰å·²åœ¨é…ç½®ç©ºé—´ä¸” targetAddr >= å½“å‰åœ°å€ â†’ å¢é‡å¼ç§»åŠ¨
+     * - å¦åˆ™èµ°å®Œæ•´è·¯å¾„
+     * - è‹¥å·²ç»åœ¨è¯¥åœ°å€ â†’ é›¶æ“ä½œ
      */
     return icspGotoConfigAddress(targetAddr);
 }
 
 /**
- * @brief  ±à³ÌÒ»¸ö×Ö½Úµ½Êı¾İEEPROM
- * @param  val  ÒªĞ´ÈëµÄ×Ö½ÚÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  ç¼–ç¨‹ä¸€ä¸ªå­—èŠ‚åˆ°æ•°æ®EEPROM
+ * @param  val  è¦å†™å…¥çš„å­—èŠ‚æ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspProgEE(uint8_t val)
 {
@@ -1760,9 +1807,9 @@ uint8_t icspProgEE(uint8_t val)
 }
 
 /**
- * @brief  ´ÓÊı¾İEEPROM¶ÁÈ¡Ò»¸ö×Ö½Ú
- * @param  val  Êä³ö»º³åÇø£¬´æ·Å¶ÁÈ¡µ½µÄ×Ö½ÚÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  ä»æ•°æ®EEPROMè¯»å–ä¸€ä¸ªå­—èŠ‚
+ * @param  val  è¾“å‡ºç¼“å†²åŒºï¼Œå­˜æ”¾è¯»å–åˆ°çš„å­—èŠ‚æ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspReadEE(uint8_t *val)
 {
@@ -1776,12 +1823,12 @@ uint8_t icspReadEE(uint8_t *val)
 }
 
 /**
- * @brief  ±à³ÌÅäÖÃ×Ö£¨Config Word£©(ÖÇÄÜÑ°Ö·)
- *         BaselineÏµÁĞÖ±½ÓÊ¹ÓÃLoad+Begin·½Ê½
- *         14-bitÏµÁĞÍ¨¹ıÅäÖÃ¿Õ¼äµØÖ·Ğ´Èë
- * @param  idx  ÅäÖÃ×ÖË÷Òı£¨0¿ªÊ¼£©
- * @param  val  ÒªĞ´ÈëµÄÅäÖÃ×ÖÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  ç¼–ç¨‹é…ç½®å­—ï¼ˆConfig Wordï¼‰(æ™ºèƒ½å¯»å€)
+ *         Baselineç³»åˆ—ç›´æ¥ä½¿ç”¨Load+Beginæ–¹å¼
+ *         14-bitç³»åˆ—é€šè¿‡é…ç½®ç©ºé—´åœ°å€å†™å…¥
+ * @param  idx  é…ç½®å­—ç´¢å¼•ï¼ˆ0å¼€å§‹ï¼‰
+ * @param  val  è¦å†™å…¥çš„é…ç½®å­—æ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspProgCfg(uint8_t idx, uint16_t val)
 {
@@ -1809,26 +1856,19 @@ uint8_t icspProgCfg(uint8_t idx, uint16_t val)
     if (icspGetConfigAddressByIndex(idx, &targetAddr) != ICSP_OK)
         return ICSP_ERR;
 
-    if (icsp_pdev->common.core_family == PIC8_CORE_BASELINE_12BIT)
-    {
-        if (icspEnsureBaselineAtConfig() != ICSP_OK)
-            return ICSP_ERR;
-        return icspWriteProgramWordAt(targetAddr, val, icsp_pdev->common.wait_cfg_us);
-    }
-
     /*
-     * icspWriteConfigWordAt ÄÚ²¿µ÷ÓÃ icspGotoConfigAddress,
-     * ÒÑ°üº¬ÖÇÄÜÑ°Ö·Âß¼­¡£
+     * icspWriteConfigWordAt å†…éƒ¨è°ƒç”¨ icspGotoConfigAddress,
+     * å·²åŒ…å«æ™ºèƒ½å¯»å€é€»è¾‘ã€‚
      */
     return icspWriteConfigWordAt(targetAddr, val, icsp_pdev->common.wait_cfg_us);
 }
 
 /**
- * @brief  ¶ÁÈ¡ÅäÖÃ×Ö£¨Config Word£©(ÖÇÄÜÑ°Ö·)
- *         BaselineÏµÁĞÖ±½ÓÊ¹ÓÃReadÃüÁî
- *         14-bitÏµÁĞÍ¨¹ıÅäÖÃ¿Õ¼äµØÖ·¶ÁÈ¡
- * @param  idx  ÅäÖÃ×ÖË÷Òı£¨0¿ªÊ¼£©
- * @return ¶ÁÈ¡µ½µÄÅäÖÃ×ÖÊı¾İ£¬Ê§°Ü·µ»Ø0xFFFF
+ * @brief  è¯»å–é…ç½®å­—ï¼ˆConfig Wordï¼‰(æ™ºèƒ½å¯»å€)
+ *         Baselineç³»åˆ—ç›´æ¥ä½¿ç”¨Readå‘½ä»¤
+ *         14-bitç³»åˆ—é€šè¿‡é…ç½®ç©ºé—´åœ°å€è¯»å–
+ * @param  idx  é…ç½®å­—ç´¢å¼•ï¼ˆ0å¼€å§‹ï¼‰
+ * @return è¯»å–åˆ°çš„é…ç½®å­—æ•°æ®ï¼Œå¤±è´¥è¿”å›0xFFFF
  */
 uint16_t icspReadCfg(uint8_t idx)
 {
@@ -1839,22 +1879,13 @@ uint16_t icspReadCfg(uint8_t idx)
     if (icspGetConfigAddressByIndex(idx, &targetAddr) != ICSP_OK)
         return 0xFFFF;
 
-    if (icsp_pdev->common.core_family == PIC8_CORE_BASELINE_12BIT)
-    {
-        if (icspEnsureBaselineAtConfig() != ICSP_OK)
-            return 0xFFFF;
-        if (icspReadProgramWordAt(targetAddr, &value) != ICSP_OK)
-            return 0xFFFF;
-        return value;
-    }
-
     /*
-     * icspReadConfigWordAt ÄÚ²¿µ÷ÓÃ icspGotoConfigAddress,
-     * ÒÑ°üº¬ÖÇÄÜÑ°Ö·Âß¼­¡£
+     * icspReadConfigWordAt å†…éƒ¨è°ƒç”¨ icspGotoConfigAddress,
+     * å·²åŒ…å«æ™ºèƒ½å¯»å€é€»è¾‘ã€‚
      */
     if (icspReadConfigWordAt(targetAddr, &value) != ICSP_OK)
         return 0xFFFF;
-    #if UART1_TRACE
+    #if ICSP_UART_DETAIL_TRACE
     uart1_WriteString("ICSP cfgR idx=");
     uart1_WriteDec(idx);
     uart1_WriteString(" val=0x");
@@ -1867,12 +1898,12 @@ uint16_t icspReadCfg(uint8_t idx)
 }
 
 /**
- * @brief  ±à³ÌÓÃ»§ID×Ö£¨User ID£©(ÖÇÄÜÑ°Ö·)
- *         BaselineÏµÁĞÖ±½ÓÊ¹ÓÃLoad+Begin·½Ê½
- *         14-bitÏµÁĞÍ¨¹ıÅäÖÃ¿Õ¼äµØÖ·Ğ´Èë
- * @param  idx  ÓÃ»§IDË÷Òı£¨0~3£©
- * @param  val  ÒªĞ´ÈëµÄÓÃ»§IDÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  ç¼–ç¨‹ç”¨æˆ·IDå­—ï¼ˆUser IDï¼‰(æ™ºèƒ½å¯»å€)
+ *         Baselineç³»åˆ—ç›´æ¥ä½¿ç”¨Load+Beginæ–¹å¼
+ *         14-bitç³»åˆ—é€šè¿‡é…ç½®ç©ºé—´åœ°å€å†™å…¥
+ * @param  idx  ç”¨æˆ·IDç´¢å¼•ï¼ˆ0~3ï¼‰
+ * @param  val  è¦å†™å…¥çš„ç”¨æˆ·IDæ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspProgUID(uint8_t idx, uint16_t val)
 {
@@ -1891,18 +1922,18 @@ uint8_t icspProgUID(uint8_t idx, uint16_t val)
     targetAddr = icsp_pdev->common.userid_base + idx;
 
     /*
-     * icspWriteConfigWordAt ÄÚ²¿µ÷ÓÃ icspGotoConfigAddress,
-     * ÒÑ°üº¬ÖÇÄÜÑ°Ö·Âß¼­¡£
+     * icspWriteConfigWordAt å†…éƒ¨è°ƒç”¨ icspGotoConfigAddress,
+     * å·²åŒ…å«æ™ºèƒ½å¯»å€é€»è¾‘ã€‚
      */
     return icspWriteConfigWordAt(targetAddr, val, icsp_pdev->common.wait_userid_us);
 }
 
 /**
- * @brief  ¶ÁÈ¡ÓÃ»§ID×Ö£¨User ID£©(ÖÇÄÜÑ°Ö·)
- *         BaselineÏµÁĞÖ±½ÓÊ¹ÓÃReadÃüÁî
- *         14-bitÏµÁĞÍ¨¹ıÅäÖÃ¿Õ¼äµØÖ·¶ÁÈ¡
- * @param  idx  ÓÃ»§IDË÷Òı£¨0~3£©
- * @return ¶ÁÈ¡µ½µÄÓÃ»§IDÊı¾İ£¬Ê§°Ü·µ»Ø0xFFFF
+ * @brief  è¯»å–ç”¨æˆ·IDå­—ï¼ˆUser IDï¼‰(æ™ºèƒ½å¯»å€)
+ *         Baselineç³»åˆ—ç›´æ¥ä½¿ç”¨Readå‘½ä»¤
+ *         14-bitç³»åˆ—é€šè¿‡é…ç½®ç©ºé—´åœ°å€è¯»å–
+ * @param  idx  ç”¨æˆ·IDç´¢å¼•ï¼ˆ0~3ï¼‰
+ * @return è¯»å–åˆ°çš„ç”¨æˆ·IDæ•°æ®ï¼Œå¤±è´¥è¿”å›0xFFFF
  */
 uint16_t icspReadUID(uint8_t idx)
 {
@@ -1920,8 +1951,8 @@ uint16_t icspReadUID(uint8_t idx)
         return 0xFFFF;
 
     /*
-     * icspReadConfigWordAt ÄÚ²¿µ÷ÓÃ icspGotoConfigAddress,
-     * ÒÑ°üº¬ÖÇÄÜÑ°Ö·Âß¼­¡£
+     * icspReadConfigWordAt å†…éƒ¨è°ƒç”¨ icspGotoConfigAddress,
+     * å·²åŒ…å«æ™ºèƒ½å¯»å€é€»è¾‘ã€‚
      */
     if (icspReadConfigWordAt(icsp_pdev->common.userid_base + idx, &value) != ICSP_OK)
         return 0xFFFF;
@@ -1929,9 +1960,9 @@ uint16_t icspReadUID(uint8_t idx)
 }
 
 /**
- * @brief  ¶ÁÈ¡Õñµ´Æ÷Ğ£×¼×Ö£¨OSCCAL£©(ÖÇÄÜÑ°Ö·)
- * @param  idx  Ğ£×¼×ÖË÷Òı£¨0¿ªÊ¼£©
- * @return ¶ÁÈ¡µ½µÄĞ£×¼×ÖÊı¾İ£¬Ê§°Ü·µ»Ø0xFFFF
+ * @brief  è¯»å–æŒ¯è¡å™¨æ ¡å‡†å­—ï¼ˆOSCCALï¼‰(æ™ºèƒ½å¯»å€)
+ * @param  idx  æ ¡å‡†å­—ç´¢å¼•ï¼ˆ0å¼€å§‹ï¼‰
+ * @return è¯»å–åˆ°çš„æ ¡å‡†å­—æ•°æ®ï¼Œå¤±è´¥è¿”å›0xFFFF
  */
 uint16_t icspReadOSCCAL(uint8_t idx)
 {
@@ -1951,10 +1982,10 @@ uint16_t icspReadOSCCAL(uint8_t idx)
 }
 
 /**
- * @brief  ±à³ÌÕñµ´Æ÷Ğ£×¼×Ö£¨OSCCAL£©(ÖÇÄÜÑ°Ö·)
- * @param  idx  Ğ£×¼×ÖË÷Òı£¨0¿ªÊ¼£©
- * @param  val  ÒªĞ´ÈëµÄĞ£×¼×ÖÊı¾İ
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  ç¼–ç¨‹æŒ¯è¡å™¨æ ¡å‡†å­—ï¼ˆOSCCALï¼‰(æ™ºèƒ½å¯»å€)
+ * @param  idx  æ ¡å‡†å­—ç´¢å¼•ï¼ˆ0å¼€å§‹ï¼‰
+ * @param  val  è¦å†™å…¥çš„æ ¡å‡†å­—æ•°æ®
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t icspWriteOSCCAL(uint8_t idx, uint16_t val)
 {
@@ -1971,15 +2002,15 @@ uint8_t icspWriteOSCCAL(uint8_t idx, uint16_t val)
 }
 
 /* ================================================================= */
-/* E²ã: Ğ£ÑéÓë°²È«                                                     */
+/* Eå±‚: æ ¡éªŒä¸å®‰å…¨                                                     */
 /* ================================================================= */
-/* F²ã: Family Çı¶¯Èë¿Ú                                                */
+/* Få±‚: Family é©±åŠ¨å…¥å£                                                */
 /* ================================================================= */
 
 /**
- * @brief  ³õÊ¼»¯PIC8±à³ÌÆ÷Çı¶¯
- *         ¸ù¾İÆ÷¼ş²ÎÊıÉèÖÃÃüÁîÎ»¿íºÍÊı¾İÎ»¿í, ÖØÖÃ¸ú×Ù±äÁ¿
- * @param  dev  Æ÷¼ş²ÎÊıÖ¸Õë
+ * @brief  åˆå§‹åŒ–PIC8ç¼–ç¨‹å™¨é©±åŠ¨
+ *         æ ¹æ®å™¨ä»¶å‚æ•°è®¾ç½®å‘½ä»¤ä½å®½å’Œæ•°æ®ä½å®½, é‡ç½®è·Ÿè¸ªå˜é‡
+ * @param  dev  å™¨ä»¶å‚æ•°æŒ‡é’ˆ
  */
 void pic8Init(const pic_prog_params_t *dev)
 {
@@ -1988,28 +2019,28 @@ void pic8Init(const pic_prog_params_t *dev)
     g_picProgmodeActive = 0U;
     g_picEnterPreferLvp = 0U;
     icspClearSavedParam();
-    g_picCmdWidth = 6;                /* ËùÓĞPIC 8-bitºË¾ùÎª6-bitÃüÁî */
+    g_picCmdWidth = 6;                /* æ‰€æœ‰PIC 8-bitæ ¸å‡ä¸º6-bitå‘½ä»¤ */
     g_picDataWidth = dev->common.inst_bits;
     if (g_picDataWidth != 12U && g_picDataWidth != 14U)
         g_picDataWidth = (dev->common.core_family == PIC8_CORE_BASELINE_12BIT) ? 12U : 14U;
 
     /*
-     * ³õÊ¼»¯Ê±ÖØÖÃ PC ¸ú×Ù±äÁ¿,
-     * È·±£Ê×´Î²Ù×÷×ßÍêÕûÂ·¾¶¡£
+     * åˆå§‹åŒ–æ—¶é‡ç½® PC è·Ÿè¸ªå˜é‡,
+     * ç¡®ä¿é¦–æ¬¡æ“ä½œèµ°å®Œæ•´è·¯å¾„ã€‚
      */
     g_picCurrentArea = ICSP_AREA_NONE;
     g_picCurrentAddress = 0U;
 
 #if !ICSP_CLK_FAST
-    icspSetIcspClock(ICSP_CLK_DEFAULT_HZ);  /* Ä¬ÈÏÎ»Ê±ÖÓ, ¿É°´Æ÷¼şµ÷ÓÃµ÷Õû */
+    icspSetIcspClock(ICSP_CLK_DEFAULT_HZ);  /* é»˜è®¤ä½æ—¶é’Ÿ, å¯æŒ‰å™¨ä»¶è°ƒç”¨è°ƒæ•´ */
 #endif
 }
 
 /**
- * @brief  ½øÈë±à³ÌÄ£Ê½£¨×Ô¶¯Ñ¡ÔñLVP»òHVP£©
- *         ³É¹¦ºóÖØÖÃ PC ¸ú×Ù±äÁ¿Îª³õÊ¼×´Ì¬
- * @param  preferLvp  1=ÓÅÏÈÊ¹ÓÃLVP, 0=Ê¹ÓÃHVP
- * @return ICSP_OK=³É¹¦, ICSP_ERR=Ê§°Ü
+ * @brief  è¿›å…¥ç¼–ç¨‹æ¨¡å¼ï¼ˆè‡ªåŠ¨é€‰æ‹©LVPæˆ–HVPï¼‰
+ *         æˆåŠŸåé‡ç½® PC è·Ÿè¸ªå˜é‡ä¸ºåˆå§‹çŠ¶æ€
+ * @param  preferLvp  1=ä¼˜å…ˆä½¿ç”¨LVP, 0=ä½¿ç”¨HVP
+ * @return ICSP_OK=æˆåŠŸ, ICSP_ERR=å¤±è´¥
  */
 uint8_t pic8EnterProgmode(uint8_t preferLvp)
 {
@@ -2024,10 +2055,10 @@ uint8_t pic8EnterProgmode(uint8_t preferLvp)
             g_picProgmodeActive = 1U;
 
             /*
-             * ½øÈë±à³ÌÄ£Ê½ºó, PC ´¦ÓÚÆ÷¼ş³õÊ¼Öµ:
-             * - 14-bit: PC = 0x0000 (³ÌĞòÇøÆğÊ¼)
-             * - baseline: È¡¾öÓÚ pc_init_mode
-             * ÖØÖÃ¸ú×Ù±äÁ¿È·±£Ê×²Ù×÷×ßÍêÕûÂ·¾¶¡£
+             * è¿›å…¥ç¼–ç¨‹æ¨¡å¼å, PC å¤„äºå™¨ä»¶åˆå§‹å€¼:
+             * - 14-bit: PC = 0x0000 (ç¨‹åºåŒºèµ·å§‹)
+             * - baseline: å–å†³äº pc_init_mode
+             * é‡ç½®è·Ÿè¸ªå˜é‡ç¡®ä¿é¦–æ“ä½œèµ°å®Œæ•´è·¯å¾„ã€‚
              */
             g_picCurrentArea = ICSP_AREA_NONE;
             g_picCurrentAddress = 0U;
@@ -2039,7 +2070,7 @@ uint8_t pic8EnterProgmode(uint8_t preferLvp)
     {
         g_picProgmodeActive = 1U;
 
-        /* Í¬ÉÏ, ÖØÖÃ¸ú×Ù±äÁ¿ */
+        /* åŒä¸Š, é‡ç½®è·Ÿè¸ªå˜é‡ */
         g_picCurrentArea = ICSP_AREA_NONE;
         g_picCurrentAddress = 0U;
         return ICSP_OK;
@@ -2048,15 +2079,15 @@ uint8_t pic8EnterProgmode(uint8_t preferLvp)
 }
 
 /**
- * @brief  ÍË³ö±à³ÌÄ£Ê½
- *         icspExit ÄÚ²¿ÒÑÖØÖÃ¸ú×Ù±äÁ¿Îª ICSP_AREA_NONE
+ * @brief  é€€å‡ºç¼–ç¨‹æ¨¡å¼
+ *         icspExit å†…éƒ¨å·²é‡ç½®è·Ÿè¸ªå˜é‡ä¸º ICSP_AREA_NONE
  */
 void pic8LeaveProgmode(void)
 {
     icspExit();
     g_picProgmodeActive = 0U;
     /*
-     * icspExit ÒÑÉèÖÃ:
+     * icspExit å·²è®¾ç½®:
      *   g_picCurrentArea = ICSP_AREA_NONE
      *   g_picCurrentAddress = 0U
      */
