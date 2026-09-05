@@ -47,12 +47,12 @@ extern "C" {
 #endif
 
 /* ── 常数: 各共享表条目数 ────────────────────────────────────── */
-#define PIC8_POWER_TABLE_SIZE       26
-#define PIC8_SEQ_TABLE_SIZE         23
-#define PIC8_SPACE_TABLE_SIZE       34
-#define PIC8_DCR_TABLE_SIZE         42
-#define PIC8_SUB_TABLE_SIZE         18
-#define PIC8_DEVICE_TABLE_SIZE               285      // 实际器件数量 (457 个)
+#define PIC8_POWER_TABLE_SIZE       50
+#define PIC8_SEQ_TABLE_SIZE         48
+#define PIC8_SPACE_TABLE_SIZE       83
+#define PIC8_DCR_TABLE_SIZE         64
+#define PIC8_SUB_TABLE_SIZE         26
+#define PIC8_DEVICE_TABLE_SIZE               407      // 实际器件数量 (457 个)
 #define MAX_CONFIG_WORDS            4
 
 typedef enum

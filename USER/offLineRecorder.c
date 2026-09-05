@@ -244,6 +244,39 @@ static uint8_t offlineRawIsValidIndex(uint16_t index)
             g_offlinePackageIndex[index].package_state == OFFLINE_PACKAGE_VALID) ? 1U : 0U;
 }
 
+/* The last physical package is the only item eligible for in-place refresh. */
+static uint8_t offlineRawGetLastValidPackage(offline_package_index_t *last)
+{
+    uint16_t i;
+    uint8_t found = 0U;
+
+    if (last == 0)
+        return 0U;
+
+    offlineRawLoadIndex();
+    for (i = 0U; i < OFFLINE_MAX_PACKAGES; i++)
+    {
+        if (!offlineRawIsValidIndex(i))
+            continue;
+        if (found == 0U || g_offlinePackageIndex[i].flash_addr > last->flash_addr)
+        {
+            memcpy(last, &g_offlinePackageIndex[i], sizeof(*last));
+            found = 1U;
+        }
+    }
+
+    return found;
+}
+
+static uint8_t offlineRawItemIdMatches(const stkDeviceIdentity_t *left,
+                                       const stkDeviceIdentity_t *right)
+{
+    if (left == 0 || right == 0)
+        return 0U;
+
+    return (memcmp(left->itemId, right->itemId, STK_PARAM_ITEM_ID_LEN) == 0) ? 1U : 0U;
+}
+
 /* Ϊ�µ� raw ���߰�����һ�������ۡ� */
 static uint16_t offlineRawAllocIndex(void)
 {
@@ -515,6 +548,7 @@ uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity)
 {
     uint16_t idx;
     uint32_t addr;
+    offline_package_index_t lastPackage;
 
     if (!stkIsRecordMode())
         return 0U;
@@ -525,11 +559,20 @@ uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity)
     offlinePgmerInitStorageOnce();
     offlineRawLoadIndex();
 
-    idx = offlineRawAllocIndex();
-    if (idx == 0xFFFFU)
-        return 1U;
-
-    addr = offlineRawAllocFlashAddr();
+    if (offlineRawGetLastValidPackage(&lastPackage) &&
+        offlineRawItemIdMatches(identity, &lastPackage.identity))
+    {
+        /* Same recording window: replace only the physical tail package. */
+        idx = lastPackage.package_index;
+        addr = lastPackage.flash_addr;
+    }
+    else
+    {
+        idx = offlineRawAllocIndex();
+        if (idx == 0xFFFFU)
+            return 1U;
+        addr = offlineRawAllocFlashAddr();
+    }
     memset(&g_rawCapture, 0, sizeof(g_rawCapture));
     g_rawCapture.active = 1U;
     g_rawCapture.index = idx;
@@ -1000,6 +1043,5 @@ uint8_t offlinePgmerGetActivePackage(uint16_t *index)
     return 0U;
 #endif
 }
-
 
 

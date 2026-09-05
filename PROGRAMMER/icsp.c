@@ -125,12 +125,22 @@ static uint32_t     g_picCurrentAddress;           /* 当前PC地址值 */
 #define ICSP_SUPPORTS_LVP_FAST() \
     (icsp_pdev != NULL && icsp_pdev->common.lvp_mode != PIC8_LVP_NONE)
 
-#define ICSP_CMD_GAP_FAST()      //ICSP_DELAY_US(1)
+#define ICSP_CMD_GAP_FAST()      ICSP_DELAY_US(1)
 #define ICSP_LOAD_PROG_CMD_FAST() (ICSP_IS_BASELINE_FAST() ? CMD12_LOAD_PROG : CMD_LOAD_PROG)
 #define ICSP_READ_PROG_CMD_FAST() (ICSP_IS_BASELINE_FAST() ? CMD12_READ_PROG : CMD_READ_PROG)
 #define ICSP_INC_ADDR_CMD_FAST()  (ICSP_IS_BASELINE_FAST() ? CMD12_INC_ADDR : CMD_INC_ADDR)
 #define ICSP_END_PROG_CMD_FAST()  (ICSP_IS_BASELINE_FAST() ? CMD12_END_PROG : CMD_END_PROG)
 #define ICSP_USE_EXT_PROG_FAST()  (ICSP_IS_BASELINE_FAST())
+
+/* Standard 14-bit mid-range devices erase Data Memory with a separate command. */
+static uint8_t icspNeedsExplicitDataMemoryErase(void)
+{
+    if (icsp_pdev == NULL)
+        return 0U;
+
+    return (icsp_pdev->common.core_family == PIC8_CORE_MIDRANGE_14BIT &&
+            icsp_pdev->common.has_eeprom != 0U) ? 1U : 0U;
+}
 
 /*
  * 增强型宏: 递增 ICSP 地址, 同时更新跟踪变量 g_picCurrentAddress
@@ -521,6 +531,24 @@ static uint8_t icspIsCalWordErased(uint16_t readValue)
     return (((readValue & widthMask) == widthMask) ? 1U : 0U);
 }
 
+static uint8_t icspHasUsableBaselineCalBackup(void)
+{
+    return (ICSP_IS_BASELINE_FAST() &&
+            icsp_pdev->common.cal_data_word_count != 0U) ? 1U : 0U;
+}
+
+static uint8_t icspIsCalWordMissing(uint16_t readValue)
+{
+    uint16_t widthMask;
+
+    if (icsp_pdev == NULL)
+        return 1U;
+
+    widthMask = icspGetBitMask(g_picDataWidth);
+    return (((readValue & widthMask) == 0U ||
+             (readValue & widthMask) == widthMask) ? 1U : 0U);
+}
+
 /**
  * @brief  清除擦除前保存的参数, 全部填充 0xFF (擦除态)
  *         并将有效标志 g_picSavedParamValid 置为 0 (无效)
@@ -566,6 +594,7 @@ static uint8_t icspBackupCriticalWords(void)
 {
     uint8_t idx;
     uint8_t count;
+    uint8_t osccalNeedsBackupRecovery = 0U;
     uint16_t value;
     uint16_t *slot;
 
@@ -608,18 +637,28 @@ static uint8_t icspBackupCriticalWords(void)
             {
                 if (value == 0x0000U)
                 {
-                    #if UART1_TRACE
-                    uart1_WriteString("ICSP CAL: OSCCAL all-zero (code-protected), device invalid\r\n");
-                    #endif
-                    return ICSP_ERR_CAL_LOST;
+                    if (icspHasUsableBaselineCalBackup())
+                        osccalNeedsBackupRecovery = 1U;
+                    else
+                    {
+                        #if UART1_TRACE
+                        uart1_WriteString("ICSP CAL: OSCCAL all-zero (code-protected), device invalid\r\n");
+                        #endif
+                        return ICSP_ERR_CAL_LOST;
+                    }
                 }
                 if (icspIsOsccalEntryWord(osccalAddr) &&
                     value == icspGetBitMask(g_picDataWidth))
                 {
-                    #if UART1_TRACE
-                    uart1_WriteString("ICSP CAL: OSCCAL entry all-ones (missing factory content), device invalid\r\n");
-                    #endif
-                    return ICSP_ERR_CAL_LOST;
+                    if (icspHasUsableBaselineCalBackup())
+                        osccalNeedsBackupRecovery = 1U;
+                    else
+                    {
+                        #if UART1_TRACE
+                        uart1_WriteString("ICSP CAL: OSCCAL entry all-ones (missing factory content), device invalid\r\n");
+                        #endif
+                        return ICSP_ERR_CAL_LOST;
+                    }
                 }
             }
         }
@@ -650,6 +689,29 @@ static uint8_t icspBackupCriticalWords(void)
         uart1_WriteHex16((uint16_t)targetAddr);
         uart1_WriteString(" val=0x");
         uart1_WriteHex16(value);
+        uart1_WriteString("\r\n");
+        #endif
+    }
+
+    if (osccalNeedsBackupRecovery != 0U)
+    {
+        uint16_t *osccalSlot = icspGetSavedCalSlot(0U);
+        uint16_t *backupSlot = icspGetSavedCalSlot(1U);
+
+        if (osccalSlot == NULL || backupSlot == NULL ||
+            icspIsCalWordMissing(*backupSlot))
+        {
+            #if UART1_TRACE
+            uart1_WriteString("ICSP CAL: OSCCAL and backup missing, device invalid\r\n");
+            #endif
+            return ICSP_ERR_CAL_LOST;
+        }
+
+        /* The factory backup replaces a missing normal OSCCAL after erase. */
+        *osccalSlot = *backupSlot;
+        #if UART1_TRACE
+        uart1_WriteString("ICSP CAL: OSCCAL recovered from backup val=0x");
+        uart1_WriteHex16(*backupSlot);
         uart1_WriteString("\r\n");
         #endif
     }
@@ -1523,6 +1585,11 @@ uint8_t icspBulkErase(void)
         ICSP_CMD_GAP_FAST();
         icspLoadCmd(CMD_ERASE_PROG);
         ICSP_DELAY_US(icsp_pdev->common.wait_erase_us);
+        if (icspNeedsExplicitDataMemoryErase())
+        {
+            icspLoadCmd(CMD_ERASE_DATA);
+            ICSP_DELAY_US(icsp_pdev->common.wait_erase_us);
+        }
         /*
          * 14-bit Bulk Erase 后 PC 位于配置空间起始,
          * 更新跟踪变量。
@@ -1802,6 +1869,28 @@ uint8_t icspProgEE(uint8_t val)
     icspLoadCmd(CMD_LOAD_DATA);
     ICSP_CMD_GAP_FAST();
     icspLoadData(val, 8);
+    ICSP_BEGIN_PROGRAM_FAST(icsp_pdev->common.wait_eedata_us);
+    return ICSP_OK;
+}
+
+/* Load one EEPROM latch group and commit it with one programming cycle.
+ * The caller leaves the PC at the first byte; this routine advances it between
+ * loaded bytes and leaves it at the final byte of the group. */
+static uint8_t icspProgEeBlock(const uint8_t *data, uint16_t count)
+{
+    uint16_t i;
+
+    if (data == NULL || count == 0U || icsp_pdev == NULL)
+        return ICSP_ERR;
+
+    for (i = 0U; i < count; i++)
+    {
+        icspLoadCmd(CMD_LOAD_DATA);
+        ICSP_CMD_GAP_FAST();
+        icspLoadData(data[i], 8);
+        if (i + 1U < count)
+            ICSP_INCREMENT_ADDRESS_FAST();
+    }
     ICSP_BEGIN_PROGRAM_FAST(icsp_pdev->common.wait_eedata_us);
     return ICSP_OK;
 }
@@ -2157,7 +2246,9 @@ uint8_t icspProgramMemory(stkProgramFlashIcsp_t *param, uint8_t isEeprom)
 {
     uint16_t count;
     uint16_t i;
-    uint16_t row;
+    uint16_t flashLatch;
+    uint16_t latch;
+    uint16_t block;
 
     if (param == NULL)
         return STK_STATUS_CMD_FAILED;
@@ -2174,16 +2265,51 @@ uint8_t icspProgramMemory(stkProgramFlashIcsp_t *param, uint8_t isEeprom)
             return STK_STATUS_CMD_FAILED;
     }
 
-    row = (icsp_pdev != NULL) ? icsp_pdev->common.row_pgm_words : 0U;
+    /* The latch group, rather than the erase row, defines one physical
+     * Begin-Program operation. */
+    flashLatch = (icsp_pdev != NULL) ? icsp_pdev->common.latch_pgm_words : 0U;
     i = 0U;
 
-    /* Block (multi-word) programming for flash when the device table defines
-     * a row size of 2..8 words (e.g. 12F6XX 4-word mode). One Begin command
-     * programs the whole row; the write latches auto-reset for program memory. */
-    if (!isEeprom && row >= 2U && row <= 8U)
+    if (isEeprom)
     {
-        /* head: single words until the address is row-aligned */
-        while (i < count && ((stkAddress.dword + i) % row) != 0U)
+        /* The host sends the largest protocol packet.  EEPROM programming
+         * granularity belongs to the device sequence table, not to the host. */
+        latch = (icsp_pdev != NULL) ? icsp_pdev->common.latch_eedata_words : 0U;
+        if (latch == 0U)
+            latch = 1U;
+
+        #if UART1_TRACE
+        uart1_WriteString("ICSP EE W addr=0x");
+        uart1_WriteHex16((uint16_t)stkAddress.dword);
+        uart1_WriteString(" n=");
+        uart1_WriteDec(count);
+        uart1_WriteString(" latch=");
+        uart1_WriteDec(latch);
+        uart1_WriteString("\r\n");
+        #endif
+
+        while (i < count)
+        {
+            block = (uint16_t)(count - i);
+            if (block > latch)
+                block = latch;
+            if (icspProgEeBlock(&param->data[i], block) != ICSP_OK)
+                return STK_STATUS_CMD_FAILED;
+            i = (uint16_t)(i + block);
+            stkAddress.dword += block;
+            if (i < count)
+                ICSP_INCREMENT_ADDRESS_FAST();
+        }
+        return STK_STATUS_CMD_OK;
+    }
+
+    /* Block (multi-word) programming for flash when the device table defines
+     * a latch group of 2..32 words.  One Begin command programs one complete
+     * latch group; partial head/tail groups remain single-word operations. */
+    if (!isEeprom && flashLatch >= 2U && flashLatch <= 32U)
+    {
+        /* head: single words until the address is latch-group aligned */
+        while (i < count && ((stkAddress.dword + i) % flashLatch) != 0U)
         {
             uint16_t word = icspGetLe16(&param->data[i * 2U]);
             if (icspProgWord(word) != ICSP_OK)
@@ -2193,35 +2319,29 @@ uint8_t icspProgramMemory(stkProgramFlashIcsp_t *param, uint8_t isEeprom)
             i++;
         }
 
-        /* aligned rows: load row words, one Begin, one trailing increment */
-        while (i + row <= count)
+        /* aligned latch groups: fill every latch, then issue one Begin */
+        while (i + flashLatch <= count)
         {
             uint16_t k;
-            for (k = 0U; k < row; k++)
+            for (k = 0U; k < flashLatch; k++)
             {
                 uint16_t word = icspGetLe16(&param->data[(i + k) * 2U]);
                 icspLoadCmd(ICSP_LOAD_PROG_CMD_FAST());
                 ICSP_CMD_GAP_FAST();
                 icspLoadData(word, g_picDataWidth);
-                if (k + 1U < row)
+                if (k + 1U < flashLatch)
                     ICSP_INCREMENT_ADDRESS_FAST();
             }
             ICSP_BEGIN_PROGRAM_FAST(icsp_pdev->common.wait_pgm_us);
             ICSP_INCREMENT_ADDRESS_FAST();
-            stkAddress.dword += row;
-            i += row;
+            stkAddress.dword += flashLatch;
+            i += flashLatch;
         }
     }
 
     /* tail (and the whole block when row programming is not active) */
     for (; i < count; i++)
     {
-        if (isEeprom)
-        {
-            if (icspProgEE(param->data[i]) != ICSP_OK)
-                return STK_STATUS_CMD_FAILED;
-        }
-        else
         {
             uint16_t word = icspGetLe16(&param->data[i * 2U]);
             if (icspProgWord(word) != ICSP_OK)
@@ -2268,6 +2388,17 @@ uint16_t icspReadMemory(stkReadFlashIcsp_t *param,
             return 1U;
         }
     }
+
+    #if UART1_TRACE
+    if (isEeprom)
+    {
+        uart1_WriteString("ICSP EE R addr=0x");
+        uart1_WriteHex16((uint16_t)stkAddress.dword);
+        uart1_WriteString(" n=");
+        uart1_WriteDec(count);
+        uart1_WriteString("\r\n");
+    }
+    #endif
 
     result->status1 = STK_STATUS_CMD_OK;
     for (i = 0; i < count; i++)
