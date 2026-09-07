@@ -98,9 +98,40 @@ void USB_Interrupts_Config(void)
 * Output         : None.
 * Return         : None.
 *******************************************************************************/
+static void UsbUidWordToString(u32 value, u8 char_offset)
+{
+  static const u8 hex[] = "0123456789ABCDEF";
+  u8 nibble;
+  u8 index;
+
+  for (nibble = 0; nibble < 8; nibble++)
+  {
+    index = (u8)(char_offset + nibble);
+    UsbHidDev_StringSerial[2 + 2 * index] =
+      hex[(value >> (28 - 4 * nibble)) & 0x0FU];
+    UsbHidDev_StringSerial[3 + 2 * index] = 0;
+  }
+}
+
+static void UsbSerialPrefix(void)
+{
+  static const u8 prefix[] = "DFM-";
+  u8 index;
+
+  for (index = 0; index < 4; index++)
+  {
+    UsbHidDev_StringSerial[2 + 2 * index] = prefix[index];
+    UsbHidDev_StringSerial[3 + 2 * index] = 0;
+  }
+}
+
 void Get_SerialNum(void)
 {
-  /* AVR-Doper HID mode: 无序列号功能 */
+  /* Serial is "DFM-" followed by UID0, UID1, UID2; each word is MSB first. */
+  UsbSerialPrefix();
+  UsbUidWordToString(*((volatile u32 *)0x1FFFF7E8), 4);
+  UsbUidWordToString(*((volatile u32 *)0x1FFFF7EC), 12);
+  UsbUidWordToString(*((volatile u32 *)0x1FFFF7F0), 20);
 }
 
 /******************* (C) COPYRIGHT 2008 STMicroelectronics *****END OF FILE****/

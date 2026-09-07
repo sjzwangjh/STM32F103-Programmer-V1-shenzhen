@@ -434,6 +434,7 @@ void stkResetAllProgrammingSessions(void);
 #define STK_PARAM_RESET_POLARITY                0x9E
 #define STK_PARAM_CONTROLLER_INIT               0x9F
 #define STK_PARAM_DEVICE_IDENTITY               0xB6
+#define STK_PARAM_APP_IMAGE_INFO                0xB7
 
 #define STK_PARAM_ITEM_ID_LEN                  12
 #define STK_PARAM_ITEM_DESC_LEN                64

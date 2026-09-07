@@ -63,6 +63,8 @@ static void stkPutLe16(uint8_t *bytes, uint16_t value);
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen);
 /* 将当前器件和项目�?份信�?打包返回给上位机�?*/
 static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize);
+/* Return the running App version and build time as one ASCII field. */
+static uint16_t stkGetAppImageInfo(uint8_t *out, uint16_t outSize);
 /* 打包离线包总体信息: 有效包数量、激活包序号、最大包数量�?*/
 static uint16_t stkPutOfflineInfo(uint8_t *out, uint16_t outSize);
 /* 打包指定离线包摘�? 供上位机查看 Flash �?的�?�录内�?��??*/
@@ -601,6 +603,33 @@ static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize)
     return needLen;
 }
 
+static uint16_t stkGetAppImageInfo(uint8_t *out, uint16_t outSize)
+{
+    boot_app_image_info_t appInfo;
+    uint16_t versionLen = 0U;
+    uint16_t buildTimeLen = 0U;
+    uint16_t needLen;
+
+    if (out == NULL || !stkBootCtrlReadAppInfo(&appInfo))
+        return 0U;
+
+    while (versionLen < BOOT_APP_VERSION_TEXT_LEN && appInfo.versionText[versionLen] != '\0')
+        versionLen++;
+    while (buildTimeLen < BOOT_APP_BUILD_TIME_LEN && appInfo.buildTime[buildTimeLen] != '\0')
+        buildTimeLen++;
+    if (versionLen == 0U || buildTimeLen == 0U)
+        return 0U;
+
+    needLen = (uint16_t)(versionLen + 1U + buildTimeLen);
+    if (outSize < needLen)
+        return 0U;
+
+    memcpy(out, appInfo.versionText, versionLen);
+    out[versionLen] = '-';
+    memcpy(&out[versionLen + 1U], appInfo.buildTime, buildTimeLen);
+    return needLen;
+}
+
 static void stkPutLe32(uint8_t *bytes, uint32_t value)
 {
     bytes[0] = (uint8_t)(value & 0xFFU);
@@ -1012,7 +1041,22 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 setParameter(pRx[STK_TXMSG_START + 1], pRx[STK_TXMSG_START + 2]);
         }
     SWITCH_CASE(STK_CMD_GET_PARAMETER)
-        if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)
+        if (pRx[STK_TXMSG_START + 1] == STK_PARAM_APP_IMAGE_INFO)
+        {
+            uint16_t appInfoLen = stkGetAppImageInfo(
+                &pTx[STK_TXMSG_START + 2],
+                (uint16_t)(BUFFER_SIZE - (STK_TXMSG_START + 2)));
+            if (appInfoLen == 0U)
+            {
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+                len.bytes[0] = 2;
+            }
+            else
+            {
+                len.word = (uint16_t)(2U + appInfoLen);
+            }
+        }
+        else if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)
         {
             uint16_t payloadLen = stkGetDeviceIdentity(
                 &pTx[STK_TXMSG_START + 2],

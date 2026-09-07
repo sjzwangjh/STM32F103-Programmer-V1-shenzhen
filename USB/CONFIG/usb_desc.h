@@ -22,8 +22,8 @@
 #define USB_STRING_PRODUCT_CHARS       14
 #define USB_STRING_PRODUCT             'D',0,'F',0,'M',0,' ',0,'P',0,'r',0,'o',0,'g',0,'r',0,'a',0,'m',0,'m',0,'e',0,'r',0
 
-#define USB_STRING_SERIAL_CHARS        19
-#define USB_STRING_SERIAL              'd',0,'f',0,'m',0,'I',0,'n',0,'L',0,'i',0,'n',0,'e',0,'P',0,'r',0,'o',0,'g',0,'r',0,'a',0,'m',0,'m',0,'e',0,'r',0
+/* "DFM-" plus the STM32F103 96-bit UID, encoded as uppercase hexadecimal. */
+#define USB_STRING_SERIAL_CHARS        28
 
 /* WinUSB / MS OS 描述符相关参数 */
 #define USB_MS_VENDOR_CODE             0x07
@@ -73,7 +73,7 @@ extern const u8 UsbHidDev_ReportDescriptor[USB_HID_DEV_SIZ_REPORT_DESC];
 extern const u8 UsbHidDev_StringLangID[USB_HID_DEV_SIZ_STRING_LANGID];
 extern const u8 UsbHidDev_StringVendor[USB_HID_DEV_SIZ_STRING_VENDOR];
 extern const u8 UsbHidDev_StringProduct[USB_HID_DEV_SIZ_STRING_PRODUCT];
-extern const u8 UsbHidDev_StringSerial[USB_HID_DEV_SIZ_STRING_SERIAL];
+extern u8 UsbHidDev_StringSerial[USB_HID_DEV_SIZ_STRING_SERIAL];
 extern const u8 UsbHidDev_StringMSOS[18];
 extern const u8 UsbHidDev_BOSDescriptor[USB_HID_DEV_SIZ_BOS_DESC];
 extern const u8 UsbHidDev_MSOS20Descriptor[USB_HID_DEV_SIZ_MSOS20_DESC];

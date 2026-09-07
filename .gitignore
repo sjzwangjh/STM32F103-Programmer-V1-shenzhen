@@ -40,3 +40,4 @@ MDK-ARM/DebugConfig/
 # Python
 __pycache__/
 *.pyc
+USER/app_build_time_generated.h

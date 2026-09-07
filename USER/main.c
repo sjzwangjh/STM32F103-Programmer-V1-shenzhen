@@ -33,7 +33,7 @@
 #include "debugBin.h"
 
 #define APP_VERSION_TEXT  "APP 01.00.00"
-#define APP_BUILD_TIME_TEXT "2026-08-28 00:00:00"
+#include "app_build_time_generated.h"
 
 extern uint8_t stkBootConfirmApplicationReady(void);
 
