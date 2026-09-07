@@ -26,13 +26,115 @@
 #include "delay.h"
 #include "timer.h"
 #include "eeprom.h"
+#include "usart.h"
 #include <string.h>
 
 /* ── 模块内全局变量 ───────────────────────────────────────────── */
 static HandlerConfigerType usedHandler = {1, 1, 1, 1, 1, 10, 3000};
 statisticsType usedStatistics = {0, 0, 0, 0, 0, 0};
 
-static uint8_t  handlerCfgBuff[16];
+
+#define HANDLER_CONFIG_RECORD_SIZE     15U
+#define HANDLER_CONFIG_MAGIC0          0x48U
+#define HANDLER_CONFIG_MAGIC1          0x43U
+#define HANDLER_CONFIG_VERSION         0x01U
+
+static const uint8_t handlerCfgDefault[HANDLER_CONFIG_DATA_SIZE] = {1U, 1U, 1U, 1U, 1U, 10U, 0U, 0xB8U, 0x0BU};
+static uint8_t handlerCfgBuff[HANDLER_CONFIG_DATA_SIZE];
+static uint8_t handlerCfgRecord[HANDLER_CONFIG_RECORD_SIZE];
+#define HANDLER_STATISTICS_PAYLOAD_SIZE  24U
+#define HANDLER_STATISTICS_RECORD_MAGIC  0x5354U
+#define HANDLER_STATISTICS_RECORD_VERSION 1U
+#define HANDLER_STATISTICS_CRC_OFFSET    30U
+
+/* statisticsType has six 32-bit counters; do not persist its padded C layout. */
+typedef char HandlerStatisticsPayloadMustBe24[(sizeof(statisticsType) == HANDLER_STATISTICS_PAYLOAD_SIZE) ? 1 : -1];
+typedef char HandlerStatisticsRegionMustUseWholeSlots[
+    (((HW_HANDLER_STATISTICS_EEPROM_END_ADDR - HW_HANDLER_STATISTICS_EEPROM_START_ADDR + 1UL) %
+      HW_HANDLER_STATISTICS_RECORD_SIZE) == 0UL) ? 1 : -1];
+typedef char HandlerStatisticsStartMustBePageAligned[
+    ((HW_HANDLER_STATISTICS_EEPROM_START_ADDR % HW_HANDLER_STATISTICS_RECORD_SIZE) == 0UL) ? 1 : -1];
+
+static uint8_t g_statisticsRecord[HW_HANDLER_STATISTICS_RECORD_SIZE];
+static uint16_t g_statisticsNextSlot;
+static uint16_t g_statisticsNextSequence;
+#if HANDLER_DEBUG_TRACE
+static void HandlerTraceU32(uint32_t value)
+{
+    uart1_WriteHex16((uint16_t)(value >> 16));
+    uart1_WriteHex16((uint16_t)value);
+}
+
+static void HandlerTraceConfig(const char *tag, uint16_t crc)
+{
+    uart1_WriteString("[HND] ");
+    uart1_WriteString(tag);
+    uart1_WriteString(" crc=0x");
+    uart1_WriteHex16(crc);
+    uart1_WriteString("\r\n");
+}
+
+static void HandlerTraceStatistics(const char *tag, uint16_t slot, uint16_t sequence)
+{
+    uart1_WriteString("[HND] ");
+    uart1_WriteString(tag);
+    uart1_WriteString(" slot=");
+    uart1_WriteDec(slot);
+    uart1_WriteString(" seq=0x");
+    uart1_WriteHex16(sequence);
+    uart1_WriteString(" total=0x");
+    HandlerTraceU32(usedStatistics.realTotal);
+    uart1_WriteString(" pass=0x");
+    HandlerTraceU32(usedStatistics.realPassed);
+    uart1_WriteString(" fail=0x");
+    HandlerTraceU32(usedStatistics.realFaild);
+    uart1_WriteString("\r\n");
+}
+#endif
+
+static uint16_t HandlerCrc16(const uint8_t *pData, uint16_t len)
+{
+    uint16_t crc = 0xFFFFU;
+    uint8_t bit;
+
+    while (len-- != 0U)
+    {
+        crc ^= *pData++;
+        for (bit = 0U; bit < 8U; bit++)
+        {
+            if ((crc & 1U) != 0U)
+                crc = (crc >> 1U) ^ 0xA001U;
+            else
+                crc >>= 1U;
+        }
+    }
+
+    return crc;
+}
+
+static void HandlerConfigEncode(uint8_t *pData)
+{
+    pData[0] = usedHandler.sotLevel;
+    pData[1] = usedHandler.eotLevel;
+    pData[2] = usedHandler.busyLevel;
+    pData[3] = usedHandler.passLevel;
+    pData[4] = usedHandler.ngLevel;
+    pData[5] = (uint8_t)usedHandler.delayMsBinToEot;
+    pData[6] = (uint8_t)(usedHandler.delayMsBinToEot >> 8);
+    pData[7] = (uint8_t)usedHandler.delayMsMinTestTime;
+    pData[8] = (uint8_t)(usedHandler.delayMsMinTestTime >> 8);
+}
+
+static void HandlerConfigDecode(const uint8_t *pData)
+{
+    usedHandler.sotLevel = pData[0];
+    usedHandler.eotLevel = pData[1];
+    usedHandler.busyLevel = pData[2];
+    usedHandler.passLevel = pData[3];
+    usedHandler.ngLevel = pData[4];
+    usedHandler.delayMsBinToEot = (uint16_t)pData[5] | ((uint16_t)pData[6] << 8);
+    usedHandler.delayMsMinTestTime = (uint16_t)pData[7] | ((uint16_t)pData[8] << 8);
+}
 
 /*
  * 毫秒级时间戳获取
@@ -81,21 +183,26 @@ void HandlerChangeLevel(uint8_t* pBuff)
  * 原 HAL 版本使用 stm32 内部 Flash 或 SPI Flash;
  * 本项目 SPI Flash 接口为 SPI_Flash_Mount/Write/Read/DisMount。
  */
-void HandlerUpdateFlash(void)
+void HandlerSaveConfig(void)
 {
-    /* 将 Handler 配置移入缓冲区 (10字节) */
-    handlerCfgBuff[0] = usedHandler.sotLevel;
-    handlerCfgBuff[1] = usedHandler.eotLevel;
-    handlerCfgBuff[2] = usedHandler.busyLevel;
-    handlerCfgBuff[3] = usedHandler.passLevel;
-    handlerCfgBuff[4] = usedHandler.ngLevel;
-    handlerCfgBuff[5] = (uint8_t)usedHandler.delayMsBinToEot;
-    handlerCfgBuff[6] = (uint8_t)(usedHandler.delayMsBinToEot >> 8);
-    handlerCfgBuff[7] = (uint8_t)usedHandler.delayMsMinTestTime;
-    handlerCfgBuff[8] = (uint8_t)(usedHandler.delayMsMinTestTime >> 8);
+    uint16_t crc;
 
-    /* 写入 SPI EEPROM */
-     SPI_EEPROM_Write(HW_HANDLER_PARAM_EEPROM_START_ADDR, handlerCfgBuff, 10);
+    HandlerConfigEncode(handlerCfgBuff);
+    handlerCfgRecord[0] = HANDLER_CONFIG_MAGIC0;
+    handlerCfgRecord[1] = HANDLER_CONFIG_MAGIC1;
+    handlerCfgRecord[2] = HANDLER_CONFIG_VERSION;
+    handlerCfgRecord[3] = HANDLER_CONFIG_DATA_SIZE;
+    memcpy(&handlerCfgRecord[4], handlerCfgBuff, HANDLER_CONFIG_DATA_SIZE);
+    crc = HandlerCrc16(handlerCfgRecord, HANDLER_CONFIG_RECORD_SIZE - 2U);
+    handlerCfgRecord[HANDLER_CONFIG_RECORD_SIZE - 2U] = (uint8_t)crc;
+    handlerCfgRecord[HANDLER_CONFIG_RECORD_SIZE - 1U] = (uint8_t)(crc >> 8);
+
+    SPI_EEPROM_Write(HW_HANDLER_PARAM_EEPROM_START_ADDR,
+                     handlerCfgRecord,
+                     HANDLER_CONFIG_RECORD_SIZE);
+#if HANDLER_DEBUG_TRACE
+    HandlerTraceConfig("cfg save", crc);
+#endif
 }
 
 /**
@@ -104,37 +211,40 @@ void HandlerUpdateFlash(void)
  */
 void HandlerReadConfig(uint8_t* pByteBuff)
 {
+    uint16_t storedCrc;
+    uint16_t computedCrc;
 
-    /* 
-     * TODO: 集成 SPI_Flash_Read
-     *   SPI_Flash_Mount(0);
-     *   result = SPI_Flash_Read(handlerCfgFileName, handlerCfgBuff, 10);
-     *   if (result == 10) { ... }
-     *   SPI_Flash_DisMount();
-     *
-     * 当前先用默认值代替
-     */
-    /* Read the 10-byte handler config from SPI EEPROM; fall back to defaults
-     * when the area is all 0x00 or all 0xFF (erased / never written). */
-    SPI_EEPROM_Read(HW_HANDLER_PARAM_EEPROM_START_ADDR, handlerCfgBuff, 10);
-    if (handlerCfgBuff[0] != 0 && handlerCfgBuff[1] != 0 && handlerCfgBuff[2] != 0 &&
-        handlerCfgBuff[3] != 0 && handlerCfgBuff[4] != 0 && handlerCfgBuff[5] != 0 &&
-        handlerCfgBuff[6] != 0 && handlerCfgBuff[7] != 0 && handlerCfgBuff[8] != 0 &&
-        handlerCfgBuff[0] != 0xFF && handlerCfgBuff[1] != 0xFF && handlerCfgBuff[2] != 0xFF &&
-        handlerCfgBuff[3] != 0xFF && handlerCfgBuff[4] != 0xFF && handlerCfgBuff[5] != 0xFF &&
-        handlerCfgBuff[6] != 0xFF && handlerCfgBuff[7] != 0xFF && handlerCfgBuff[8] != 0xFF)
+    SPI_EEPROM_Read(HW_HANDLER_PARAM_EEPROM_START_ADDR,
+                    handlerCfgRecord,
+                    HANDLER_CONFIG_RECORD_SIZE);
+    storedCrc = (uint16_t)handlerCfgRecord[HANDLER_CONFIG_RECORD_SIZE - 2U] |
+                ((uint16_t)handlerCfgRecord[HANDLER_CONFIG_RECORD_SIZE - 1U] << 8);
+    computedCrc = HandlerCrc16(handlerCfgRecord,
+                                     HANDLER_CONFIG_RECORD_SIZE - 2U);
+    if (handlerCfgRecord[0] == HANDLER_CONFIG_MAGIC0 &&
+        handlerCfgRecord[1] == HANDLER_CONFIG_MAGIC1 &&
+        handlerCfgRecord[2] == HANDLER_CONFIG_VERSION &&
+        handlerCfgRecord[3] == HANDLER_CONFIG_DATA_SIZE &&
+        storedCrc == computedCrc)
     {
-        usedHandler.sotLevel         = handlerCfgBuff[0];
-        usedHandler.eotLevel         = handlerCfgBuff[1];
-        usedHandler.busyLevel        = handlerCfgBuff[2];
-        usedHandler.passLevel        = handlerCfgBuff[3];
-        usedHandler.ngLevel          = handlerCfgBuff[4];
-        usedHandler.delayMsBinToEot  = (handlerCfgBuff[5]) | (handlerCfgBuff[6] << 8);
-        usedHandler.delayMsMinTestTime = (handlerCfgBuff[7]) | (handlerCfgBuff[8] << 8);
+        memcpy(handlerCfgBuff, &handlerCfgRecord[4], HANDLER_CONFIG_DATA_SIZE);
+        HandlerConfigDecode(handlerCfgBuff);
+#if HANDLER_DEBUG_TRACE
+        HandlerTraceConfig("cfg load", storedCrc);
+#endif
+    }
+    else
+    {
+        /* Empty, old-format, or corrupt data restores the known default configuration. */
+        memcpy(handlerCfgBuff, handlerCfgDefault, HANDLER_CONFIG_DATA_SIZE);
+        HandlerConfigDecode(handlerCfgBuff);
+#if HANDLER_DEBUG_TRACE
+    HandlerTraceConfig("cfg default", 0U);
+#endif
     }
 
     if (pByteBuff != NULL)
-        memcpy(pByteBuff, handlerCfgBuff, 10);
+        memcpy(pByteBuff, handlerCfgBuff, HANDLER_CONFIG_DATA_SIZE);
 }
 
 /* ── 统计函数 ──────────────────────────────────────────────────── */
@@ -143,8 +253,157 @@ void HandlerReadConfig(uint8_t* pByteBuff)
  * @brief  将当前统计计数器读出到缓冲区
  * @param  pBuff [输出] 大小 = sizeof(statisticsType)
  */
+static uint16_t HandlerReadLe16(const uint8_t *pData)
+{
+    return (uint16_t)pData[0] | ((uint16_t)pData[1] << 8);
+}
+
+static void HandlerWriteLe16(uint8_t *pData, uint16_t value)
+{
+    pData[0] = (uint8_t)value;
+    pData[1] = (uint8_t)(value >> 8);
+}
+
+static uint32_t HandlerReadLe32(const uint8_t *pData)
+{
+    return (uint32_t)pData[0] |
+           ((uint32_t)pData[1] << 8) |
+           ((uint32_t)pData[2] << 16) |
+           ((uint32_t)pData[3] << 24);
+}
+
+static void HandlerWriteLe32(uint8_t *pData, uint32_t value)
+{
+    pData[0] = (uint8_t)value;
+    pData[1] = (uint8_t)(value >> 8);
+    pData[2] = (uint8_t)(value >> 16);
+    pData[3] = (uint8_t)(value >> 24);
+}
+
+static void StatisticsEncode(uint8_t *pData)
+{
+    HandlerWriteLe32(&pData[0], usedStatistics.realTotal);
+    HandlerWriteLe32(&pData[4], usedStatistics.realPassed);
+    HandlerWriteLe32(&pData[8], usedStatistics.realFaild);
+    HandlerWriteLe32(&pData[12], usedStatistics.logicTotal);
+    HandlerWriteLe32(&pData[16], usedStatistics.logicPassed);
+    HandlerWriteLe32(&pData[20], usedStatistics.logicFaild);
+}
+
+static void StatisticsDecode(const uint8_t *pData)
+{
+    usedStatistics.realTotal = HandlerReadLe32(&pData[0]);
+    usedStatistics.realPassed = HandlerReadLe32(&pData[4]);
+    usedStatistics.realFaild = HandlerReadLe32(&pData[8]);
+    usedStatistics.logicTotal = HandlerReadLe32(&pData[12]);
+    usedStatistics.logicPassed = HandlerReadLe32(&pData[16]);
+    usedStatistics.logicFaild = HandlerReadLe32(&pData[20]);
+}
+
+static uint8_t StatisticsRecordIsValid(const uint8_t *pRecord)
+{
+    if (HandlerReadLe16(&pRecord[0]) != HANDLER_STATISTICS_RECORD_MAGIC ||
+        pRecord[2] != HANDLER_STATISTICS_RECORD_VERSION ||
+        pRecord[3] != HANDLER_STATISTICS_PAYLOAD_SIZE)
+    {
+        return 0U;
+    }
+
+    return (HandlerReadLe16(&pRecord[HANDLER_STATISTICS_CRC_OFFSET]) ==
+            HandlerCrc16(pRecord, HANDLER_STATISTICS_CRC_OFFSET)) ? 1U : 0U;
+}
+
+static uint8_t StatisticsSequenceIsNewer(uint16_t candidate, uint16_t reference)
+{
+    uint16_t delta = (uint16_t)(candidate - reference);
+    return (delta != 0U && delta < 0x8000U) ? 1U : 0U;
+}
+
+static void StatisticsLoadLatest(void)
+{
+    uint16_t slot;
+    uint16_t latestSlot = 0U;
+    uint16_t latestSequence = 0U;
+    uint8_t found = 0U;
+
+    for (slot = 0U; slot < HW_HANDLER_STATISTICS_RECORD_COUNT; slot++)
+    {
+        SPI_EEPROM_Read(HW_HANDLER_STATISTICS_EEPROM_START_ADDR +
+                        ((uint32_t)slot * HW_HANDLER_STATISTICS_RECORD_SIZE),
+                        g_statisticsRecord,
+                        HW_HANDLER_STATISTICS_RECORD_SIZE);
+        if (StatisticsRecordIsValid(g_statisticsRecord) == 0U)
+            continue;
+
+        if (found == 0U ||
+            StatisticsSequenceIsNewer(HandlerReadLe16(&g_statisticsRecord[4]), latestSequence) != 0U)
+        {
+            latestSlot = slot;
+            latestSequence = HandlerReadLe16(&g_statisticsRecord[4]);
+            StatisticsDecode(&g_statisticsRecord[6]);
+            found = 1U;
+        }
+    }
+
+    if (found == 0U)
+    {
+        memset(&usedStatistics, 0, sizeof(usedStatistics));
+        g_statisticsNextSlot = 0U;
+        g_statisticsNextSequence = 0U;
+#if HANDLER_DEBUG_TRACE
+        HandlerTraceStatistics("stat empty", 0U, 0U);
+#endif
+    }
+    else
+    {
+        g_statisticsNextSlot = (uint16_t)(latestSlot + 1U);
+        if (g_statisticsNextSlot >= HW_HANDLER_STATISTICS_RECORD_COUNT)
+            g_statisticsNextSlot = 0U;
+        g_statisticsNextSequence = (uint16_t)(latestSequence + 1U);
+#if HANDLER_DEBUG_TRACE
+        HandlerTraceStatistics("stat load", latestSlot, latestSequence);
+#endif
+    }
+}
+
+static void StatisticsSave(void)
+{
+    uint32_t address;
+    uint16_t crc;
+
+    address = HW_HANDLER_STATISTICS_EEPROM_START_ADDR +
+              ((uint32_t)g_statisticsNextSlot * HW_HANDLER_STATISTICS_RECORD_SIZE);
+    memset(g_statisticsRecord, 0xFF, sizeof(g_statisticsRecord));
+    HandlerWriteLe16(&g_statisticsRecord[0], HANDLER_STATISTICS_RECORD_MAGIC);
+    g_statisticsRecord[2] = HANDLER_STATISTICS_RECORD_VERSION;
+    g_statisticsRecord[3] = HANDLER_STATISTICS_PAYLOAD_SIZE;
+    HandlerWriteLe16(&g_statisticsRecord[4], g_statisticsNextSequence);
+    StatisticsEncode(&g_statisticsRecord[6]);
+    crc = HandlerCrc16(g_statisticsRecord, HANDLER_STATISTICS_CRC_OFFSET);
+    HandlerWriteLe16(&g_statisticsRecord[HANDLER_STATISTICS_CRC_OFFSET], crc);
+
+    /* Commit the magic last so an interrupted write leaves the previous slot valid. */
+    SPI_EEPROM_WriteByte(address, 0xFFU);
+    SPI_EEPROM_WriteByte(address + 1U, 0xFFU);
+    SPI_EEPROM_Write(address + 2U,
+                     &g_statisticsRecord[2],
+                     HW_HANDLER_STATISTICS_RECORD_SIZE - 2U);
+    SPI_EEPROM_Write(address, g_statisticsRecord, 2U);
+#if HANDLER_DEBUG_TRACE
+    HandlerTraceStatistics("stat save", g_statisticsNextSlot, g_statisticsNextSequence);
+#endif
+
+    g_statisticsNextSlot++;
+    if (g_statisticsNextSlot >= HW_HANDLER_STATISTICS_RECORD_COUNT)
+        g_statisticsNextSlot = 0U;
+    g_statisticsNextSequence++;
+}
 void StatisticsReadParam(uint8_t* pBuff)
 {
+    if (pBuff == NULL)
+        return;
+
+    StatisticsLoadLatest();
     memcpy(pBuff, (uint8_t*)&usedStatistics, sizeof(statisticsType));
 }
 
@@ -152,9 +411,13 @@ void StatisticsReadParam(uint8_t* pBuff)
  * @brief  将缓冲区的内容写入统计计数器
  * @param  pBuff [输入] 大小 = sizeof(statisticsType)
  */
-void StatisticsUpdataParam(uint8_t* pBuff)
+void StatisticsUpdateParam(uint8_t* pBuff)
 {
+    if (pBuff == NULL)
+        return;
+
     memcpy((uint8_t*)&usedStatistics, pBuff, sizeof(statisticsType));
+    StatisticsSave();
 }
 
 /**
@@ -163,12 +426,14 @@ void StatisticsUpdataParam(uint8_t* pBuff)
  */
 uint8_t StatisticResetParam(void)
 {
-    usedStatistics.logicTotal   = 0;
-    usedStatistics.logicPassed  = 0;
-    usedStatistics.logicFaild   = 0;
-
-    /* TODO: SPI_FlashSaveStatistics(); 保存到非易失存储 */
-    return 0;
+    usedStatistics.logicTotal = 0U;
+    usedStatistics.logicPassed = 0U;
+    usedStatistics.logicFaild = 0U;
+    StatisticsSave();
+#if HANDLER_DEBUG_TRACE
+    uart1_WriteString("[HND] stat reset\r\n");
+#endif
+    return 0U;
 }
 
 /* ── 初始化 ────────────────────────────────────────────────────── */
@@ -210,7 +475,7 @@ void Handler_Task_Init(void)
         HANDLER_SOT_SET_DW_LOAD;   /* SOT 高有效 → 下拉, 空闲为低 */
     }
 
-    /* TODO: SPI_FlashLoadStatistics(); 加载历史统计数据 */
+    StatisticsLoadLatest();
 }
 
 /* ── 设置 BIN (用于外部快速设置) ──────────────────────────────── */
@@ -304,18 +569,16 @@ uint16_t HandlerTask(uint8_t stateIndex, uint8_t bin)
 
         usedStatistics.realTotal++;
         usedStatistics.logicTotal++;
+        if ((usedStatistics.logicTotal % HW_HANDLER_STATISTICS_SAVE_INTERVAL) == 0U)
+        {
+            StatisticsSave();
+        }
 
         /* Hold BIN for the configured delay, then clear BUSY and set EOT */
         delay_ms(usedHandler.delayMsBinToEot);
 
         HANDLER_BUSY_CLR;
         HANDLER_EOT_SET;
-
-        /* Auto-save statistics every 5 parts (reserved) */
-        if ((usedStatistics.logicTotal % 5) == 0)
-        {
-            /* TODO: statistics persistence */
-        }
 
         handler_task_Step_index = 1;
         break;

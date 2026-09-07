@@ -340,6 +340,16 @@ void stkResetAllProgrammingSessions(void);
 #define STK_CMD_GET_OFFLINE_INFO                0x0A
 #define STK_CMD_GET_OFFLINE_PACKAGE             0x0B
 #define STK_CMD_SET_OFFLINE_ACTIVE              0x0C
+
+/* Programmer management commands; not part of target programming flows. */
+/* 0xA0: no request data, returns 9-byte Handler config. */
+#define STK_CMD_GET_HANDLER_CONFIG              0xA0
+/* 0xA1: request data is exactly the 9-byte Handler config. */
+#define STK_CMD_SET_HANDLER_CONFIG              0xA1
+/* 0xA2: no request data, returns the 24-byte Handler statisticsType data. */
+#define STK_CMD_GET_HANDLER_STATISTICS          0xA2
+/* 0xA3: no request data, resets only Handler logical statistics counters. */
+#define STK_CMD_RESET_HANDLER_STATISTICS        0xA3
 #define CMD_CHECK_TARGET_CONNECTION             0x0D
 #define CMD_LOAD_RC_ID_TABLE                    0x0E
 #define CMD_LOAD_EC_ID_TABLE                    0x0F

@@ -194,6 +194,7 @@ int main(void)
                 LED_ACTIVE = 1; delay_ms(100); LED_ACTIVE = 0;
                 LED_RESET = 0;
                 SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR, 0xFFU);
+                LCD_DisplayString58(7,12,"TEST PASS");
             }
             else
             {
@@ -204,6 +205,7 @@ int main(void)
                 SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 1U, OFFLINE_REPLAY_RESULT_VER);
                 SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 2U, (uint8_t)(replayResult >> 8U));
                 SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 3U, (uint8_t)(replayResult & 0xFFU));
+                LCD_DisplayString58(7,12,"TEST FAIL");
             }
             /* Report PASS/FAIL to the handler after the offline test. */
             HandlerSetBin((uint8_t)(replayResult == 0U ? 0U : 1U));

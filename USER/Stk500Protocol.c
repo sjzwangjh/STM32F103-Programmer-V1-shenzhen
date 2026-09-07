@@ -17,6 +17,7 @@
 #include "icsp.h"
 #include "picDeviceConst.h"
 #include "offLineRecorder.h"
+#include "handler.h"
 #include "eeprom.h"
 #include "usart.h"
 #include "MCP4017_VDD.h"
@@ -918,7 +919,11 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         cmd != STK_CMD_SET_PROG_STATE &&
         cmd != STK_CMD_GET_OFFLINE_INFO &&
         cmd != STK_CMD_GET_OFFLINE_PACKAGE &&
-        cmd != STK_CMD_SET_OFFLINE_ACTIVE)
+        cmd != STK_CMD_SET_OFFLINE_ACTIVE &&
+        cmd != STK_CMD_GET_HANDLER_CONFIG &&
+        cmd != STK_CMD_SET_HANDLER_CONFIG &&
+        cmd != STK_CMD_GET_HANDLER_STATISTICS &&
+        cmd != STK_CMD_RESET_HANDLER_STATISTICS)
     {
         (void)offlinePgmerRawAppendRxPacket(pRx, pDataFrame->frameLen);
     }
@@ -1027,6 +1032,48 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             pTx[STK_TXMSG_START + 1] =
                 (offlinePgmerSetActivePackage(index) == 0U) ?
                 STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
+        }
+    SWITCH_CASE(STK_CMD_GET_HANDLER_CONFIG)
+        if (payloadLen != 1U)
+        {
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        }
+        else
+        {
+            HandlerReadConfig(&pTx[STK_TXMSG_START + 2]);
+            len.word = (uint16_t)(2U + HANDLER_CONFIG_DATA_SIZE);
+        }
+    SWITCH_CASE(STK_CMD_SET_HANDLER_CONFIG)
+        if (payloadLen != (uint16_t)(1U + HANDLER_CONFIG_DATA_SIZE))
+        {
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        }
+        else
+        {
+            HandlerChangeLevel((uint8_t *)param);
+            HandlerSaveConfig();
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+        }
+
+    SWITCH_CASE(STK_CMD_GET_HANDLER_STATISTICS)
+        if (payloadLen != 1U)
+        {
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        }
+        else
+        {
+            StatisticsReadParam(&pTx[STK_TXMSG_START + 2]);
+            len.word = (uint16_t)(2U + sizeof(statisticsType));
+        }
+    SWITCH_CASE(STK_CMD_RESET_HANDLER_STATISTICS)
+        if (payloadLen != 1U)
+        {
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        }
+        else
+        {
+            pTx[STK_TXMSG_START + 1] =
+                (StatisticResetParam() == 0U) ? STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
         }
     SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* 设置 STK 参数或器件身份信�?�??*/
         if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)// 设置器件“身份信�?�??
