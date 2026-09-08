@@ -62,7 +62,7 @@ uint16_t picReplayProgramPass(void)
         uint8_t cmd;
         uint8_t status;
 
-        if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
+        if (offlinePeekPacket(cursor, i, &packetHeader) != 0U)
         {
 #if DEBUG_HARDWARE_CONFIG
             uart1_WriteString("REPLAY pic pgm readfail pkt=");
@@ -74,7 +74,21 @@ uint16_t picReplayProgramPass(void)
 
         cmd = packetHeader.cmd;
         if (picIsDeferredRead(cmd))
+        {
+            if (offlineSkipPacket(&cursor, i, &packetHeader) != 0U)
+                return (uint16_t)(i + 1U);
             continue;
+        }
+
+        if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
+        {
+#if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("REPLAY pic pgm readfail pkt=");
+            uart1_WriteDec(i);
+            uart1_WriteString("\r\n");
+#endif
+            return (uint16_t)(i + 1U);
+        }
 
         status = offlineExecuteFrame(packetHeader.frame_len);
         if (status != STK_STATUS_CMD_OK)
@@ -120,6 +134,25 @@ uint16_t picReplayVerifyPass(void)
         uint8_t cmd;
         void *param;
 
+        if (offlinePeekPacket(cursor, i, &packetHeader) != 0U)
+        {
+#if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("REPLAY pic vfy readfail pkt=");
+            uart1_WriteDec(i);
+            uart1_WriteString("\r\n");
+#endif
+            return (uint16_t)(i + 1U);
+        }
+
+        cmd = packetHeader.cmd;
+        if (cmd == STK_CMD_READ_FLASH_ICSP ||
+            cmd == STK_CMD_READ_EEPROM_ICSP)
+        {
+            if (offlineSkipPacket(&cursor, i, &packetHeader) != 0U)
+                return (uint16_t)(i + 1U);
+            continue;
+        }
+
         if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
         {
 #if DEBUG_HARDWARE_CONFIG
@@ -150,6 +183,7 @@ uint16_t picReplayVerifyPass(void)
                 return (uint16_t)(i + 1U);
             }
             break;
+
 
         case STK_CMD_PROGRAM_FLASH_ICSP:
             if (picVerifyMemory((stkProgramFlashIcsp_t *)param, 0U) != 0)

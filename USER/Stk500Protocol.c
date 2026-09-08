@@ -559,30 +559,38 @@ static uint16_t stkNormalizeIcspConfigValue(uint8_t idx, uint16_t value)
 }
 static uint8_t stkSetDeviceIdentity(const uint8_t *payload, uint16_t payloadLen)
 {
+    stkDeviceIdentity_t identity;
+
     if (payload == NULL)
         return STK_STATUS_CMD_FAILED;
 
     if (payloadLen < (uint16_t)(1U + 2U + STK_PARAM_ITEM_ID_LEN + STK_PARAM_ITEM_DESC_LEN))
         return STK_STATUS_CMD_FAILED;
 
-    g_stkDeviceIdentity.arch = payload[0];
-    g_stkDeviceIdentity.index = stkGetLe16(&payload[1]);
-    memcpy(g_stkDeviceIdentity.itemId, &payload[3], STK_PARAM_ITEM_ID_LEN);
-    memcpy(g_stkDeviceIdentity.itemDesc,
+    identity.arch = payload[0];
+    identity.index = stkGetLe16(&payload[1]);
+    memcpy(identity.itemId, &payload[3], STK_PARAM_ITEM_ID_LEN);
+    memcpy(identity.itemDesc,
            &payload[3 + STK_PARAM_ITEM_ID_LEN],
            STK_PARAM_ITEM_DESC_LEN);
+    identity.itemDesc[STK_PARAM_ITEM_DESC_LEN] = '\0';
+
+    return stkApplyDeviceIdentity(&identity);
+}
+
+uint8_t stkApplyDeviceIdentity(const stkDeviceIdentity_t *identity)
+{
+    if (identity == 0)
+        return STK_STATUS_CMD_FAILED;
+
+    g_stkDeviceIdentity = *identity;
     g_stkDeviceIdentity.itemDesc[STK_PARAM_ITEM_DESC_LEN] = '\0';
-    offlinePgmerInitWith(&g_stkDeviceIdentity);
-    /* DFM: resolve the PIC device for the ICSP engine (arch 1 = PIC) */
-    if (g_stkDeviceIdentity.arch == 1U) {
-        static pic_prog_params_t picParams;
-        if (pic8FindDeviceByIndex(g_stkDeviceIdentity.index, &picParams) == 0)
-            pic8Init(&picParams);
-    }
+    if (offlinePgmerInitWith(&g_stkDeviceIdentity) != 0U)
+        return STK_STATUS_CMD_FAILED;
+
     g_stkIcspDeviceIdChecked = 0U;
     return STK_STATUS_CMD_OK;
 }
-
 /* 将当前器件和项目�?份信�?打包返回给上位机�?*/
 static uint16_t stkGetDeviceIdentity(uint8_t *out, uint16_t outSize)
 {

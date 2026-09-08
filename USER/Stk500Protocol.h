@@ -477,6 +477,8 @@ typedef struct
     char itemDesc[STK_PARAM_ITEM_DESC_LEN + 1];// 项目描述, 用于显示项目的信�?
 } stkDeviceIdentity_t;
 
+uint8_t stkApplyDeviceIdentity(const stkDeviceIdentity_t *identity);
+
 
 
 #endif /* __STK500PROTOCOL_H_INCLUDED__ */

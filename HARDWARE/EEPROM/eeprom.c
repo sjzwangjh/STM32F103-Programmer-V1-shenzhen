@@ -354,11 +354,11 @@ void SPI_EEPROM_DebugDemo(void)
     if (memcmp(txBuf, rxBuf, sizeof(txBuf)) == 0)
     {
         compareOk = 1;
-        printf("��EEPROM���ԡ��ȽϽ��: һ�£���д����ͨ����\r\n");
+        printf("[EEPROM Test] compare: match, read/write passed\r\n");
     }
     else
     {
-        printf("��EEPROM���ԡ��ȽϽ��: ��һ�£���д����ʧ�ܣ�\r\n");
+        printf("[EEPROM Test] compare: mismatch, read/write failed\r\n");
     }
 
     /* ����6: ȫƬ��������֤ */
@@ -368,7 +368,7 @@ void SPI_EEPROM_DebugDemo(void)
 
     memset(rxBuf, 0, sizeof(rxBuf));
     SPI_EEPROM_Read(0x0000U, rxBuf, sizeof(rxBuf));
-    printf("��EEPROM���ԡ��������ȡ 0x0000: ");
+    printf("[EEPROM Test] read back 0x0000: ");
     for (i = 0; i < sizeof(rxBuf); i++)
         printf("%02X ", rxBuf[i]);
     printf("\r\n");
@@ -392,4 +392,3 @@ void SPI_EEPROM_DebugDemo(void)
 
     (void)compareOk;
 }
-

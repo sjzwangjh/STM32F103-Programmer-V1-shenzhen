@@ -733,11 +733,11 @@ void SPI_Flash_DebugDemo(void)
     if (memcmp(txBuf, rxBuf, sizeof(txBuf)) == 0)
     {
         compareOk = 1;
-        printf("��Flash���ԡ��ȽϽ��: һ�£���д����ͨ����\r\n");
+        printf("[Flash Test] compare: match, read/write passed\r\n");
     }
     else
     {
-        printf("��Flash���ԡ��ȽϽ��: ��һ�£���д����ʧ�ܣ�\r\n");
+        printf("[Flash Test] compare: mismatch, read/write failed\r\n");
     }
 
     /* ����7: ��Ƭ��������֤ */
@@ -747,7 +747,7 @@ void SPI_Flash_DebugDemo(void)
 
     memset(rxBuf, 0, sizeof(rxBuf));
     SPI_Flash_Read(rxBuf, 0x00000000UL, sizeof(rxBuf));
-    printf("��Flash���ԡ��������ȡ 0x00000000: ");
+    printf("[Flash Test] read back 0x00000000: ");
     for (i = 0; i < sizeof(rxBuf); i++)
         printf("%02X ", rxBuf[i]);
     printf("\r\n");
@@ -866,7 +866,7 @@ void SPI_Flash_DebugDemo_DMA(void)
     endCyc = *(__IO u32 *)0xE0001004;
     cycDmaWrite = endCyc - startCyc;
 
-    printf("  DMA д�����, ��ʱ %lu ����\r\n", cycDmaWrite);
+    printf("  DMA write done, cycles=%lu\r\n", cycDmaWrite);
 
     /* ============================================================
      *  4. DMA ��ҳ��ȡ + У�� + ��ʱ
@@ -897,7 +897,7 @@ void SPI_Flash_DebugDemo_DMA(void)
     endCyc = *(__IO u32 *)0xE0001004;
     cycDmaRead = endCyc - startCyc;
 
-    printf("  DMA ��ȡ���, ��ʱ %lu ����\r\n", cycDmaRead);
+    printf("  DMA read done, cycles=%lu\r\n", cycDmaRead);
     printf("  DMA ����У��: %s\r\n", (dmaDataOk != 0U) ? "ͨ��" : "ʧ��");
 
     /* ============================================================
@@ -929,7 +929,7 @@ void SPI_Flash_DebugDemo_DMA(void)
     endCyc = *(__IO u32 *)0xE0001004;
     cycPollWrite = endCyc - startCyc;
 
-    printf("  ��ѯд�����, ��ʱ %lu ����\r\n", cycPollWrite);
+    printf("  polling write done, cycles=%lu\r\n", cycPollWrite);
 
     /* ============================================================
      *  7. ��ѯ��ҳ��ȡ + У�� + ��ʱ
@@ -960,7 +960,7 @@ void SPI_Flash_DebugDemo_DMA(void)
     endCyc = *(__IO u32 *)0xE0001004;
     cycPollRead = endCyc - startCyc;
 
-    printf("  ��ѯ��ȡ���, ��ʱ %lu ����\r\n", cycPollRead);
+    printf("  polling read done, cycles=%lu\r\n", cycPollRead);
     printf("  ��ѯ����У��: %s\r\n", (pollDataOk != 0U) ? "ͨ��" : "ʧ��");
 
     /* ============================================================

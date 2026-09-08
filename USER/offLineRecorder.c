@@ -16,6 +16,7 @@
 #include "offLineRecorder.h"
 #include "avrDeviceConst.h"
 #include "picDeviceConst.h"
+#include "icsp.h"
 #include "Stk500Protocol.h"
 #include "string.h"
 #include "flash.h"
@@ -32,8 +33,8 @@ static uint8_t g_pgmStorageInited;
 #define OFFLINE_RAW_DATA_START_ADDR     FLASH_SECTOR_SIZE
 
 /* EEPROM �б��浱ǰ�������߰��ŵ�λ�á� */
-#define OFFLINE_ACTIVE_LOG_ADDR         0x0300U
-#define OFFLINE_ACTIVE_LOG_SIZE         0x0100U
+#define OFFLINE_ACTIVE_LOG_ADDR         0x0100U
+#define OFFLINE_ACTIVE_LOG_SIZE         0x0300U
 #define OFFLINE_ACTIVE_LOG_SLOT_COUNT   (OFFLINE_ACTIVE_LOG_SIZE / sizeof(offline_active_record_t))
 
 /* SPI Flash �е����߰����������档 */
@@ -474,9 +475,12 @@ void offlinePgmerInit(void)
  * ����λ���·�������������Ϣ��ʼ����ǰĿ��������
  * AVR ��������������Ŵ� avrDeviceConst ��������ȫ���в�����
  */
-void offlinePgmerInitWith(stkDeviceIdentity_t* di)
+uint8_t offlinePgmerInitWith(const stkDeviceIdentity_t* di)
 {
     uint16_t i;
+
+    if (di == 0)
+        return 1U;
 
     g_activeDeviceParams.device_arch = di->arch;
     g_activeDeviceParams.device_index = di->index;
@@ -491,14 +495,23 @@ void offlinePgmerInitWith(stkDeviceIdentity_t* di)
 
     if(g_activeDeviceParams.device_arch == STK_MCU_ARCH_AVR)
     {
-        (void)avrFindDeviceByIndex(g_activeDeviceParams.device_index,
-                &g_activeDeviceParams.device_params.avrParam);
+        if (avrFindDeviceByIndex(g_activeDeviceParams.device_index,
+                &g_activeDeviceParams.device_params.avrParam) != 0)
+            return 1U;
     }
-    else //STK_MCU_ARCH_PIC
+    else if(g_activeDeviceParams.device_arch == STK_MCU_ARCH_PIC)
     {
-        (void)pic8FindDeviceByIndex(g_activeDeviceParams.device_index,
-                &g_activeDeviceParams.device_params.picParam);
+        if (pic8FindDeviceByIndex(g_activeDeviceParams.device_index,
+                &g_activeDeviceParams.device_params.picParam) != 0)
+            return 1U;
+        pic8Init(&g_activeDeviceParams.device_params.picParam);
     }
+    else
+    {
+        return 1U;
+    }
+
+    return 0U;
 }
 
 /* ���� STK500 ��չ����ģʽ�� */
@@ -1043,5 +1056,4 @@ uint8_t offlinePgmerGetActivePackage(uint16_t *index)
     return 0U;
 #endif
 }
-
 

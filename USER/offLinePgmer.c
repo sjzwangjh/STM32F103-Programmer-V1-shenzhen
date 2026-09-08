@@ -99,6 +99,56 @@ static uint8_t offlineHeaderIsValid(const offline_raw_package_header_t *header,
  *   6. ??? STK500 ??????STX??TOKEN????????
  *   7. ??????????????????????????
  */
+uint8_t offlinePeekPacket(uint32_t cursor,
+                          uint32_t packetNo,
+                          offline_raw_packet_header_t *packetHeader)
+{
+    uint32_t packetAddr;
+    uint32_t packageEnd;
+
+    if (packetHeader == 0 || packetNo >= g_replay.header.packet_count)
+    {
+        return 1U;
+    }
+
+    packageEnd = g_replay.header.total_size;
+    if (cursor > packageEnd ||
+        (packageEnd - cursor) < sizeof(offline_raw_packet_header_t))
+    {
+        return 1U;
+    }
+
+    packetAddr = g_replay.package_addr + cursor;
+    SPI_Flash_Read((uint8_t *)packetHeader,
+                   packetAddr,
+                   sizeof(offline_raw_packet_header_t));
+
+    if (packetHeader->frame_len < 6U ||
+        packetHeader->frame_len > OFFLINE_REPLAY_FRAME_SIZE ||
+        packetHeader->seq != (uint16_t)packetNo ||
+        packetHeader->cmd == 0U ||
+        (packageEnd - cursor - sizeof(offline_raw_packet_header_t)) <
+            packetHeader->frame_len)
+    {
+        return 1U;
+    }
+
+    return 0U;
+}
+
+uint8_t offlineSkipPacket(uint32_t *cursor,
+                          uint32_t packetNo,
+                          offline_raw_packet_header_t *packetHeader)
+{
+    if (cursor == 0 ||
+        offlinePeekPacket(*cursor, packetNo, packetHeader) != 0U)
+    {
+        return 1U;
+    }
+
+    *cursor += sizeof(offline_raw_packet_header_t) + packetHeader->frame_len;
+    return 0U;
+}
 uint8_t offlineReadPacket(uint32_t *cursor,
                                  uint32_t packetNo,
                                  offline_raw_packet_header_t *packetHeader)
@@ -213,8 +263,10 @@ uint8_t offlineExecuteFrame(uint16_t frameLen)
     }
 #endif
 
-    /* Replay-only settle gap (see OFFLINE_REPLAY_FRAME_GAP_MS). */
+    /* Optional replay-only settle gap (normally 0; device timing is handled by each engine). */
+#if OFFLINE_REPLAY_FRAME_GAP_MS > 0
     delay_ms(OFFLINE_REPLAY_FRAME_GAP_MS);
+#endif
     return status;
 }
 
@@ -306,6 +358,14 @@ uint8_t offlinePgmer_init(void)
     g_replay.header.packet_count = summary.packet_count;
     g_replay.header.total_size = summary.total_size;
     g_replay.header.crc32 = summary.crc32;
+    if (stkApplyDeviceIdentity(&g_replay.header.identity) != STK_STATUS_CMD_OK)
+    {
+#if DEBUG_HARDWARE_CONFIG
+        uart1_WriteString("REPLAY init: identity restore fail\r\n");
+#endif
+        memset(&g_replay, 0, sizeof(g_replay));
+        return 1U;
+    }
 
     if (g_replay.header.packet_area_size == 0U ||
         g_replay.header.total_size !=

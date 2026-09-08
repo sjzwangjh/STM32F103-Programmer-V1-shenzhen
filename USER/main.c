@@ -37,6 +37,66 @@
 
 extern uint8_t stkBootConfirmApplicationReady(void);
 
+static void AppLcdDisplayText10(uint8_t page, uint8_t charIndex, const uint8_t *text)
+{
+    uint8_t i;
+    uint8_t line[11];
+
+    for (i = 0U; i < 10U; i++)
+    {
+        if ((text != 0) && (text[i] != '\0'))
+            line[i] = (uint8_t)text[i];
+        else
+            line[i] = ' ';
+    }
+    line[10] = '\0';
+
+    LCD_DisplayString58(page, charIndex, line);
+}
+
+static void AppLcdMakeCompactVersion(uint8_t *out)
+{
+    uint8_t i;
+    uint8_t j = 0U;
+    const uint8_t *src = (const uint8_t *)APP_VERSION_TEXT;
+
+    for (i = 0U; (src[i] != '\0') && (j < 10U); i++)
+    {
+        if ((src[i] == ' ') || (src[i] == '.'))
+            continue;
+        out[j++] = src[i];
+    }
+    out[j] = '\0';
+}
+
+static const uint8_t *AppLcdGetReplayDeviceName(void)
+{
+    const uint8_t *name = 0;
+
+    if (g_activeDeviceParams.device_arch == STK_MCU_ARCH_AVR)
+        name = g_activeDeviceParams.device_params.avrParam.device_name;
+    else if (g_activeDeviceParams.device_arch == STK_MCU_ARCH_PIC)
+        name = g_activeDeviceParams.device_params.picParam.common.device_name;
+
+    if ((name == 0) || (name[0] == 0U) || (name[0] == 0xFFU))
+        return 0;
+
+    return name;
+}
+
+static void AppLcdDisplayStartupInfo(void)
+{
+    uint8_t compactVersion[11];
+    const uint8_t *deviceName;
+
+    AppLcdMakeCompactVersion(compactVersion);
+    AppLcdDisplayText10(3, 12, compactVersion);
+    AppLcdDisplayText10(4, 12, (const uint8_t *)APP_BUILD_TIME_TEXT);
+
+    deviceName = AppLcdGetReplayDeviceName();
+    AppLcdDisplayText10(5, 12, (deviceName != 0) ? deviceName : (const uint8_t *)"          ");
+}
+
 const boot_app_image_info_t g_appImageInfo __attribute__((used, at(APP_INFO_ADDR))) =
 {
     BOOT_APP_IMAGE_INFO_MAGIC,
@@ -50,13 +110,6 @@ const boot_app_image_info_t g_appImageInfo __attribute__((used, at(APP_INFO_ADDR
     {0U, 0U, 0U, 0U, 0U},
     0U
 };
-
-/* Offline replay result record in SPI EEPROM (0x0040, 4 bytes):
- * byte0 magic 0xA5, byte1 version 1, byte2-3 last failed packet no (u16 BE).
- * All-0xFF means no failure recorded. */
-#define OFFLINE_REPLAY_RESULT_MAGIC     0xA5U
-#define OFFLINE_REPLAY_RESULT_VER       1U
-#define OFFLINE_REPLAY_RESULT_ADDR      0x0040UL
 
 /// USB 口对应的MCU引脚定义
 #define HW_USB_DP_PORT  A,12
@@ -123,8 +176,8 @@ int main(void)
     LCD_Init();
     LCD_DisplayGraphic(1,1,64,64, bmp_defeng_Logo);
     LCD_DisplayString58(1,12,"DIF Micro");
-    LCD_DisplayString58(3,12,"DefengTech");
-    LCD_DisplayString58(5,12,"Programmer");
+    LCD_DisplayString58(2,12,"Programmer");
+    //AppLcdDisplayStartupInfo();
 
     timerInit();
     Adc_Init();             // ADC + DMA1_Channel1
@@ -160,6 +213,7 @@ int main(void)
     HandlerTask(1,1);   // 初始化发送一个失效信�?
     /* 离线编程器初始化 */
     offlinePgmer_init();
+    AppLcdDisplayStartupInfo();
     uart1_WriteString("[App] core init done\r\n");
     debugBin_Init();
     (void)stkBootConfirmApplicationReady();
@@ -184,7 +238,10 @@ int main(void)
         /* 机械手信号读�?*/
         handlerKey = HandlerTask(0xFF,0);  /* free-run handler state machine */
         if(handlerKey>0){
+            LCD_DisplayString58(7,12,"TEST...   ");
             uint16_t replayResult = offlinePgmer();
+            /* Report PASS/FAIL to the handler after the offline test. */
+            HandlerSetBin((uint8_t)(replayResult == 0U ? 0U : 1U));
             if (replayResult == 0U)
             {
                 /* PASS: short beep + ACTIVE LED blink, clear fail record. */
@@ -193,22 +250,15 @@ int main(void)
                 delay_ms(80);
                 LED_ACTIVE = 1; delay_ms(100); LED_ACTIVE = 0;
                 LED_RESET = 0;
-                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR, 0xFFU);
                 LCD_DisplayString58(7,12,"TEST PASS");
             }
             else
             {
-                /* FAIL: long beep + RESET LED on, record failed packet no. */
+                /* FAIL: long beep + RESET LED on. */
                 BEEP = 1; delay_ms(400); BEEP = 0;
                 LED_RESET = 1;
-                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 0U, OFFLINE_REPLAY_RESULT_MAGIC);
-                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 1U, OFFLINE_REPLAY_RESULT_VER);
-                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 2U, (uint8_t)(replayResult >> 8U));
-                SPI_EEPROM_WriteByte(OFFLINE_REPLAY_RESULT_ADDR + 3U, (uint8_t)(replayResult & 0xFFU));
                 LCD_DisplayString58(7,12,"TEST FAIL");
             }
-            /* Report PASS/FAIL to the handler after the offline test. */
-            HandlerSetBin((uint8_t)(replayResult == 0U ? 0U : 1U));
         }
         if(stkFwUpgradeRequested())
         {

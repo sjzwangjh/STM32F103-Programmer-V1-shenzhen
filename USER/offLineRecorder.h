@@ -147,7 +147,7 @@ extern uint8_t g_stkWorkMode;
 extern offlineDeviceParams_t g_activeDeviceParams;
 
 void offlinePgmerInit(void);
-void offlinePgmerInitWith(stkDeviceIdentity_t* di);
+uint8_t offlinePgmerInitWith(const stkDeviceIdentity_t* di);
 
 uint8_t stkSetWorkMode(uint8_t mode);
 uint8_t stkGetWorkMode(void);

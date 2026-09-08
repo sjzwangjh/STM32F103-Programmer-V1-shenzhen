@@ -5,10 +5,10 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* ICSP ÄÚÖÃÆ÷¼þÂÖÀª:
- * 1 = baseline 12-bit (ÒÔ PIC12F508 ÀàÆ÷¼þÎª²Î¿¼)
- * 2 = mid-range 14-bit (ÒÔ PIC16F627A/628A/648A ÀàÆ÷¼þÎª²Î¿¼)
- * 3 = enhanced mid-range (ÒÔ PIC16F1825/1829 ÀàÆ÷¼þÎª²Î¿¼)
+/* ICSP ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½:
+ * 1 = baseline 12-bit (ï¿½ï¿½ PIC12F508 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½Î¿ï¿½)
+ * 2 = mid-range 14-bit (ï¿½ï¿½ PIC16F627A/628A/648A ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½Î¿ï¿½)
+ * 3 = enhanced mid-range (ï¿½ï¿½ PIC16F1825/1829 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îªï¿½Î¿ï¿½)
  */
 
 /* Power shared table (27 entries) */
@@ -731,6 +731,9 @@ static void pic8AggregateParams(const pic8_device_index_t *entry,
     pic8_icsp_common_t *cm = &out->common;
     if (entry == NULL || out == NULL) return;
     memset(out, 0, sizeof(*out));
+    for (i = 0; i < (DEVICE_NAME_CHAR_LENGTH - 1U) && entry->name[i] != '\0'; i++)
+        cm->device_name[i] = (uint8_t)entry->name[i];
+    cm->device_name[i] = '\0';
     cm->core_family = entry->core_family;
     cm->pc_init_mode = entry->pc_init_mode;
     cm->inst_bits = entry->inst_bits;
@@ -834,11 +837,11 @@ static void pic8AggregateParams(const pic8_device_index_t *entry,
     }
 }
 
-/* ©¤---------------©¤ ¹©Ä£¿éÍâ²¿µ÷ÓÃµÄAPIº¯Êý ©¤------------------©¤ */
-/// @brief »ñÈ¡Æ÷¼þÁÐ±í
-/// @param startIndex ÆðÊ¼Ë÷Òý
-/// @param rdCount ¶ÁÈ¡ÊýÁ¿
-/// @return ·µ»ØÆ÷¼þ×ÜÊý
+/* ï¿½ï¿½---------------ï¿½ï¿½ ï¿½ï¿½Ä£ï¿½ï¿½ï¿½â²¿ï¿½ï¿½ï¿½Ãµï¿½APIï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½------------------ï¿½ï¿½ */
+/// @brief ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½Ð±ï¿½
+/// @param startIndex ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½
+/// @param rdCount ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½
+/// @return ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 uint16_t pic8GetDeviceList(uint16_t startIndex, uint16_t rdCount) {
     uint16_t i, count = PIC8_DEVICE_TABLE_SIZE;
     uint8_t buff[100];
@@ -856,10 +859,10 @@ uint16_t pic8GetDeviceList(uint16_t startIndex, uint16_t rdCount) {
     return PIC8_DEVICE_TABLE_SIZE;
 }
 
-/// @brief ¸ù¾ÝÆ÷¼þÃû³Æ£¬»ñÈ¡Æ÷¼þ²ÎÊý£¬²¢Ìî³äµ½¸ø¶¨µÄ½á¹¹ÌåÖ¸ÕëÖÐ
-/// @param deviceName £ºÆ÷¼þÃû³Æ
-/// @param out £ºÊä³ö²ÎÊý½á¹¹ÌåÖ¸Õë
-/// @return ³É¹¦·µ»Ø0£¬Ê§°Ü·µ»Ø-1
+/// @brief ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ£ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½äµ½ï¿½ï¿½ï¿½ï¿½ï¿½Ä½á¹¹ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½
+/// @param deviceName ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+/// @param out ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹ï¿½ï¿½Ö¸ï¿½ï¿½
+/// @return ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½0ï¿½ï¿½Ê§ï¿½Ü·ï¿½ï¿½ï¿½-1
 int8_t pic8FindDeviceByName(const char *deviceName, pic_prog_params_t *out) {
     uint16_t i;
     if (deviceName == NULL || out == NULL) return -1;
@@ -878,10 +881,10 @@ int8_t pic8FindDeviceByName(const char *deviceName, pic_prog_params_t *out) {
     return -1;
 }
 
-/// @brief ¸ù¾ÝÆ÷¼þË÷Òý£¬»ñÈ¡Æ÷¼þ²ÎÊý£¬²¢Ìî³äµ½¸ø¶¨µÄ½á¹¹ÌåÖ¸ÕëÖÐ
-/// @param index £ºÆ÷¼þË÷Òý
-/// @param out £ºÊä³ö²ÎÊý½á¹¹ÌåÖ¸Õë
-/// @return ³É¹¦·µ»Ø0£¬Ê§°Ü·µ»Ø-1
+/// @brief ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½äµ½ï¿½ï¿½ï¿½ï¿½ï¿½Ä½á¹¹ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½
+/// @param index ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+/// @param out ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹ï¿½ï¿½Ö¸ï¿½ï¿½
+/// @return ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½0ï¿½ï¿½Ê§ï¿½Ü·ï¿½ï¿½ï¿½-1
 int8_t pic8FindDeviceByIndex(uint16_t index, pic_prog_params_t *out) {
     if (out == NULL || index >= PIC8_DEVICE_TABLE_SIZE) return -1;
     #if DEBUG_HARDWARE_CONFIG
@@ -891,15 +894,15 @@ int8_t pic8FindDeviceByIndex(uint16_t index, pic_prog_params_t *out) {
     return 0;
 }
 
-/// @brief »ñÈ¡Æ÷¼þ×ÜÊý
+/// @brief ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 /// @param  
-/// @return Æ÷¼þ×ÜÊý
+/// @return ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 uint16_t pic8GetDeviceCount(void) { return PIC8_DEVICE_TABLE_SIZE; }
 
-/// @brief ¸ù¾ÝË÷Òý»ñÈ¡Æ÷¼þÌõÄ¿
-/// @param index Æ÷¼þË÷Òý
-/// @param entry Êä³öÖ¸ÏòÆ÷¼þÌõÄ¿µÄÖ¸Õë
-/// @return ³É¹¦·µ»Ø0£¬Ê§°Ü·µ»Ø-1
+/// @brief ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿
+/// @param index ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+/// @param entry ï¿½ï¿½ï¿½Ö¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½Ö¸ï¿½ï¿½
+/// @return ï¿½É¹ï¿½ï¿½ï¿½ï¿½ï¿½0ï¿½ï¿½Ê§ï¿½Ü·ï¿½ï¿½ï¿½-1
 int8_t pic8GetDeviceEntry(uint16_t index, const pic8_device_index_t **entry) {
     if (entry == NULL || index >= PIC8_DEVICE_TABLE_SIZE) return -1;
     *entry = &g_deviceTable[index];

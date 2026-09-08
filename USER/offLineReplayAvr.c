@@ -185,6 +185,27 @@ uint16_t avrReplayVerifyPass(void)
         uint8_t cmd;
         void *param;
 
+        if (offlinePeekPacket(cursor, i, &packetHeader) != 0U)
+        {
+#if DEBUG_HARDWARE_CONFIG
+            uart1_WriteString("REPLAY vfy readfail pkt=");
+            uart1_WriteDec(i);
+            uart1_WriteString("\r\n");
+#endif
+            return (uint16_t)(i + 1U);
+        }
+
+        cmd = packetHeader.cmd;
+        if (cmd == STK_CMD_READ_FLASH_ISP ||
+            cmd == STK_CMD_READ_EEPROM_ISP ||
+            cmd == STK_CMD_READ_FLASH_HVSP ||
+            cmd == STK_CMD_READ_EEPROM_HVSP)
+        {
+            if (offlineSkipPacket(&cursor, i, &packetHeader) != 0U)
+                return (uint16_t)(i + 1U);
+            continue;
+        }
+
         if (offlineReadPacket(&cursor, i, &packetHeader) != 0U)
         {
 #if DEBUG_HARDWARE_CONFIG

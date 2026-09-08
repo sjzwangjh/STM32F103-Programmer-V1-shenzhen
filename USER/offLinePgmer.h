@@ -16,6 +16,10 @@ typedef struct
 /* Shared replay state/helpers exposed to the AVR/PIC replay groups. */
 extern offline_replay_context_t g_replay;
 extern uint8_t g_replayFrame[BUFFER_SIZE];
+uint8_t offlinePeekPacket(uint32_t cursor, uint32_t packetNo,
+                          offline_raw_packet_header_t *packetHeader);
+uint8_t offlineSkipPacket(uint32_t *cursor, uint32_t packetNo,
+                          offline_raw_packet_header_t *packetHeader);
 uint8_t offlineReadPacket(uint32_t *cursor, uint32_t packetNo,
                           offline_raw_packet_header_t *packetHeader);
 uint8_t offlineExecuteFrame(uint16_t frameLen);

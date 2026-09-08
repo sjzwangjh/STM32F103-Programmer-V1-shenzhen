@@ -175,17 +175,78 @@ static uint32_t icspGetBaselinePcSpace(void);
 static uint8_t  icspRestartAndSyncCodeBase(void);
 static uint8_t  icspEnsureBaselineAtConfig(void);
 /*
- * Clock-calibrated microsecond busy-wait (SYSCLK fixed at 72MHz).
- * Each loop iteration costs ~4 CPU cycles, so 18 iterations give ~1us.
- * All device wait values (wait_pgm_us / wait_erase_us / wait_cfg_us ...)
- * are passed through ICSP_DELAY_US() so the struct values control the
- * real programming delay time in microseconds.
+ * Use the Cortex-M3 DWT cycle counter for the programming delays.
+ * It is independent of TIM6 (system timeouts) and SysTick (generic delays),
+ * so ICSP waits are not affected by compiler loop timing or timer reuse.
  */
+#define ICSP_DWT_DEMCR            (*((volatile uint32_t *)0xE000EDFCUL))
+#define ICSP_DWT_CTRL             (*((volatile uint32_t *)0xE0001000UL))
+#define ICSP_DWT_CYCCNT           (*((volatile uint32_t *)0xE0001004UL))
+#define ICSP_DWT_TRCENA           (1UL << 24)
+#define ICSP_DWT_CYCCNTENA        (1UL << 0)
+#define ICSP_CORE_CLOCK_HZ        72000000UL
+
+static uint8_t g_icspDwtDelayChecked;
+static uint8_t g_icspDwtDelayReady;
+
+static uint8_t icspDwtDelayInit(void)
+{
+    uint32_t start;
+
+    if (g_icspDwtDelayChecked != 0U)
+        return g_icspDwtDelayReady;
+
+    g_icspDwtDelayChecked = 1U;
+    ICSP_DWT_DEMCR |= ICSP_DWT_TRCENA;
+    ICSP_DWT_CTRL |= ICSP_DWT_CYCCNTENA;
+    start = ICSP_DWT_CYCCNT;
+    __nop();
+    __nop();
+    __nop();
+    __nop();
+    g_icspDwtDelayReady =
+        ((ICSP_DWT_CTRL & ICSP_DWT_CYCCNTENA) != 0U &&
+         ICSP_DWT_CYCCNT != start) ? 1U : 0U;
+    return g_icspDwtDelayReady;
+}
+
 void icspDelayUs(uint32_t us)
 {
-    volatile uint32_t n = us * 18UL;
-    while (n-- != 0UL)
+    uint32_t cyclesPerUs;
+    uint32_t cycles;
+    uint32_t start;
+    uint32_t chunkUs;
+
+    if (us == 0U)
+        return;
+
+    if (icspDwtDelayInit() != 0U)
     {
+        /* Round upward so the fixed 72MHz clock never shortens TPROG. */
+        cyclesPerUs = (ICSP_CORE_CLOCK_HZ + 999999UL) / 1000000UL;
+
+        while (us != 0U)
+        {
+            chunkUs = us;
+            if (chunkUs > 1000000UL)
+                chunkUs = 1000000UL;
+
+            cycles = chunkUs * cyclesPerUs;
+            start = ICSP_DWT_CYCCNT;
+            while ((uint32_t)(ICSP_DWT_CYCCNT - start) < cycles)
+            {
+            }
+            us -= chunkUs;
+        }
+        return;
+    }
+
+    /* DWT is present on STM32F103; retain the old conservative fallback. */
+    {
+        volatile uint32_t n = us * 18UL;
+        while (n-- != 0UL)
+        {
+        }
     }
 }
 
