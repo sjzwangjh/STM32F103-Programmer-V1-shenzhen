@@ -160,5 +160,16 @@ void    pic8Init(const pic_prog_params_t *dev);
 uint8_t pic8EnterProgmode(uint8_t preferLvp);
 void    pic8LeaveProgmode(void);
 
+/* C946 hidden-device selection. */
+#define PIC16F917    0U
+#define PIC16F916    1U
+#define PIC16F914    2U
+#define PIC16F913    3U
+#define PIC16F946    4U
+
+void     C946WriteHidefuse(uint16_t dat);
+uint16_t C946ReadHidefuse(void);
+uint8_t  ConvertTo16F917(uint8_t deviceIndex);
+
 #endif /* __ICSP_H__ */
 

@@ -2489,3 +2489,185 @@ uint16_t icspReadMemory(stkReadFlashIcsp_t *param,
         stkAddress.dword++;
     return (uint16_t)(1U + (isEeprom ? count : count * 2U));
 }
+
+/* ================================================================= */
+/* C946 hidden-fuse helpers                                           */
+/* ================================================================= */
+
+/* The source exit helper grounds VPP and releases the ICSP pins while
+ * deliberately leaving VDD powered.  pic8LeaveProgmode() cannot be used
+ * here because its icspExit() also switches VDD off. */
+static void c946ExitProgramVppGnd(void)
+{
+    ICSP_CLK_OUT();
+    ICSP_DAT_OUT();
+    ICSP_CLK_L();
+    ICSP_DAT_L();
+    ICSP_VPP_GND();
+    ICSP_DAT_IN();
+    ICSP_CLK_IN();
+    ICSP_LVP_IN();
+
+    g_picProgmodeActive = 0U;
+    g_picCurrentArea = ICSP_AREA_NONE;
+    g_picCurrentAddress = 0U;
+}
+
+void C946WriteHidefuse(uint16_t dat)
+{
+    uint8_t i;
+
+    if (pic8EnterProgmode(0U) != ICSP_OK)
+        return;
+    delay_ms(10U);
+
+    icspLoadCmd(0x1EU);
+    ICSP_DELAY_US(1U);
+    icspLoadData(0x1000U, g_picDataWidth);
+    delay_ms(4U);
+
+    icspLoadCmd(CMD_LOAD_CFG);
+    ICSP_CMD_GAP_FAST();
+    icspLoadData(0x0000U, g_picDataWidth);
+    ICSP_CMD_GAP_FAST();
+    g_picCurrentArea = ICSP_AREA_CONFIG;
+    g_picCurrentAddress = icsp_pdev->common.config_space_base;
+
+    for (i = 0U; i < 9U; i++)
+        ICSP_INCREMENT_ADDRESS_FAST();
+
+    icspLoadCmd(CMD_LOAD_PROG);
+    ICSP_CMD_GAP_FAST();
+    icspLoadData(dat, g_picDataWidth);
+    ICSP_CMD_GAP_FAST();
+    icspLoadCmd(CMD_BEGIN_PROG_EXT);
+    ICSP_DELAY_US(1500U);
+    icspLoadCmd(CMD_END_PROG);
+    ICSP_DELAY_US(20U);
+
+    c946ExitProgramVppGnd();
+}
+
+uint16_t C946ReadHidefuse(void)
+{
+    uint8_t i;
+    uint16_t dat = 0U;
+
+    if (pic8EnterProgmode(0U) != ICSP_OK)
+        return 0U;
+    delay_ms(10U);
+
+    icspLoadCmd(0x1EU);
+    ICSP_DELAY_US(1U);
+    icspLoadData(0x1000U, g_picDataWidth);
+    delay_ms(4U);
+
+    icspLoadCmd(CMD_LOAD_CFG);
+    ICSP_CMD_GAP_FAST();
+    icspLoadData(0x0000U, g_picDataWidth);
+    ICSP_CMD_GAP_FAST();
+    g_picCurrentArea = ICSP_AREA_CONFIG;
+    g_picCurrentAddress = icsp_pdev->common.config_space_base;
+
+    for (i = 0U; i < 9U; i++)
+        ICSP_INCREMENT_ADDRESS_FAST();
+
+    icspLoadCmd(CMD_READ_PROG);
+    ICSP_CMD_GAP_FAST();
+    dat = icspReadData(g_picDataWidth);
+    ICSP_CMD_GAP_FAST();
+
+    c946ExitProgramVppGnd();
+    return dat;
+}
+
+uint8_t ConvertTo16F917(uint8_t deviceIndex)
+{
+    uint16_t C946ChipIdMask = 0x3FE0U;
+    char chipName[5][12] = {
+        "PIC16F917", "PIC16F916", "PIC16F914", "PIC16F913", "PIC16F946"
+    };
+    uint16_t dfchip[5] = {0xBU, 0xAU, 0x9U, 0x8U, 0xFU};
+    uint16_t chipId[5] = {0x1380U, 0x13A0U, 0x13C0U, 0x13E0U, 0x1460U};
+    uint16_t calib2;
+    uint16_t targetHideFuse = 0U;
+    uint16_t tempChipID;
+    char *pTargetChipName;
+    uint16_t targetChipID;
+
+    /* Keep the initialization order and conversion logic of the source. */
+    targetChipID = chipId[deviceIndex];
+    pTargetChipName = &chipName[deviceIndex][0];
+
+    if (deviceIndex >= 5U)
+        return 2U;
+
+    if (pic8EnterProgmode(0U) != ICSP_OK)
+        return 2U;
+    tempChipID = (uint16_t)icspReadDevID();
+    c946ExitProgramVppGnd();
+    delay_ms(10U);
+    ICSP_VDD_OFF();
+
+    #if UART1_TRACE
+    uart1_WriteString("ICSP chip ID=0x");
+    uart1_WriteHex16(tempChipID);
+    uart1_WriteString("\r\n");
+    #endif
+
+    if ((tempChipID & C946ChipIdMask) != targetChipID)
+    {
+        calib2 = C946ReadHidefuse();
+        targetHideFuse = (uint16_t)((dfchip[deviceIndex] << 6U) |
+                                    (calib2 & 0x3C3FU));
+        C946WriteHidefuse(targetHideFuse);
+
+        #if UART1_TRACE
+        uart1_WriteString("ICSP hidden fuse: 0x");
+        uart1_WriteHex16(calib2);
+        uart1_WriteString(" -> 0x");
+        uart1_WriteHex16(targetHideFuse);
+        uart1_WriteString("\r\n");
+        #endif
+
+        delay_ms(10U);
+        if (pic8EnterProgmode(0U) != ICSP_OK)
+            return 2U;
+        tempChipID = (uint16_t)icspReadDevID();
+        c946ExitProgramVppGnd();
+
+        if ((tempChipID & C946ChipIdMask) == targetChipID)
+        {
+            #if UART1_TRACE
+            uart1_WriteString("ICSP converted to ");
+            uart1_WriteString(pTargetChipName);
+            uart1_WriteString(", ID=0x");
+            uart1_WriteHex16(tempChipID);
+            uart1_WriteString("\r\n");
+            #endif
+            return 0U;
+        }
+
+        #if UART1_TRACE
+        uart1_WriteString("ICSP conversion failed: target=");
+        uart1_WriteString(pTargetChipName);
+        uart1_WriteString(", ID=0x");
+        uart1_WriteHex16(tempChipID);
+        uart1_WriteString("\r\n");
+        #endif
+        return 1U;
+    }
+
+    #if UART1_TRACE
+    uart1_WriteString("ICSP device already ");
+    uart1_WriteString(pTargetChipName);
+    uart1_WriteString(", ID=0x");
+    uart1_WriteHex16(tempChipID);
+    uart1_WriteString("\r\n");
+    #endif
+    return 0U;
+
+    ICSP_VDD_OFF();
+    ICSP_VPP_OFF();
+    return 2U;
+}
