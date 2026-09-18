@@ -151,6 +151,10 @@ int main(void)
 	}
 
     LED_Init(); KEY_Init(); BEEP_Init();
+    if (stkBootConfirmApplicationReady())
+        uart1_WriteString("[App] boot confirmed\r\n");
+    else
+        uart1_WriteString("[App] boot confirm failed\r\n");
 
     BEEP=1; usb_port_set(0); delay_ms(300); usb_port_set(1); BEEP=0;
 
@@ -216,8 +220,6 @@ int main(void)
     AppLcdDisplayStartupInfo();
     uart1_WriteString("[App] core init done\r\n");
     debugBin_Init();
-    (void)stkBootConfirmApplicationReady();
-    uart1_WriteString("[App] wait confirm\r\n");
     while(1)
     {
         i++;

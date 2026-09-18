@@ -88,6 +88,11 @@
 #define HW_DUT_PIN8_CTRL            E,6
 #define HW_DUT_PIN8_DAT             E,5
 
+/* -------- EEPROM special target-device selection -------- */
+#define HW_ICSP_TARGET_CHIP_FLAG_EEPROM_ADDR  0x0000UL
+#define HW_ICSP_TARGET_CHIP_FLAG_NONE         0xFFFFU
+#define HW_ICSP_TARGET_CHIP_FLAG_CONVERT_MAX  4U
+
 /* -------- HANDLER -------- */
 #define HW_HANDLER_PARAM_EEPROM_START_ADDR  0x0400
 #define HW_HANDLER_OK               C,6

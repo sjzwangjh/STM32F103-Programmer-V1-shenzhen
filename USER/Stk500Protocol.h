@@ -340,6 +340,9 @@ void stkResetAllProgrammingSessions(void);
 #define STK_CMD_GET_OFFLINE_INFO                0x0A
 #define STK_CMD_GET_OFFLINE_PACKAGE             0x0B
 #define STK_CMD_SET_OFFLINE_ACTIVE              0x0C
+#define CMD_CHECK_TARGET_CONNECTION             0x0D
+#define CMD_LOAD_RC_ID_TABLE                    0x0E
+#define CMD_LOAD_EC_ID_TABLE                    0x0F
 
 /* Programmer management commands; not part of target programming flows. */
 /* 0xA0: no request data, returns 9-byte Handler config. */
@@ -350,9 +353,10 @@ void stkResetAllProgrammingSessions(void);
 #define STK_CMD_GET_HANDLER_STATISTICS          0xA2
 /* 0xA3: no request data, resets only Handler logical statistics counters. */
 #define STK_CMD_RESET_HANDLER_STATISTICS        0xA3
-#define CMD_CHECK_TARGET_CONNECTION             0x0D
-#define CMD_LOAD_RC_ID_TABLE                    0x0E
-#define CMD_LOAD_EC_ID_TABLE                    0x0F
+/* 0xA5: set the target chip type */
+#define STK_CMD_SET_CHIP_TYPE                   0xA5
+/* 0xA6: no request data, returns the 16-bit target chip type in little-endian order. */
+#define STK_CMD_GET_CHIP_TYPE                   0xA6
 
 /* =================== [ STK ISP command constants ] =================== */
 #define STK_CMD_ENTER_PROGMODE_ISP              0x10

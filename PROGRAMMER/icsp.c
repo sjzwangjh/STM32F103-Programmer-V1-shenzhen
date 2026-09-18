@@ -2581,7 +2581,7 @@ uint16_t C946ReadHidefuse(void)
     return dat;
 }
 
-uint8_t ConvertTo16F917(uint8_t deviceIndex)
+uint8_t ConvertC946To(uint8_t deviceIndex)
 {
     uint16_t C946ChipIdMask = 0x3FE0U;
     char chipName[5][12] = {

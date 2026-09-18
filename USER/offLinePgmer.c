@@ -23,6 +23,7 @@
 #include "isp.h"
 #include "icsp.h"
 #include "flash.h"
+#include "eeprom.h"
 #include "usart.h"
 #include "delay.h"
 #include "Hardware_Config.h"
@@ -308,6 +309,36 @@ static void offlineReplayForceCleanup(void)
         stkResetIspSession();
 }
 
+static uint8_t IcspToTargetChip(void)
+{
+    uint8_t flagData[2];
+    uint16_t flag;
+
+    SPI_EEPROM_Read(HW_ICSP_TARGET_CHIP_FLAG_EEPROM_ADDR,
+                    flagData,
+                    sizeof(flagData));
+    flag = (uint16_t)flagData[0] | ((uint16_t)flagData[1] << 8U);
+
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("REPLAY target chip flag=0x");
+    uart1_WriteHex16(flag);
+    uart1_WriteString("\r\n");
+#endif
+
+    if (flag == HW_ICSP_TARGET_CHIP_FLAG_NONE)
+        return 0U;
+
+    /* The conversion routines below are PIC-specific.  Keep AVR replay
+     * unchanged even when an old or accidental EEPROM flag is present. */
+    if (g_replay.header.identity.arch != STK_MCU_ARCH_PIC)
+        return 0U;
+
+    if (flag <= HW_ICSP_TARGET_CHIP_FLAG_CONVERT_MAX)
+        return ConvertC946To((uint8_t)flag);
+
+    return 2U;
+}
+
 
 /**
  * @brief ??????????????
@@ -418,6 +449,19 @@ uint16_t offlinePgmer(void)
     (void)stkSetWorkMode(STK500_WORK_MODE_REPLAY);
     offlineReplayForceCleanup();
 
+    /* Optional target-model conversion must finish before the first recorded
+     * replay frame is executed.  Normalize the ICSP power/session state again
+     * because a conversion routine may have operated VDD/VPP directly. */
+    result = IcspToTargetChip();
+    offlineReplayForceCleanup();
+#if DEBUG_HARDWARE_CONFIG
+    uart1_WriteString("REPLAY targetchip=");
+    uart1_WriteDec(result);
+    uart1_WriteString("\r\n");
+#endif
+    if (result != 0U)
+        goto replay_cleanup;
+
     /* ?????????????????????????????????? */
     result = offlineReplayProgramPass();
 #if DEBUG_HARDWARE_CONFIG
@@ -446,6 +490,7 @@ uint16_t offlinePgmer(void)
         uart1_WriteString("\r\n");
 #endif
     }
+replay_cleanup:
     offlineReplayForceCleanup();
 
     /* ??????????? */

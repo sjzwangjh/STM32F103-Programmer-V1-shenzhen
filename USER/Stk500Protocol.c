@@ -186,6 +186,14 @@ uint8_t stkFwUpgradeRequested(void)
 
 uint8_t stkBootConfirmApplicationReady(void)
 {
+    boot_app_ctrl_t currentCtrl;
+
+    /* A confirmed image must not erase/program the control page every boot. */
+    if (stkBootCtrlRead(&currentCtrl) &&
+        currentCtrl.state == BOOT_APP_STATE_CONFIRMED)
+    {
+        return 1U;
+    }
     return stkBootCtrlSaveState(BOOT_APP_STATE_CONFIRMED, 0U, 0U);
 }
 
@@ -279,17 +287,22 @@ static uint8_t stkBootCtrlLoadPage(uint32_t addr, boot_app_ctrl_t *ctrl)
 static uint8_t stkBootCtrlRead(boot_app_ctrl_t *ctrl)
 {
     boot_app_ctrl_t ctrlA;
+    boot_app_ctrl_t ctrlB;
     uint8_t validA = stkBootCtrlLoadPage(BOOT_CTRL_A_ADDR, &ctrlA);
+    uint8_t validB = stkBootCtrlLoadPage(BOOT_CTRL_B_ADDR, &ctrlB);
 
     if (ctrl == 0)
-        return validA;
-    if (!validA)
+        return (uint8_t)(validA || validB);
+    if (!validA && !validB)
     {
         stkBootCtrlInitBlank(ctrl);
         return 0U;
     }
 
-    *ctrl = ctrlA;
+    if (validA && (!validB || ctrlA.sequence >= ctrlB.sequence))
+        *ctrl = ctrlA;
+    else
+        *ctrl = ctrlB;
     return 1U;
 }
 
@@ -371,13 +384,28 @@ static uint8_t stkBootCtrlFlashProgramHalfWords(uint32_t addr, const uint8_t *da
 
 static uint8_t stkBootCtrlWrite(const boot_app_ctrl_t *ctrl)
 {
+    boot_app_ctrl_t ctrlA;
+    boot_app_ctrl_t ctrlB;
+    uint8_t validA;
+    uint8_t validB;
+    uint32_t targetAddr;
+
     if (ctrl == 0)
         return 0U;
-    if (!stkBootCtrlFlashErasePage(BOOT_CTRL_A_ADDR))
+    validA = stkBootCtrlLoadPage(BOOT_CTRL_A_ADDR, &ctrlA);
+    validB = stkBootCtrlLoadPage(BOOT_CTRL_B_ADDR, &ctrlB);
+    if (validA && (!validB || ctrlA.sequence >= ctrlB.sequence))
+        targetAddr = BOOT_CTRL_B_ADDR;
+    else if (validB)
+        targetAddr = BOOT_CTRL_A_ADDR;
+    else
+        targetAddr = BOOT_CTRL_A_ADDR;
+
+    if (!stkBootCtrlFlashErasePage(targetAddr))
         return 0U;
-    if (!stkBootCtrlFlashProgramHalfWords(BOOT_CTRL_A_ADDR, (const uint8_t *)ctrl, (uint16_t)sizeof(*ctrl)))
+    if (!stkBootCtrlFlashProgramHalfWords(targetAddr, (const uint8_t *)ctrl, (uint16_t)sizeof(*ctrl)))
         return 0U;
-    return stkBootCtrlIsValid((const boot_app_ctrl_t *)BOOT_CTRL_A_ADDR);
+    return stkBootCtrlIsValid((const boot_app_ctrl_t *)targetAddr);
 }
 
 static uint8_t stkBootCtrlSaveState(uint16_t state, uint32_t bootCount, uint32_t lastError)
@@ -931,7 +959,9 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         cmd != STK_CMD_GET_HANDLER_CONFIG &&
         cmd != STK_CMD_SET_HANDLER_CONFIG &&
         cmd != STK_CMD_GET_HANDLER_STATISTICS &&
-        cmd != STK_CMD_RESET_HANDLER_STATISTICS)
+        cmd != STK_CMD_RESET_HANDLER_STATISTICS &&
+        cmd != STK_CMD_SET_CHIP_TYPE &&
+        cmd != STK_CMD_GET_CHIP_TYPE)
     {
         (void)offlinePgmerRawAppendRxPacket(pRx, pDataFrame->frameLen);
     }
@@ -1082,6 +1112,42 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         {
             pTx[STK_TXMSG_START + 1] =
                 (StatisticResetParam() == 0U) ? STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
+        }
+    SWITCH_CASE(STK_CMD_SET_CHIP_TYPE)
+        if (payloadLen != 3U)
+        {
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        }
+        else
+        {
+            uint8_t flagData[2];
+            uint8_t readBack[2];
+
+            flagData[0] = pRx[STK_TXMSG_START + 1];
+            flagData[1] = pRx[STK_TXMSG_START + 2];
+
+            SPI_EEPROM_Write(HW_ICSP_TARGET_CHIP_FLAG_EEPROM_ADDR,
+                             flagData,
+                             sizeof(flagData));
+            SPI_EEPROM_Read(HW_ICSP_TARGET_CHIP_FLAG_EEPROM_ADDR,
+                            readBack,
+                            sizeof(readBack));
+            pTx[STK_TXMSG_START + 1] =
+                (memcmp(flagData, readBack, sizeof(flagData)) == 0) ?
+                STK_STATUS_CMD_OK : STK_STATUS_CMD_FAILED;
+        }
+    SWITCH_CASE(STK_CMD_GET_CHIP_TYPE)
+        if (payloadLen != 1U)
+        {
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        }
+        else
+        {
+            SPI_EEPROM_Read(HW_ICSP_TARGET_CHIP_FLAG_EEPROM_ADDR,
+                            &pTx[STK_TXMSG_START + 2],
+                            2U);
+            pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            len.word = 4U;
         }
     SWITCH_CASE(STK_CMD_SET_PARAMETER)  /* 设置 STK 参数或器件身份信�?�??*/
         if (pRx[STK_TXMSG_START + 1] == STK_PARAM_DEVICE_IDENTITY)// 设置器件“身份信�?�??

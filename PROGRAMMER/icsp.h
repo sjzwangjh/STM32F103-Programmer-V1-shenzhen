@@ -169,7 +169,7 @@ void    pic8LeaveProgmode(void);
 
 void     C946WriteHidefuse(uint16_t dat);
 uint16_t C946ReadHidefuse(void);
-uint8_t  ConvertTo16F917(uint8_t deviceIndex);
+uint8_t  ConvertC946To(uint8_t deviceIndex);
 
 #endif /* __ICSP_H__ */
 
