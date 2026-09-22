@@ -114,8 +114,8 @@ const boot_app_image_info_t g_appImageInfo __attribute__((used, at(APP_INFO_ADDR
 /// USB 口对应的MCU引脚定义
 #define HW_USB_DP_PORT  A,12
 
-/// @brief 设置USB“使能”状�?
-/// @param enable = 0：关闭；1：使�?
+/// @brief 设置USB“使能”状�?
+/// @param enable = 0：关闭；1：使�?
 void usb_port_set(u8 enable)
 {
     RCC->APB2ENR|=1<<2;
@@ -128,7 +128,7 @@ void usb_port_set(u8 enable)
     }
 }
 
-/// @brief MCU主函数入�?
+/// @brief MCU主函数入�?
 /// @param  
 /// @return 
 int main(void)
@@ -163,7 +163,7 @@ int main(void)
     USB_Init();
     uart1_WriteString("[App] usb init\r\n");
 
-    /* 保留 SWD，关�?JTAG 即可，避免误�?SWD 调试口�?*/
+    /* 保留 SWD，关�?JTAG 即可，避免误�?SWD 调试口�?*/
     Disable_JTAG_Keep_SWD();
     DutBus_Init();
 
@@ -191,17 +191,17 @@ int main(void)
     uart1_WriteString("[App] eeprom init\r\n");
 
     /* Flash 默认读写接口也是轮询版�?
-     * 只有在后续明确调�?SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
-     * 时，才需要打开 SPI_Flash_DMA_Init()�?
+     * 只有在后续明确调�?SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
+     * 时，才需要打开 SPI_Flash_DMA_Init()�?
      */
     SPI_Flash_Init();
     uart1_WriteString("[App] spi flash init\r\n");
     /* SPI_Flash_DMA_Init(); */
 
-    /* FatFs / diskio 当前走的�?SD_ReadSingleBlock()/SD_ReadBlocks()
-     * 这条轮询路径，不会自动使�?SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()�?
-     * 因此默认只初始化 SDIO 本体；若后续切换到底�?DMA 接口�?
-     * 再在 SD_Init() 成功后补�?SD_DMA_Init()�?
+    /* FatFs / diskio 当前走的�?SD_ReadSingleBlock()/SD_ReadBlocks()
+     * 这条轮询路径，不会自动使�?SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()�?
+     * 因此默认只初始化 SDIO 本体；若后续切换到底�?DMA 接口�?
+     * 再在 SD_Init() 成功后补�?SD_DMA_Init()�?
      */
     if(SD_Init() == SD_OK)
     {
@@ -212,22 +212,23 @@ int main(void)
     {
         uart1_WriteString("[App] sd fail\r\n");
     }
-		/* 初始�?Handler */
+		/* 初始�?Handler */
     Handler_Task_Init();
-    HandlerTask(1,1);   // 初始化发送一个失效信�?
+    HandlerTask(1,1);   // 初始化发送一个失效信�?
     /* 离线编程器初始化 */
     offlinePgmer_init();
     AppLcdDisplayStartupInfo();
     uart1_WriteString("[App] core init done\r\n");
     debugBin_Init();
+    LED_PWM_SetMode(LED_PWM_MODE_FREE_CYCLE, 0U, 0U, 0U);
     while(1)
     {
-        i++;
-        if(i==100000) 
-        { 
-            i=0; 
-            LED_HALT=!LED_HALT; 
-        }
+        // i++;
+        // if(i==100000) 
+        // { 
+        //     i=0; 
+        //     LED_HALT=!LED_HALT; 
+        // }
         key=KEY_Scan(0);
         debugBin_Task();
         if(key!=0)
@@ -237,9 +238,10 @@ int main(void)
         CDC_Task();     /* USB CDC: RX drain + TX flush (EP3)         */
         HID_Task();     /* USB HID: RX drain + TX flush (EP1)         */
         WinUSB_Task();  /* USB WinUSB Bulk: RX drain + TX flush (EP4) */
-        /* 机械手信号读�?*/
+        /* 机械手信号读�?*/
         handlerKey = HandlerTask(0xFF,0);  /* free-run handler state machine */
         if(handlerKey>0){
+            LED_PWM_HandlerBegin();
             LCD_DisplayString58(7,12,"TEST...   ");
             uint16_t replayResult = offlinePgmer();
             /* Report PASS/FAIL to the handler after the offline test. */
@@ -248,17 +250,14 @@ int main(void)
             {
                 /* PASS: short beep + ACTIVE LED blink, clear fail record. */
                 BEEP = 1; delay_ms(60); BEEP = 0;
-                LED_ACTIVE = 1; delay_ms(100); LED_ACTIVE = 0;
-                delay_ms(80);
-                LED_ACTIVE = 1; delay_ms(100); LED_ACTIVE = 0;
-                LED_RESET = 0;
+                LED_PWM_HandlerResult(1U);
                 LCD_DisplayString58(7,12,"TEST PASS");
             }
             else
             {
                 /* FAIL: long beep + RESET LED on. */
                 BEEP = 1; delay_ms(400); BEEP = 0;
-                LED_RESET = 1;
+                LED_PWM_HandlerResult(0U);
                 LCD_DisplayString58(7,12,"TEST FAIL");
             }
         }

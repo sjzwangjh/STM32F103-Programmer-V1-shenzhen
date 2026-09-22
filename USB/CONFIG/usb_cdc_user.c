@@ -18,6 +18,7 @@
 #include "usb_regs.h"
 #include "usb_cdc_user.h"
 #include "Stk500Protocol.h"
+#include "led.h"
 #include <string.h>
 
 #define CDC_STK_STX                     STK_STX
@@ -104,6 +105,12 @@ uint8_t CDC_IsTxBusy(void)
 void CDC_DataIn_Callback(void)
 {
     cdcTxBusy = 0U;
+    if ((cdcTxFrameLen != 0U) && (cdcTxFramePos >= cdcTxFrameLen))
+    {
+        cdcTxFrameLen = 0U;
+        cdcTxFramePos = 0U;
+        LED_PWM_USB_ResponseComplete();
+    }
 }
 
 void CDC_DataOut_Callback(void)

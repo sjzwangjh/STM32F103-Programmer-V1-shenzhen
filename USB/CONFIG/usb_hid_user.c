@@ -16,6 +16,7 @@
 #include "usb_lib.h"
 #include "usb_conf.h"
 #include "Stk500Protocol.h"
+#include "led.h"
 #include "Hardware_Config.h"
 #include "usart.h"
 
@@ -28,6 +29,7 @@ static volatile uint16_t g_hidRxDrop;      /* overflow counter (debug) */
 
 /* ---- EP1 IN: TX state ---- */
 static uint8_t  g_hidTxBusy;
+static uint8_t  g_hidTxCompletesResponse;
 
 #if DEBUG_HARDWARE_CONFIG
 static void HidDebugWriteDec(uint16_t value)
@@ -66,6 +68,15 @@ static uint16_t HID_RingSpace(void)
 }
 
 /* ---- Helper: poll for missed EP1 IN completion (self-heal) ---- */
+static void HID_CompleteTx(void)
+{
+    if (g_hidTxCompletesResponse != 0U)
+    {
+        g_hidTxCompletesResponse = 0U;
+        LED_PWM_USB_ResponseComplete();
+    }
+}
+
 static void HID_PollTxDone(void)
 {
     if (g_hidTxBusy == 0U) return;
@@ -73,10 +84,12 @@ static void HID_PollTxDone(void)
     {
         ClearEP_CTR_TX(ENDP1);
         g_hidTxBusy = 0U;
+        HID_CompleteTx();
     }
     else if (_GetEPTxStatus(ENDP1) == EP_TX_NAK)
     {
         g_hidTxBusy = 0U;
+        HID_CompleteTx();
     }
 }
 
@@ -141,6 +154,7 @@ void HID_EP1_OUT_Callback(void)
 void HID_EP1_IN_Callback(void)
 {
     g_hidTxBusy = 0U;
+    HID_CompleteTx();
 }
 
 /* =================================================================
@@ -247,6 +261,7 @@ static void HID_TxFlush(void)
     buf = HID_GetTxBuffer(&outLen);
     if (buf == NULL || outLen == 0U) return;
 
+    g_hidTxCompletesResponse = (stkGetTxCount() == 0) ? 1U : 0U;
     UserToPMABufferCopy(buf, ENDP1_TXADDR, outLen);
     SetEPTxCount(ENDP1, outLen);
     g_hidTxBusy = 1U;

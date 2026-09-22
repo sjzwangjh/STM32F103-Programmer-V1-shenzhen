@@ -30,9 +30,9 @@
 #define  HW_USB_HID_SPEED_FULL      1       // USB HID 全速模式（1=全速，0=USB1.1兼容模式）
 
 /* -------- LED -------- */
-#define HW_LED_ACTIVE               C,0
-#define HW_LED_RESET                C,1
-#define HW_LED_HALT                 C,2
+#define HW_LED_ACTIVE               C,0   // Green
+#define HW_LED_RESET                C,1   // Blue
+#define HW_LED_HALT                 C,2   // Red
 #define HWPIN_LED                   HW_LED_ACTIVE
 
 /* -------- BEEP -------- */

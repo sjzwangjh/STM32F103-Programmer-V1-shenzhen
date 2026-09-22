@@ -36,6 +36,9 @@ void timerInit(void);
 void timerMsDelay(uint8_t ms);
 void timerSetupTimeout(uint8_t msDuration);
 void timerTicksDelay(uint8_t ticks);    /* bit-bang ISP timing delay */
+void timerLedPwmStart(uint32_t intervalUs);
+void timerLedPwmSchedule(uint32_t intervalUs);
+void timerLedPwmStop(void);
 
 static inline uint8_t timerTimeoutOccurred(void)
 {
