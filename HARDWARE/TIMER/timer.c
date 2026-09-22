@@ -20,6 +20,7 @@
 #include "led.h"
 volatile uint8_t  timerTimeoutCnt;
 volatile uint8_t  timerLongTimeoutCnt;
+volatile uint32_t timerMsTick;
 
 /* prescaler for long timeout: 1ms * 100 = 100ms */
 static uint8_t g_timLongPrescaler = 100;
@@ -31,6 +32,7 @@ void TIM6_IRQHandler(void)
     if (TIM6->SR & TIM_SR_UIF)
     {
         TIM6->SR = ~TIM_SR_UIF;  /* clear interrupt flag */
+        timerMsTick++;
 
         if (timerTimeoutCnt != 0)
             timerTimeoutCnt--;

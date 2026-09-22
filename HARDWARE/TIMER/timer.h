@@ -31,6 +31,7 @@
 
 extern volatile uint8_t  timerTimeoutCnt;
 extern volatile uint8_t  timerLongTimeoutCnt;
+extern volatile uint32_t timerMsTick;
 
 void timerInit(void);
 void timerMsDelay(uint8_t ms);

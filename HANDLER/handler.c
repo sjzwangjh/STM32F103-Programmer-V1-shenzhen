@@ -32,6 +32,7 @@
 /* ── 模块内全局变量 ───────────────────────────────────────────── */
 static HandlerConfigerType usedHandler = {1, 1, 1, 1, 1, 10, 3000};
 statisticsType usedStatistics = {0, 0, 0, 0, 0, 0};
+static uint32_t handlerTickStart;
 
 
 #define HANDLER_CONFIG_RECORD_SIZE     15U
@@ -508,51 +509,54 @@ void HandlerSetBin(uint8_t bin)
 uint16_t HandlerTask(uint8_t stateIndex, uint8_t bin)
 {
     uint16_t nowSot;
-    static uint16_t oldSot = 0;
-    uint16_t _return = 0;
+    static uint16_t oldSot = 0U;
+    static uint8_t handlerTaskStep = 0U;
+    static uint8_t handlerStatsHasSet = 0U;
+    uint16_t result = 0U;
 
-    static uint8_t  handler_task_Step_index = 0;     /* 当前状态索引 */
+    if (stateIndex != 0xFFU)
+        handlerTaskStep = stateIndex;
 
-    /* 强制设置新状态 (外部调用) */
-    if (stateIndex != 0xFF)
+    switch (handlerTaskStep)
     {
-        handler_task_Step_index = stateIndex;
-    }
-
-    switch (handler_task_Step_index)
-    {
-    case 0:     /* INIT: default signals, latch current SOT level */
+    case 0U:
         SET_BIN_TO_DEFAULT;
         HANDLER_EOT_CLR;
-        oldSot = HANDLER_SOT_GET;
-        handler_task_Step_index = 1;
+        handlerTaskStep = 1U;
         break;
 
-    case 1:     /* WAIT_SOT: trigger offline test on SOT active edge */
+    case 1U:
         nowSot = HANDLER_SOT_GET;
-        if (nowSot != oldSot)               /* level change: detect edge */
+        if ((nowSot != 0U && usedHandler.sotLevel == 1U) ||
+            (nowSot == 0U && usedHandler.sotLevel == 0U))
         {
+            /* V4 behavior: wait for the SOT release before starting replay. */
+            handlerTaskStep = 2U;
             oldSot = nowSot;
-            if ((nowSot && usedHandler.sotLevel == 1) ||
-                (nowSot == 0 && usedHandler.sotLevel == 0))
-            {
-                /* Trigger: BUSY=1, return 1 to start the offline test */
-                HANDLER_BUSY_SET;
-                HANDLER_EOT_CLR;
-                HANDLER_OK_CLR;
-                HANDLER_NG_CLR;
-                _return = 1;
-                handler_task_Step_index = 2;
-            }
+        }
+
+        if (handlerStatsHasSet == 0U &&
+            (uint32_t)(timerMsTick - handlerTickStart) > usedHandler.delayMsMinTestTime)
+        {
+            HANDLER_BUSY_SET;
+            HANDLER_EOT_CLR;
+            HANDLER_OK_CLR;
+            HANDLER_NG_CLR;
+            handlerStatsHasSet = 1U;
         }
         break;
 
-    case 2:     /* TEST_RUN: offline test in progress (BUSY stays 1),
-                 * result arrives via HandlerSetBin() -> forced state 3 */
+    case 2U:
+        nowSot = HANDLER_SOT_GET;
+        if (nowSot != oldSot)
+        {
+            handlerTaskStep = 3U;
+            result = 1U;
+        }
         break;
 
-    case 3:     /* SEND_BIN: output PASS(OK)/FAIL(NG), hold, then BUSY clear */
-        if (bin == 0)
+    case 3U:
+        if (bin == 0U)
         {
             HANDLER_OK_SET;
             HANDLER_NG_CLR;
@@ -569,25 +573,20 @@ uint16_t HandlerTask(uint8_t stateIndex, uint8_t bin)
 
         usedStatistics.realTotal++;
         usedStatistics.logicTotal++;
-        if ((usedStatistics.logicTotal % HW_HANDLER_STATISTICS_SAVE_INTERVAL) == 0U)
-        {
-            StatisticsSave();
-        }
-
-        /* Hold BIN for the configured delay, then clear BUSY and set EOT */
         delay_ms(usedHandler.delayMsBinToEot);
-
         HANDLER_BUSY_CLR;
         HANDLER_EOT_SET;
-
-        handler_task_Step_index = 1;
+        handlerStatsHasSet = 0U;
+        handlerTickStart = timerMsTick;
+        if ((usedStatistics.logicTotal % HW_HANDLER_STATISTICS_SAVE_INTERVAL) == 0U)
+            StatisticsSave();
+        handlerTaskStep = 1U;
         break;
 
-    default:    /* unknown state: back to INIT */
-        handler_task_Step_index = 0;
+    default:
+        handlerTaskStep = 0U;
         break;
     }
 
-    return _return;
+    return result;
 }
-

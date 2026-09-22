@@ -48,18 +48,18 @@
 
 /* OK ‰ø°Âè∑ (PC6) */
 #define HANDLER_OK_INIT  do{ STM_IO_SET_DIR_PP(HW_HANDLER_OK); }while(0)
-#define HANDLER_OK_SET   PORT_OUT(HW_HANDLER_OK)=1
-#define HANDLER_OK_CLR   PORT_OUT(HW_HANDLER_OK)=0
+#define HANDLER_OK_SET   do { PORT_OUT(HW_HANDLER_OK) = (usedHandler.passLevel == 0U) ? 0U : 1U; } while (0)
+#define HANDLER_OK_CLR   do { PORT_OUT(HW_HANDLER_OK) = (usedHandler.passLevel == 0U) ? 1U : 0U; } while (0)
 
 /* NG ‰ø°Âè∑ (PC7) */
 #define HANDLER_NG_INIT  do{ STM_IO_SET_DIR_PP(HW_HANDLER_NG); }while(0)
-#define HANDLER_NG_SET   PORT_OUT(HW_HANDLER_NG)=1
-#define HANDLER_NG_CLR   PORT_OUT(HW_HANDLER_NG)=0
+#define HANDLER_NG_SET   do { PORT_OUT(HW_HANDLER_NG) = (usedHandler.ngLevel == 0U) ? 0U : 1U; } while (0)
+#define HANDLER_NG_CLR   do { PORT_OUT(HW_HANDLER_NG) = (usedHandler.ngLevel == 0U) ? 1U : 0U; } while (0)
 
 /* BUSY ‰ø°Âè∑ (PA8) */
 #define HANDLER_BUSY_INIT  do{ STM_IO_SET_DIR_PP(HW_HANDLER_BUSY); }while(0)
-#define HANDLER_BUSY_SET  PORT_OUT(HW_HANDLER_BUSY)=1
-#define HANDLER_BUSY_CLR  PORT_OUT(HW_HANDLER_BUSY)=0
+#define HANDLER_BUSY_SET  do { PORT_OUT(HW_HANDLER_BUSY) = (usedHandler.busyLevel == 0U) ? 0U : 1U; } while (0)
+#define HANDLER_BUSY_CLR  do { PORT_OUT(HW_HANDLER_BUSY) = (usedHandler.busyLevel == 0U) ? 1U : 0U; } while (0)
 
 /* EOT (End of Test) ‚Ä?Êú?È°πÁõÆ‰∏?Êó†Áã¨Á´?EOT ÂºïËÑö, ‰ΩøÁî® OK/NG + BUSY ÁªÑÂêàË°®Á§∫Ôº?
  * ‰ΩÜ‰∏∫Êé•Âè£ÂÖºÂ?πÔºåÂÆö‰πâÂç†‰ΩçÂÆ? (ÂÆûÈôÖ‰∏ç‰ºöËß¶Âèë)„Ä?*/
@@ -68,11 +68,12 @@
 #define HANDLER_EOT_CLR   {}
 
 /* ‚î?‚î? ÂàùÂ?ãÂåñÊó∂Â∞ÜÊâ?ÊúâËæìÂá∫‰ø°Âè∑ÂΩí‰Ω?‚î?‚î? */
-#define SET_BIN_TO_DEFAULT         do{ \
-            PORT_OUT(HW_HANDLER_OK)=0;   \
-            PORT_OUT(HW_HANDLER_NG)=1;   \
-            PORT_OUT(HW_HANDLER_BUSY)=0; \
-        }while(0)
+#define SET_BIN_TO_DEFAULT         do { \
+            HANDLER_EOT_SET;             \
+            HANDLER_BUSY_CLR;            \
+            HANDLER_OK_SET;              \
+            HANDLER_NG_CLR;              \
+        } while (0)
 
 /* ‚î?‚î? ÂèÇÊï∞ÁªìÊûÑ‰Ω?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î?‚î? */
 
