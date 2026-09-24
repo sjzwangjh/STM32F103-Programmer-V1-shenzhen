@@ -47,14 +47,14 @@ static void prefix##_scl_low(void)  { PORT_OUT(SCL_IO) = 0; }       \
 static void prefix##_sda_high(void) { PORT_OUT(SDA_IO) = 1; }       \
 static void prefix##_sda_low(void)  { PORT_OUT(SDA_IO) = 0; }       \
 static u8   prefix##_read_sda(void) { return PORT_IN(SDA_IO); }     \
-static void prefix##_sda_out(void)  { PORT_SET_DIR_PP(SDA_IO);}     \
+static void prefix##_sda_out(void)  { PORT_SET_DIR_OUT_OC(SDA_IO);}     \
 static void prefix##_sda_in(void)   { PORT_SET_DIR_IN_PU(SDA_IO);}  \
 static void prefix##_init(void)                                     \
 {                                                                   \
     PORT_RCC_CLK(SCL_IO);                                           \
     PORT_RCC_CLK(SDA_IO);                                           \
-    PORT_SET_DIR_PP(SCL_IO);                                        \
-    PORT_SET_DIR_PP(SDA_IO);                                        \
+    PORT_SET_DIR_OUT_OC(SCL_IO);                                        \
+    PORT_SET_DIR_OUT_OC(SDA_IO);                                        \
     PORT_OUT(SCL_IO) = 1;                                           \
     PORT_OUT(SDA_IO) = 1;                                           \
 }

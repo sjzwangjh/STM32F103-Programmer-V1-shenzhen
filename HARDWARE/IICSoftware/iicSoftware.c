@@ -20,6 +20,9 @@
 #include "delay.h"
 #include "Hardware_Config.h"
 
+#define IIC_HALF_PERIOD_US    4U
+#define IIC_ACK_TIMEOUT_US    250U
+
 
 /* ==================== 用 sys.h 宏生成引脚操作函数 ==================== */
 
@@ -61,11 +64,11 @@ void IIC_Start(const IIC_IO_t *io)
 {
     io->sda_out();       /* sda线输出 */
     io->sda_high();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->scl_high();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->sda_low();       /* START: CLK高时，DATA从高变低 */
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->scl_low();       /* 钳住I2C总线，准备发送或接收数据 */
 }
 
@@ -74,13 +77,13 @@ void IIC_Stop(const IIC_IO_t *io)
 {
     io->sda_out();       /* sda线输出 */
     io->scl_low();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->sda_low();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->scl_high();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->sda_high();      /* STOP: CLK高时，DATA从低变高 */
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
 }
 
 /* 等待应答信号到来
@@ -92,14 +95,15 @@ u8 IIC_Wait_Ack(const IIC_IO_t *io)
 
     io->sda_in();        /* SDA设置为输入 */
     io->sda_high();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->scl_high();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
 
     while (io->read_sda())
     {
+        delay_us(1U);
         ucErrTime++;
-        if (ucErrTime > 250)
+        if (ucErrTime >= IIC_ACK_TIMEOUT_US)
         {
             IIC_Stop(io);
             return 1;
@@ -115,9 +119,9 @@ void IIC_Ack(const IIC_IO_t *io)
     io->scl_low();
     io->sda_out();
     io->sda_low();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->scl_high();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->scl_low();
 }
 
@@ -127,9 +131,9 @@ void IIC_NAck(const IIC_IO_t *io)
     io->scl_low();
     io->sda_out();
     io->sda_high();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->scl_high();
-    delay_us(4);
+    delay_us(IIC_HALF_PERIOD_US);
     io->scl_low();
 }
 
@@ -149,11 +153,11 @@ void IIC_Send_Byte(const IIC_IO_t *io, u8 txd)
             io->sda_low();
 
         txd <<= 1;
-        delay_us(4);
+        delay_us(IIC_HALF_PERIOD_US);
         io->scl_high();
-        delay_us(4);
+        delay_us(IIC_HALF_PERIOD_US);
         io->scl_low();
-        delay_us(4);
+        delay_us(IIC_HALF_PERIOD_US);
     }
 }
 
@@ -167,12 +171,12 @@ u8 IIC_Read_Byte(const IIC_IO_t *io, unsigned char ack)
     for (i = 0; i < 8; i++)
     {
         io->scl_low();
-        delay_us(4);
+        delay_us(IIC_HALF_PERIOD_US);
         io->scl_high();
         receive <<= 1;
         if (io->read_sda())
             receive++;
-        delay_us(4);
+        delay_us(IIC_HALF_PERIOD_US);
     }
 
     if (!ack)

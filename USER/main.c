@@ -111,11 +111,11 @@ const boot_app_image_info_t g_appImageInfo __attribute__((used, at(APP_INFO_ADDR
     0U
 };
 
-/// USB 口对应的MCU引脚定义
+/// USB 口�?�应的MCU引脚定义
 #define HW_USB_DP_PORT  A,12
 
 /// @brief 设置USB“使能”状�?
-/// @param enable = 0：关闭；1：使�?
+/// @param enable = 0：关�?�?1：使�?
 void usb_port_set(u8 enable)
 {
     RCC->APB2ENR|=1<<2;
@@ -133,7 +133,7 @@ void usb_port_set(u8 enable)
 /// @return 
 int main(void)
 {
-    u16 i=0; u8 key=0;
+    u8 key=0;
     u8 handlerKey = 0;
     u8 sysClockMHz;
 
@@ -163,7 +163,7 @@ int main(void)
     USB_Init();
     uart1_WriteString("[App] usb init\r\n");
 
-    /* 保留 SWD，关�?JTAG 即可，避免误�?SWD 调试口�?*/
+    /* 保留 SWD，关�?JTAG 即可，避免�??�?SWD 调试口�?*/
     Disable_JTAG_Keep_SWD();
     DutBus_Init();
 
@@ -186,12 +186,12 @@ int main(void)
     timerInit();
     Adc_Init();             // ADC + DMA1_Channel1
 
-    /* EEPROM 当前仅提供轮询版 SPI 读写接口，无需 DMA 初始化�?*/
+    /* EEPROM 当前仅提供轮询版 SPI 读写接口，无需 DMA 初�?�化�??*/
     SPI_EEPROM_Init();
     uart1_WriteString("[App] eeprom init\r\n");
 
-    /* Flash 默认读写接口也是轮询版�?
-     * 只有在后续明确调�?SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
+    /* Flash 默�?��?�写接口也是�?询版�??
+     * �?有在后续明确调�??SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()
      * 时，才需要打开 SPI_Flash_DMA_Init()�?
      */
     SPI_Flash_Init();
@@ -199,8 +199,8 @@ int main(void)
     /* SPI_Flash_DMA_Init(); */
 
     /* FatFs / diskio 当前走的�?SD_ReadSingleBlock()/SD_ReadBlocks()
-     * 这条轮询路径，不会自动使�?SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()�?
-     * 因此默认只初始化 SDIO 本体；若后续切换到底�?DMA 接口�?
+     * 这条�?询路径，不会�?动使�?SD_ReadBlocks_DMA()/SD_WriteBlocks_DMA()�?
+     * 因�?�默认只初�?�化 SDIO �?体；若后�?切换到底�?DMA 接口�?
      * 再在 SD_Init() 成功后补�?SD_DMA_Init()�?
      */
     if(SD_Init() == SD_OK)
@@ -212,9 +212,9 @@ int main(void)
     {
         uart1_WriteString("[App] sd fail\r\n");
     }
-		/* 初始�?Handler */
+		/* 初�?��??Handler */
     Handler_Task_Init();
-    HandlerTask(1,1);   // 初始化发送一个失效信�?
+    HandlerTask(1,1);   // 初�?�化发送一�?失效信�??
     /* 离线编程器初始化 */
     offlinePgmer_init();
     AppLcdDisplayStartupInfo();
@@ -238,7 +238,7 @@ int main(void)
         CDC_Task();     /* USB CDC: RX drain + TX flush (EP3)         */
         HID_Task();     /* USB HID: RX drain + TX flush (EP1)         */
         WinUSB_Task();  /* USB WinUSB Bulk: RX drain + TX flush (EP4) */
-        /* 机械手信号读�?*/
+        /* 机�?�手信号读�??*/
         handlerKey = HandlerTask(0xFF,0);  /* free-run handler state machine */
         if(handlerKey>0){
             LED_PWM_HandlerBegin();

@@ -132,13 +132,13 @@ static uint32_t     g_picCurrentAddress;           /* 当前PC地址值 */
 #define ICSP_END_PROG_CMD_FAST()  (ICSP_IS_BASELINE_FAST() ? CMD12_END_PROG : CMD_END_PROG)
 #define ICSP_USE_EXT_PROG_FAST()  (ICSP_IS_BASELINE_FAST())
 
-/* Standard 14-bit mid-range devices erase Data Memory with a separate command. */
+/* Every non-Baseline PIC with Data EEPROM needs the separate erase command. */
 static uint8_t icspNeedsExplicitDataMemoryErase(void)
 {
     if (icsp_pdev == NULL)
         return 0U;
 
-    return (icsp_pdev->common.core_family == PIC8_CORE_MIDRANGE_14BIT &&
+    return (icsp_pdev->common.core_family != PIC8_CORE_BASELINE_12BIT &&
             icsp_pdev->common.has_eeprom != 0U) ? 1U : 0U;
 }
 

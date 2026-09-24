@@ -29,7 +29,7 @@
 #define ADC_FILTER_WINDOW_SIZE  10
 #define ADC_FILTER_AVG_COUNT    8
 
-#define ADC_VREF_MV             2000U
+#define ADC_VREF_MV             2040U
 #define ADC_ADC_MAX_COUNTS      4096U
 #define ADC_CURRENT_GAIN        20U
 #define ADC_CURRENT_R_MOHM      330U

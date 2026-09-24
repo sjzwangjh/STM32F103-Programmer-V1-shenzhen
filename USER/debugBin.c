@@ -18,6 +18,7 @@
 #include "power.h"
 #include "MCP4017_VPP.h"
 #include "MCP4017_VDD.h"
+#include "MCP4017_Calibration.h"
 #include "dutBus.h"
 #include "debugBin.h"
 #include "eeprom.h"
@@ -75,6 +76,11 @@ static u16 debugBin_ReadU16Le(const u8 *data)
 {
     return (u16)((u16)data[0] | ((u16)data[1] << 8));
 }
+static u32 debugBin_ReadU32Le(const u8 *data)
+{
+    return (u32)data[0] | ((u32)data[1] << 8) |
+           ((u32)data[2] << 16) | ((u32)data[3] << 24);
+}
 
 static void debugBin_WriteU16Le(u8 *data, u16 value)
 {
@@ -108,6 +114,84 @@ static u16 debugBin_Crc16Update(u16 crc, u8 data)
     return crc;
 }
 
+static u16 debugBin_CalibrationRecordCrc(const mcp4017_calibration_t *record)
+{
+    const u8 *bytes = (const u8 *)record;
+    u16 crc = 0xFFFFU;
+    u16 i;
+
+    for (i = 0U; i < sizeof(*record); i++)
+    {
+        if (i == MCP4017_CALIBRATION_CRC_OFFSET ||
+            i == (MCP4017_CALIBRATION_CRC_OFFSET + 1U))
+            continue;
+        crc = debugBin_Crc16Update(crc, bytes[i]);
+    }
+    return crc;
+}
+
+static u8 debugBin_CalibrationParametersValid(u16 baseMv, u32 gain, u16 offsetMilli)
+{
+    return (baseMv >= 400U && baseMv <= 1200U &&
+            gain >= 100000UL && gain <= 500000UL &&
+            offsetMilli <= 10000U) ? 1U : 0U;
+}
+
+static u8 debugBin_CalibrationRecordIsValid(const mcp4017_calibration_t *record)
+{
+    if (record->magic != MCP4017_CALIBRATION_MAGIC ||
+        record->version != MCP4017_CALIBRATION_VERSION ||
+        record->record_size != sizeof(*record))
+        return 0U;
+
+    return (record->crc16 == debugBin_CalibrationRecordCrc(record)) ? 1U : 0U;
+}
+
+static void debugBin_CalibrationRecordInit(mcp4017_calibration_t *record)
+{
+    u8 *bytes = (u8 *)record;
+    u16 i;
+
+    for (i = 0U; i < sizeof(*record); i++)
+        bytes[i] = 0xFFU;
+    record->magic = MCP4017_CALIBRATION_MAGIC;
+    record->version = MCP4017_CALIBRATION_VERSION;
+    record->record_size = sizeof(*record);
+}
+
+static void debugBin_CalibrationEncodeResponse(u8 *response, u8 valid,
+                                                u16 baseMv, u32 gain, u16 offsetMilli)
+{
+    response[0] = valid;
+    debugBin_WriteU16Le(&response[1], baseMv);
+    debugBin_WriteU32Le(&response[3], gain);
+    debugBin_WriteU16Le(&response[7], offsetMilli);
+}
+
+static u8 debugBin_CalibrationStoreRecord(mcp4017_calibration_t *record)
+{
+    mcp4017_calibration_t verify;
+    const u8 *bytes = (const u8 *)record;
+    u16 i;
+
+    record->crc16 = debugBin_CalibrationRecordCrc(record);
+    for (i = 0U; i < sizeof(record->magic); i++)
+        SPI_EEPROM_WriteByte(MCP4017_CALIBRATION_EEPROM_ADDR + i, 0xFFU);
+    SPI_EEPROM_Write(MCP4017_CALIBRATION_EEPROM_ADDR + sizeof(record->magic),
+                     &bytes[sizeof(record->magic)],
+                     sizeof(*record) - sizeof(record->magic));
+    SPI_EEPROM_Write(MCP4017_CALIBRATION_EEPROM_ADDR, bytes, sizeof(record->magic));
+
+    SPI_EEPROM_Read(MCP4017_CALIBRATION_EEPROM_ADDR, (u8 *)&verify, sizeof(verify));
+    if (debugBin_CalibrationRecordIsValid(&verify) == 0U)
+        return 0U;
+    for (i = 0U; i < sizeof(verify); i++)
+    {
+        if (((const u8 *)&verify)[i] != bytes[i])
+            return 0U;
+    }
+    return 1U;
+}
 static void debugBin_SendByteCrc(u8 value, u16 *crc)
 {
     uart1_WriteByte(value);
@@ -264,6 +348,7 @@ static void debugBin_Dispatch(void)
     u8 channel;
     u8 i;
     u8 result8;
+    u16 scanDelayMs;
 
     p = &g_debugBinParser;
     responseLength = 0U;
@@ -388,6 +473,151 @@ static void debugBin_Dispatch(void)
         }
         break;
 
+    case DEBUG_BIN_CMD_VPP_SCAN:
+        if (p->payloadLength != 5U)
+        {
+            status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        }
+        else
+        {
+            scanDelayMs = debugBin_ReadU16Le(&p->payload[3]);
+            if ((p->payload[2] == 0U) || (p->payload[0] > 127U) ||
+                (p->payload[1] > 127U) || (p->payload[0] > p->payload[1]))
+            {
+                status = DEBUG_BIN_STATUS_BAD_PARAM;
+            }
+            else
+            {
+                if (scanDelayMs < 20U) scanDelayMs = 20U;
+                response[0] = p->payload[0];
+                response[1] = p->payload[1];
+                response[2] = p->payload[2];
+                debugBin_WriteU16Le(&response[3], scanDelayMs);
+                debugBin_SendResponse(p->sequence, p->command, DEBUG_BIN_STATUS_OK, response, 5U);
+                delay_ms(10U);
+                if (powerVppScan(p->payload[0], p->payload[1], p->payload[2], scanDelayMs) != 0U)
+                {
+                    printf("VPP scan failed after response\r\n");
+                }
+                return;
+            }
+        }
+        break;
+
+    case DEBUG_BIN_CMD_VDD_SCAN:
+        if (p->payloadLength != 5U)
+        {
+            status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        }
+        else
+        {
+            scanDelayMs = debugBin_ReadU16Le(&p->payload[3]);
+            if ((p->payload[2] == 0U) || (p->payload[0] > 127U) ||
+                (p->payload[1] > 127U) || (p->payload[0] > p->payload[1]))
+            {
+                status = DEBUG_BIN_STATUS_BAD_PARAM;
+            }
+            else
+            {
+                if (scanDelayMs < 20U) scanDelayMs = 20U;
+                response[0] = p->payload[0];
+                response[1] = p->payload[1];
+                response[2] = p->payload[2];
+                debugBin_WriteU16Le(&response[3], scanDelayMs);
+                debugBin_SendResponse(p->sequence, p->command, DEBUG_BIN_STATUS_OK, response, 5U);
+                delay_ms(10U);
+                if (powerVddScan(p->payload[0], p->payload[1], p->payload[2], scanDelayMs) != 0U)
+                {
+                    printf("VDD scan failed after response\r\n");
+                }
+                return;
+            }
+        }
+        break;
+    case DEBUG_BIN_CMD_VPP_PARAM_SET:
+    case DEBUG_BIN_CMD_VDD_PARAM_SET:
+        if (p->payloadLength != 8U)
+        {
+            status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        }
+        else
+        {
+            mcp4017_calibration_t record;
+            u16 baseMv = debugBin_ReadU16Le(&p->payload[0]);
+            u32 gain = debugBin_ReadU32Le(&p->payload[2]);
+            u16 offsetMilli = debugBin_ReadU16Le(&p->payload[6]);
+
+            if (debugBin_CalibrationParametersValid(baseMv, gain, offsetMilli) == 0U)
+            {
+                status = DEBUG_BIN_STATUS_BAD_PARAM;
+            }
+            else
+            {
+                SPI_EEPROM_Read(MCP4017_CALIBRATION_EEPROM_ADDR, (u8 *)&record, sizeof(record));
+                if (debugBin_CalibrationRecordIsValid(&record) == 0U)
+                    debugBin_CalibrationRecordInit(&record);
+
+                if (p->command == DEBUG_BIN_CMD_VPP_PARAM_SET)
+                {
+                    record.vpp_base_mv = baseMv;
+                    record.vpp_gain = gain;
+                    record.vpp_offset_milli = offsetMilli;
+                }
+                else
+                {
+                    record.vdd_base_mv = baseMv;
+                    record.vdd_gain = gain;
+                    record.vdd_offset_milli = offsetMilli;
+                }
+
+                if (debugBin_CalibrationStoreRecord(&record) == 0U)
+                {
+                    status = DEBUG_BIN_STATUS_IO_ERROR;
+                }
+                else
+                {
+                    debugBin_CalibrationEncodeResponse(response, 1U, baseMv, gain, offsetMilli);
+                    responseLength = 9U;
+                }
+            }
+        }
+        break;
+
+    case DEBUG_BIN_CMD_VPP_PARAM_GET:
+    case DEBUG_BIN_CMD_VDD_PARAM_GET:
+        if (p->payloadLength != 0U)
+        {
+            status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        }
+        else
+        {
+            mcp4017_calibration_t record;
+            u8 valid = 0U;
+            u16 baseMv = 0U;
+            u32 gain = 0UL;
+            u16 offsetMilli = 0U;
+
+            SPI_EEPROM_Read(MCP4017_CALIBRATION_EEPROM_ADDR, (u8 *)&record, sizeof(record));
+            if (debugBin_CalibrationRecordIsValid(&record) != 0U)
+            {
+                if (p->command == DEBUG_BIN_CMD_VPP_PARAM_GET)
+                {
+                    baseMv = record.vpp_base_mv;
+                    gain = record.vpp_gain;
+                    offsetMilli = record.vpp_offset_milli;
+                }
+                else
+                {
+                    baseMv = record.vdd_base_mv;
+                    gain = record.vdd_gain;
+                    offsetMilli = record.vdd_offset_milli;
+                }
+                valid = debugBin_CalibrationParametersValid(baseMv, gain, offsetMilli);
+            }
+            debugBin_CalibrationEncodeResponse(response, valid, baseMv, gain, offsetMilli);
+            responseLength = 9U;
+        }
+        break;
     case DEBUG_BIN_CMD_DUT_VPP_ROUTE:
         if (p->payloadLength != 1U) status = DEBUG_BIN_STATUS_BAD_LENGTH;
         else if (p->payload[0] == 0U) { DUT_VPP_SET_FLOAT; }

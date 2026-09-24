@@ -56,8 +56,8 @@
 /* -------- 数控电位器 IIC -------- */
 #define HW_DVR_VPP_IIC_SCL          D,5
 #define HW_DVR_VPP_IIC_SDA          D,6
-#define HW_DVR_VDD_IIC_SCL          B,7
-#define HW_DVR_VDD_IIC_SDA          B,6
+#define HW_DVR_VDD_IIC_SCL          B,6
+#define HW_DVR_VDD_IIC_SDA          B,7
 
 /* -------- 电源总控 -------- */
 #define HW_USB_ON                   C,3

@@ -9,6 +9,8 @@
 
 void power_init(void);
 void powerSoftInit(u16 stopV, u16 delaymsPerCycle);
+u8 powerVppScan(u8 start, u8 stop, u8 step, u16 delaymsPerCycle);
+u8 powerVddScan(u8 start, u8 stop, u8 step, u16 delaymsPerCycle);
 
 #endif
 

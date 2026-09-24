@@ -25,7 +25,7 @@
 // VDD电压调节参数（来自 DigitalPot.h）
 #define VDD_RUP                 12000.0f    // VDD上分压电阻值（Ω）
 #define VDD_4017_RALL           5000.0f     // MCP4017全阻值（Ω）
-#define VDD_REF                 0.766f      // FB基准电压值（V）
+#define VDD_REF                 0.8f      // FB基准电压值（V）
 
 // 初始化 VDD 的 IIC 总线引脚（在 main 初始化时调用一次）
 void MCP4017_VDD_Init(void);
@@ -35,9 +35,14 @@ void MCP4017_VDD_Init(void);
 // 返回值：成功=计算出的电阻数字值(0~127)；失败=0xFF
 uint8_t MCP4017_VDD_SetVoltage(uint16_t voltageInt);
 
+/* Set VDD with the valid EEPROM-fitted model. */
+uint8_t MCP4017_VDD_SimSetVoltage(uint16_t voltageInt);
+
 // VDD 读取当前电阻值
 // 返回值：0~127（有效值）；0xFF（读取失败）
+uint8_t MCP4017_VDD_SetResistor(uint8_t value);
 uint8_t MCP4017_VDD_ReadResistor(void);
+uint8_t MCP4017_VDD_GetCachedResistor(uint8_t *value);
 
 #endif
 

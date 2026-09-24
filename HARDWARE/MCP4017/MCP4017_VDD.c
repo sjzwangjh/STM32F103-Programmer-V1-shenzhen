@@ -13,6 +13,8 @@
  */
 
 #include "MCP4017_VDD.h"
+#include "MCP4017_Calibration.h"
+#include "eeprom.h"
 #include "Hardware_Config.h"
 #include "iicSoftware.h"
 #include "delay.h"
@@ -35,6 +37,9 @@ static const IIC_IO_t g_iicSoftware_VDD = {
     .init     = vdd_init,
 };
 
+static uint8_t g_mcp4017VddLastTap;
+static uint8_t g_mcp4017VddLastTapValid;
+
 /* ==================== 初始化函数 ==================== */
 
 // 初始化 VDD 的 IIC 总线引脚，在 main 初始化阶段调用一次
@@ -53,21 +58,32 @@ void MCP4017_VDD_Init(void)
  * value : 电阻数字值 0~127
  * 返回值: 0=成功；0xFF=失败（无应答）
  */
-static uint8_t MCP4017_VDD_WriteResistor(uint8_t value)
+uint8_t MCP4017_VDD_SetResistor(uint8_t value)
 {
-    uint8_t error = 0xFF;
+    uint8_t error;
+
+    if (value > 127U)
+    {
+        return 0xFFU;
+    }
 
 #if DEBUG_HARDWARE_CONFIG
-    printf("MCP4017_VDD_WriteResistor: value=%d\r\n", value);
+    printf("MCP4017_VDD_SetResistor: value=%d\r\n", value);
 #endif
     IIC_Start(&g_iicSoftware_VDD);
-    IIC_Send_Byte(&g_iicSoftware_VDD, (MCP4017_ADDR << 1) | 0);   // 地址 + W(0)
+    IIC_Send_Byte(&g_iicSoftware_VDD, (MCP4017_ADDR << 1) | 0);
     error = IIC_Wait_Ack(&g_iicSoftware_VDD);
-    if (error == 0)
+    if (error == 0U)
     {
         IIC_Send_Byte(&g_iicSoftware_VDD, value);
-        IIC_Wait_Ack(&g_iicSoftware_VDD);
-        IIC_Stop(&g_iicSoftware_VDD);
+        error = IIC_Wait_Ack(&g_iicSoftware_VDD);
+    }
+    IIC_Stop(&g_iicSoftware_VDD);
+
+    if (error == 0U)
+    {
+        g_mcp4017VddLastTap = value;
+        g_mcp4017VddLastTapValid = 1U;
     }
     return error;
 }
@@ -79,21 +95,33 @@ static uint8_t MCP4017_VDD_WriteResistor(uint8_t value)
  *
  * 返回值: 0~127（有效值）；0xFF（读取失败）
  */
-static uint8_t MCP4017_VDD_ReadResistor(void)
+uint8_t MCP4017_VDD_ReadResistor(void)
 {
     uint8_t value = 0;
-    uint8_t error = 0xFF;
+    uint8_t error;
 
     IIC_Start(&g_iicSoftware_VDD);
-    IIC_Send_Byte(&g_iicSoftware_VDD, (MCP4017_ADDR << 1) | 1);   // 地址 + R(1)
+    IIC_Send_Byte(&g_iicSoftware_VDD, (MCP4017_ADDR << 1) | 1);
     error = IIC_Wait_Ack(&g_iicSoftware_VDD);
-    if (error == 0)
+    if (error == 0U)
     {
-        value = IIC_Read_Byte(&g_iicSoftware_VDD, 0);              // 最后字节发NACK
+        value = IIC_Read_Byte(&g_iicSoftware_VDD, 0);
         IIC_Stop(&g_iicSoftware_VDD);
         return value;
     }
-    return 0xFF;
+
+    IIC_Stop(&g_iicSoftware_VDD);
+    return 0xFFU;
+}
+uint8_t MCP4017_VDD_GetCachedResistor(uint8_t *value)
+{
+    if ((value == 0) || (g_mcp4017VddLastTapValid == 0U))
+    {
+        return 0xFFU;
+    }
+
+    *value = g_mcp4017VddLastTap;
+    return 0U;
 }
 
 /* ==================== 对外接口 ==================== */
@@ -111,7 +139,7 @@ static uint8_t MCP4017_VDD_ReadResistor(void)
  * voltageInt : 电压值x100，例如 520 = 5.20V
  * 返回值    : 成功=计算出的电阻数字值(0~127)；失败=0xFF
  */
-uint8_t MCP4017_VDD_SetVoltage(uint16_t voltageInt)
+static uint8_t MCP4017_VDD_LegacySetVoltage(uint16_t voltageInt)
 {
     float rx;
     uint8_t rt;
@@ -128,7 +156,7 @@ uint8_t MCP4017_VDD_SetVoltage(uint16_t voltageInt)
     rx  = VDD_RUP / (vol / VDD_REF - 1);           // 计算 RDN 理论值（ohm）
     rt  = (uint8_t)(rx / VDD_4017_RALL * 127);     // 计算数字电位器比例值（0~127）
 
-    error = MCP4017_VDD_WriteResistor(rt);              // 通过IIC写入
+    error = MCP4017_VDD_SetResistor(rt);              // 通过IIC写入
 
     if (error == 0)
     {
@@ -139,4 +167,90 @@ uint8_t MCP4017_VDD_SetVoltage(uint16_t voltageInt)
         return 0xFF;                               // 失败
     }
 }
+/* CRC-16/CCITT over the record, with the stored CRC field excluded. */
+static uint16_t MCP4017_VDD_CalibrationCrc(const mcp4017_calibration_t *record)
+{
+    const uint8_t *bytes = (const uint8_t *)record;
+    uint16_t crc = 0xFFFFU;
+    uint16_t i;
+    uint8_t bit;
 
+    for (i = 0U; i < sizeof(*record); i++)
+    {
+        if (i == 22U || i == 23U)
+            continue;
+        crc ^= (uint16_t)bytes[i] << 8;
+        for (bit = 0U; bit < 8U; bit++)
+            crc = (crc & 0x8000U) ? (uint16_t)((crc << 1) ^ 0x1021U) : (uint16_t)(crc << 1);
+    }
+    return crc;
+}
+
+static uint8_t MCP4017_VDD_LoadCalibration(mcp4017_calibration_t *record)
+{
+    SPI_EEPROM_Read(MCP4017_CALIBRATION_EEPROM_ADDR,
+                    (uint8_t *)record,
+                    sizeof(*record));
+
+    if (record->magic != MCP4017_CALIBRATION_MAGIC ||
+        record->version != MCP4017_CALIBRATION_VERSION ||
+        record->record_size != sizeof(*record) ||
+        record->crc16 != MCP4017_VDD_CalibrationCrc(record))
+        return 0U;
+
+    if (record->vdd_base_mv < 400U || record->vdd_base_mv > 1200U ||
+        record->vdd_gain < 100000UL || record->vdd_gain > 500000UL ||
+        record->vdd_offset_milli > 10000U)
+        return 0U;
+
+    return 1U;
+}
+
+static uint8_t MCP4017_VDD_FittedSetVoltage(uint16_t voltageInt,
+                                                  const mcp4017_calibration_t *record)
+{
+    uint32_t targetMv;
+    uint32_t denominator;
+    uint32_t tapMilli;
+    uint32_t tap;
+
+    if (voltageInt < 1U)
+        voltageInt = 1U;
+    if (voltageInt > 550U)
+        voltageInt = 550U;
+
+    targetMv = (uint32_t)voltageInt * 10UL;
+    if (targetMv <= record->vdd_base_mv)
+        return MCP4017_VDD_SetResistor(127U);
+
+    denominator = targetMv - record->vdd_base_mv;
+    tapMilli = ((record->vdd_gain * 1000UL) + (denominator / 2UL)) / denominator;
+    if (tapMilli <= record->vdd_offset_milli)
+        tap = 0U;
+    else
+        tap = (tapMilli - record->vdd_offset_milli + 500UL) / 1000UL;
+    if (tap > 127U)
+        tap = 127U;
+
+    return MCP4017_VDD_SetResistor((uint8_t)tap);
+}
+
+uint8_t MCP4017_VDD_SimSetVoltage(uint16_t voltageInt)
+{
+    mcp4017_calibration_t record;
+
+    if (MCP4017_VDD_LoadCalibration(&record) == 0U)
+        return 0xFFU;
+
+    return MCP4017_VDD_FittedSetVoltage(voltageInt, &record);
+}
+
+uint8_t MCP4017_VDD_SetVoltage(uint16_t voltageInt)
+{
+    mcp4017_calibration_t record;
+
+    if (MCP4017_VDD_LoadCalibration(&record) != 0U)
+        return MCP4017_VDD_FittedSetVoltage(voltageInt, &record);
+
+    return MCP4017_VDD_LegacySetVoltage(voltageInt);
+}

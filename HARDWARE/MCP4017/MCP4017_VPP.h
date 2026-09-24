@@ -35,8 +35,12 @@ void MCP4017_VPP_Init(void);
 // 返回值：成功=计算出的电阻数字值(0~127)；失败=0xFF
 uint8_t MCP4017_VPP_SetVoltage(uint16_t voltageInt);
 
+/* Set VPP with the valid EEPROM-fitted model. */
+uint8_t MCP4017_VPP_SimSetVoltage(uint16_t voltageInt);
+
 // VPP 读取当前电阻值
 // 返回值：0~127（有效值）；0xFF（读取失败）
+uint8_t MCP4017_VPP_SetResistor(uint8_t value);
 uint8_t MCP4017_VPP_ReadResistor(void);
 
 

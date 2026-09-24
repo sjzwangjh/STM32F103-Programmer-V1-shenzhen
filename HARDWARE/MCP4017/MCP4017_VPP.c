@@ -13,6 +13,8 @@
  */
 
 #include "MCP4017_VPP.h"
+#include "MCP4017_Calibration.h"
+#include "eeprom.h"
 #include "Hardware_Config.h"
 #include "iicSoftware.h"
 #include "delay.h"
@@ -53,22 +55,27 @@ void MCP4017_VPP_Init(void)
  * value : 电阻数字值 0~127
  * 返回值: 0=成功；0xFF=失败（无应答）
  */
-static uint8_t MCP4017_VPP_WriteResistor(uint8_t value)
+uint8_t MCP4017_VPP_SetResistor(uint8_t value)
 {
-    uint8_t error = 0xFF;
+    uint8_t error;
+
+    if (value > 127U)
+    {
+        return 0xFFU;
+    }
 
 #if DEBUG_HARDWARE_CONFIG
-    printf("MCP4017_VPP_WriteResistor: value=%d\r\n", value);
+    printf("MCP4017_VPP_SetResistor: value=%d\r\n", value);
 #endif
     IIC_Start(&g_iicSoftware_VPP);
-    IIC_Send_Byte(&g_iicSoftware_VPP, (MCP4017_ADDR << 1) | 0);   // 地址 + W(0)
+    IIC_Send_Byte(&g_iicSoftware_VPP, (MCP4017_ADDR << 1) | 0);   // address + W(0)
     error = IIC_Wait_Ack(&g_iicSoftware_VPP);
-    if (error == 0)
+    if (error == 0U)
     {
         IIC_Send_Byte(&g_iicSoftware_VPP, value);
-        IIC_Wait_Ack(&g_iicSoftware_VPP);
-        IIC_Stop(&g_iicSoftware_VPP);
+        error = IIC_Wait_Ack(&g_iicSoftware_VPP);
     }
+    IIC_Stop(&g_iicSoftware_VPP);
     return error;
 }
 
@@ -79,21 +86,23 @@ static uint8_t MCP4017_VPP_WriteResistor(uint8_t value)
  *
  * 返回值: 0~127（有效值）；0xFF（读取失败）
  */
-static uint8_t MCP4017_VPP_ReadResistor(void)
+uint8_t MCP4017_VPP_ReadResistor(void)
 {
     uint8_t value = 0;
     uint8_t error = 0xFF;
 
     IIC_Start(&g_iicSoftware_VPP);
-    IIC_Send_Byte(&g_iicSoftware_VPP, (MCP4017_ADDR << 1) | 1);   // 地址 + R(1)
+    IIC_Send_Byte(&g_iicSoftware_VPP, (MCP4017_ADDR << 1) | 1);   // address + R(1)
     error = IIC_Wait_Ack(&g_iicSoftware_VPP);
-    if (error == 0)
+    if (error == 0U)
     {
-        value = IIC_Read_Byte(&g_iicSoftware_VPP, 0);              // 最后字节发NACK
+        value = IIC_Read_Byte(&g_iicSoftware_VPP, 0);              // final byte sends NACK
         IIC_Stop(&g_iicSoftware_VPP);
         return value;
     }
-    return 0xFF;
+
+    IIC_Stop(&g_iicSoftware_VPP);
+    return 0xFFU;
 }
 
 /* ==================== 对外接口 ==================== */
@@ -111,7 +120,7 @@ static uint8_t MCP4017_VPP_ReadResistor(void)
  * voltageInt : 电压值x100，例如 1120 = 11.20V
  * 返回值    : 成功=计算出的电阻数字值(0~127)；失败=0xFF
  */
-uint8_t MCP4017_VPP_SetVoltage(uint16_t voltageInt)
+static uint8_t MCP4017_VPP_LegacySetVoltage(uint16_t voltageInt)
 {
     float rx;
     uint8_t rt;
@@ -123,12 +132,16 @@ uint8_t MCP4017_VPP_SetVoltage(uint16_t voltageInt)
     {
         voltageInt = 1500;
     }
+    if(voltageInt < 330)  // VPP 最小限制 3.24V -> 324
+    {
+        voltageInt = 330;
+    }
 
     vol = voltageInt / 100.0f;                     // 转换为浮点电压值（V）
     rx  = VPP_RUP / (vol / VPP_REF - 1);           // 计算 RDN 理论值（ohm）
     rt  = (uint8_t)(rx / VPP_4017_RALL * 127);     // 计算数字电位器比例值（0~127）
 
-    error = MCP4017_VPP_WriteResistor(rt);              // 通过IIC写入
+    error = MCP4017_VPP_SetResistor(rt);              // 通过IIC写入
 
     if (error == 0)
     {
@@ -139,7 +152,90 @@ uint8_t MCP4017_VPP_SetVoltage(uint16_t voltageInt)
         return 0xFF;                               // 失败
     }
 }
+/* CRC-16/CCITT over the record, with the stored CRC field excluded. */
+static uint16_t MCP4017_VPP_CalibrationCrc(const mcp4017_calibration_t *record)
+{
+    const uint8_t *bytes = (const uint8_t *)record;
+    uint16_t crc = 0xFFFFU;
+    uint16_t i;
+    uint8_t bit;
 
+    for (i = 0U; i < sizeof(*record); i++)
+    {
+        if (i == 22U || i == 23U)
+            continue;
+        crc ^= (uint16_t)bytes[i] << 8;
+        for (bit = 0U; bit < 8U; bit++)
+            crc = (crc & 0x8000U) ? (uint16_t)((crc << 1) ^ 0x1021U) : (uint16_t)(crc << 1);
+    }
+    return crc;
+}
 
+static uint8_t MCP4017_VPP_LoadCalibration(mcp4017_calibration_t *record)
+{
+    SPI_EEPROM_Read(MCP4017_CALIBRATION_EEPROM_ADDR,
+                    (uint8_t *)record,
+                    sizeof(*record));
 
+    if (record->magic != MCP4017_CALIBRATION_MAGIC ||
+        record->version != MCP4017_CALIBRATION_VERSION ||
+        record->record_size != sizeof(*record) ||
+        record->crc16 != MCP4017_VPP_CalibrationCrc(record))
+        return 0U;
 
+    if (record->vpp_base_mv < 400U || record->vpp_base_mv > 1200U ||
+        record->vpp_gain < 100000UL || record->vpp_gain > 500000UL ||
+        record->vpp_offset_milli > 10000U)
+        return 0U;
+
+    return 1U;
+}
+
+static uint8_t MCP4017_VPP_FittedSetVoltage(uint16_t voltageInt,
+                                                  const mcp4017_calibration_t *record)
+{
+    uint32_t targetMv;
+    uint32_t denominator;
+    uint32_t tapMilli;
+    uint32_t tap;
+
+    if (voltageInt < 330U)
+        voltageInt = 330U;
+    if (voltageInt > 1500U)
+        voltageInt = 1500U;
+
+    targetMv = (uint32_t)voltageInt * 10UL;
+    if (targetMv <= record->vpp_base_mv)
+        return MCP4017_VPP_SetResistor(127U);
+
+    denominator = targetMv - record->vpp_base_mv;
+    tapMilli = ((record->vpp_gain * 1000UL) + (denominator / 2UL)) / denominator;
+    if (tapMilli <= record->vpp_offset_milli)
+        tap = 0U;
+    else
+        tap = (tapMilli - record->vpp_offset_milli + 500UL) / 1000UL;
+    if (tap > 127U)
+        tap = 127U;
+
+    return MCP4017_VPP_SetResistor((uint8_t)tap);
+}
+
+uint8_t MCP4017_VPP_SimSetVoltage(uint16_t voltageInt)
+{
+    mcp4017_calibration_t record;
+
+    if (MCP4017_VPP_LoadCalibration(&record) == 0U)
+        return 0xFFU;
+
+    return MCP4017_VPP_FittedSetVoltage(voltageInt, &record);
+}
+
+uint8_t MCP4017_VPP_SetVoltage(uint16_t voltageInt)
+{
+    mcp4017_calibration_t record;
+
+    if (MCP4017_VPP_LoadCalibration(&record) != 0U)
+        return MCP4017_VPP_FittedSetVoltage(voltageInt, &record);
+
+    return MCP4017_VPP_LegacySetVoltage(voltageInt);
+}
