@@ -86,6 +86,8 @@
 #define DEBUG_BIN_CMD_FLASH_DEMO        0x0603U
 #define DEBUG_BIN_CMD_FLASH_DEMO_DMA    0x0604U
 #define DEBUG_BIN_CMD_FLASH_ERASE       0x0605U
+/* Read-only summary of the active offline package. */
+#define DEBUG_BIN_CMD_OFFLINE_PACKAGE_INFO 0x0606U
 
 /* Capability bits returned by GET_CAPABILITIES. */
 #define DEBUG_BIN_CAP_BOARD_IO          (1UL << 0)

@@ -962,6 +962,55 @@ static void debugBin_Dispatch(void)
         }
         break;
 
+    case DEBUG_BIN_CMD_OFFLINE_PACKAGE_INFO:
+        /* This command is intentionally read-only: it only exposes the active
+         * package location and immutable recording metadata for PC export. */
+        if (p->payloadLength != 0U)
+        {
+            status = DEBUG_BIN_STATUS_BAD_LENGTH;
+        }
+        else
+        {
+            offline_package_index_t summary;
+            offline_raw_package_header_t header;
+            u16 activeIndex;
+
+            if (offlinePgmerGetActivePackage(&activeIndex) != 0U ||
+                offlinePgmerGetPackageSummary(activeIndex, &summary) != 0U ||
+                summary.used == 0U ||
+                summary.package_state != OFFLINE_PACKAGE_VALID ||
+                summary.total_size == 0U ||
+                summary.flash_addr >= FLASH_CAPACITY)
+            {
+                status = DEBUG_BIN_STATUS_IO_ERROR;
+            }
+            else
+            {
+                SPI_Flash_Read((u8 *)&header, summary.flash_addr, sizeof(header));
+                if (header.magic != OFFLINE_RAW_MAGIC ||
+                    header.version != OFFLINE_RAW_VERSION ||
+                    header.header_size == 0U ||
+                    header.packet_area_offset != header.header_size)
+                {
+                    status = DEBUG_BIN_STATUS_IO_ERROR;
+                }
+                else
+                {
+                    debugBin_WriteU16Le(&response[0], activeIndex);
+                    debugBin_WriteU32Le(&response[2], summary.flash_addr);
+                    debugBin_WriteU32Le(&response[6], summary.total_size);
+                    debugBin_WriteU32Le(&response[10], header.packet_area_offset);
+                    debugBin_WriteU32Le(&response[14], summary.packet_area_size);
+                    debugBin_WriteU32Le(&response[18], summary.packet_count);
+                    debugBin_WriteU32Le(&response[22], summary.crc32);
+                    response[26] = summary.identity.arch;
+                    debugBin_WriteU16Le(&response[27], summary.identity.index);
+                    responseLength = 29U;
+                }
+            }
+        }
+        break;
+
     default:
         status = DEBUG_BIN_STATUS_UNKNOWN_CMD;
         break;

@@ -151,6 +151,13 @@ int main(void)
 	}
 
     LED_Init(); KEY_Init(); BEEP_Init();
+
+    LCD_GPIO_Init();
+    LCD_Init();
+    LCD_DisplayGraphic(1,1,64,64, bmp_defeng_Logo);
+    LCD_DisplayString58(1,12,"DIF Micro");
+    LCD_DisplayString58(2,12,"Programmer");
+    //AppLcdDisplayStartupInfo();
     if (stkBootConfirmApplicationReady())
         uart1_WriteString("[App] boot confirmed\r\n");
     else
@@ -173,22 +180,17 @@ int main(void)
     uart1_WriteString((bDeviceState == CONFIGURED) ? "[App] usb ok\r\n" : "[App] usb timeout\r\n");
     LED_ACTIVE=1;
 
+    /* EEPROM 当前仅提供轮询版 SPI 读写接口，无需 DMA 初�?�化�??*/
+    SPI_EEPROM_Init();
+    uart1_WriteString("[App] eeprom init\r\n");
+
     powerSoftInit(1200,50);
     delay_ms(100);
 
-    LCD_GPIO_Init();
-    LCD_Init();
-    LCD_DisplayGraphic(1,1,64,64, bmp_defeng_Logo);
-    LCD_DisplayString58(1,12,"DIF Micro");
-    LCD_DisplayString58(2,12,"Programmer");
-    //AppLcdDisplayStartupInfo();
 
     timerInit();
     Adc_Init();             // ADC + DMA1_Channel1
 
-    /* EEPROM 当前仅提供轮询版 SPI 读写接口，无需 DMA 初�?�化�??*/
-    SPI_EEPROM_Init();
-    uart1_WriteString("[App] eeprom init\r\n");
 
     /* Flash 默�?��?�写接口也是�?询版�??
      * �?有在后续明确调�??SPI_Flash_Read_DMA()/SPI_Flash_Write_Page_DMA()

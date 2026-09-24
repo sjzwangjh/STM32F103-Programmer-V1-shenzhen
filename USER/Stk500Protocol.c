@@ -91,6 +91,36 @@ static uint16_t stkNormalizeIcspConfigValue(uint8_t idx, uint16_t value);
 /* 离线模式下的记录状�? 0=空闲(IDLE), 1=记录�?*/
 uint8_t g_stkProgrammerState = STK500_PROGRAM_IDLE;
 
+static uint8_t stkPackageReadRejectsCommand(uint8_t cmd)
+{
+    switch (cmd)
+    {
+    case STK_CMD_CHIP_ERASE_ISP:
+    case STK_CMD_PROGRAM_FLASH_ISP:
+    case STK_CMD_PROGRAM_EEPROM_ISP:
+    case STK_CMD_PROGRAM_FUSE_ISP:
+    case STK_CMD_PROGRAM_LOCK_ISP:
+    case STK_CMD_CHIP_ERASE_PP:
+    case STK_CMD_PROGRAM_FLASH_PP:
+    case STK_CMD_PROGRAM_EEPROM_PP:
+    case STK_CMD_PROGRAM_FUSE_PP:
+    case STK_CMD_PROGRAM_LOCK_PP:
+    case STK_CMD_CHIP_ERASE_HVSP:
+    case STK_CMD_PROGRAM_FLASH_HVSP:
+    case STK_CMD_PROGRAM_EEPROM_HVSP:
+    case STK_CMD_PROGRAM_FUSE_HVSP:
+    case STK_CMD_PROGRAM_LOCK_HVSP:
+    case STK_CMD_CHIP_ERASE_ICSP:
+    case STK_CMD_PROGRAM_FLASH_ICSP:
+    case STK_CMD_PROGRAM_EEPROM_ICSP:
+    case STK_CMD_PROGRAM_CONFIG_ICSP:
+    case STK_CMD_PROGRAM_USER_ID_ICSP:
+        return 1U;
+    default:
+        return 0U;
+    }
+}
+
 /* Firmware-upgrade request flag: set after the boot-control page is updated. */
 static volatile uint8_t g_stkFwUpgradePending;
 
@@ -807,6 +837,12 @@ static uint8_t setParameter(uint8_t index, uint8_t value)
     uint16_t voltageX100 = (uint16_t)value * 10U;
     uint8_t hwStatus = STK_STATUS_CMD_OK;
 
+    if (stkIsPackageReadMode())
+    {
+        stkParam.bytes[paramIndex] = value;
+        return STK_STATUS_CMD_OK;
+    }
+
     switch (index)
     {
     case STK_PARAM_VTARGET:
@@ -973,6 +1009,12 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     {
         (void)offlinePgmerRawAppendRxPacket(pRx, pDataFrame->frameLen);
     }
+
+    if (stkIsPackageReadMode() && stkPackageReadRejectsCommand(cmd))
+    {
+        pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
+        goto stk_send_response;
+    }
     
     SWITCH_START
     SWITCH_CASE(STK_CMD_SIGN_ON)
@@ -992,7 +1034,8 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     SWITCH_CASE(STK_CMD_SET_WORK_STATE)
         /* 设置工作模式: 0=simulate, 1=online, 2=record, 3=online+record。开机默�?online */
         if (pRx[STK_TXMSG_START + 1] == STK500_WORK_MODE_ONLINE ||
-            pRx[STK_TXMSG_START + 1] == STK500_WORK_MODE_RECORD)
+            pRx[STK_TXMSG_START + 1] == STK500_WORK_MODE_RECORD ||
+            pRx[STK_TXMSG_START + 1] == STK500_WORK_MODE_PACKAGE_READ)
         {
             if (stkSetWorkMode(pRx[STK_TXMSG_START + 1]) == 0U)
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
@@ -1016,6 +1059,11 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
                 /* Idempotent: already recording, keep current package. */
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
             }
+            else if (!stkIsRecordMode())
+            {
+                g_stkProgrammerState = STK500_PROGRAM_IDLE;
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            }
             else if (offlinePgmerRawBegin(&g_stkDeviceIdentity) != 0U)
             {
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_FAILED;
@@ -1028,7 +1076,12 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
         }
         else
         {
-            if (offlinePgmerRawEnd() == 0U)
+            if (!stkIsRecordMode())
+            {
+                g_stkProgrammerState = STK500_PROGRAM_IDLE;
+                pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
+            }
+            else if (offlinePgmerRawEnd() == 0U)
             {
                 g_stkProgrammerState = STK500_PROGRAM_IDLE;
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
@@ -1839,7 +1892,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
             else
             {
                 uint16_t cfgBytes = (uint16_t)(cfgCount * 2U);
-                memset(&pTx[STK_TXMSG_START + 2], 0xFF, cfgBytes);
+                icspFillErasedWords(&pTx[STK_TXMSG_START + 2], cfgCount);
                 (void)offlinePgmerRawReadBack(STK_CMD_READ_CONFIG_ICSP, 0U, pRx,
                                               &pTx[STK_TXMSG_START + 2], cfgBytes);
                 pTx[STK_TXMSG_START + 1] = STK_STATUS_CMD_OK;
@@ -1951,6 +2004,7 @@ void stkEvaluateRxMessage(stkDataFrame_t *pDataFrame)
     SWITCH_END
 
 
+stk_send_response:
     pDataFrame->txFrameLen = stkSetTxMessage(pTx, pDataFrame->txFrameSize, len.word, pRx[1]);
     if (pDataFrame->source == STK_DATA_SOURCE_USB_HID ||
         pDataFrame->source == STK_DATA_SOURCE_USB_WINUSB)

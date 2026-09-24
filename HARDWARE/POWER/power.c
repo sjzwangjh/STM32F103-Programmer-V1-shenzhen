@@ -33,7 +33,7 @@ void power_init(void)
 /// @param delaymsPerCycle ：每次循环的延迟时长，单位ms
 void powerSoftInit(u16 stopV, u16 delaymsPerCycle)
 {
-    u16 startV = 330;
+    u16 startV = 500;
     // 电源总输入“VUSB”控制端口初始化
     PORT_RCC_CLK(HW_USB_ON);
     PORT_SET_DIR_PP(HW_USB_ON);

@@ -517,7 +517,7 @@ uint8_t offlinePgmerInitWith(const stkDeviceIdentity_t* di)
 /* ���� STK500 ��չ����ģʽ�� */
 uint8_t stkSetWorkMode(uint8_t mode)
 {
-    if (mode > STK500_WORK_MODE_REPLAY)
+    if (mode > STK500_WORK_MODE_PACKAGE_READ)
         return 0U;
 
     g_stkWorkMode = mode;
@@ -550,6 +550,11 @@ uint8_t stkIsOnlineMode(void)
 uint8_t stkIsRecordMode(void)
 {
     return (g_stkWorkMode == STK500_WORK_MODE_RECORD) ? 1U : 0U;
+}
+
+uint8_t stkIsPackageReadMode(void)
+{
+    return (g_stkWorkMode == STK500_WORK_MODE_PACKAGE_READ) ? 1U : 0U;
 }
 
 
@@ -741,14 +746,39 @@ uint16_t offlinePgmerRawReadBack(uint8_t readCmd, uint32_t addr,
     uint32_t end;
     uint32_t curAddr = 0U;
     uint16_t filled = 0U;
+    uint16_t activeIndex;
+    offline_package_index_t activeSummary;
+    offline_raw_package_header_t activeHeader;
     offline_raw_packet_header_t ph;
 
-    if (!g_rawCapture.active || readFrame == 0 || out == 0 || outCap == 0U)
+    if (readFrame == 0 || out == 0 || outCap == 0U)
         return 0U;
 
+    if (g_rawCapture.active)
+    {
+        end = g_rawCapture.file_addr + g_rawCapture.write_offset;
+        cursor = g_rawCapture.file_addr + sizeof(offline_raw_package_header_t);
+    }
+    else
+    {
+        /* Package-read mode never creates a capture. Read the immutable active
+         * package instead, so host verification cannot overwrite its source. */
+        if (!stkIsPackageReadMode() ||
+            offlinePgmerGetActivePackage(&activeIndex) != 0U ||
+            offlinePgmerGetPackageSummary(activeIndex, &activeSummary) != 0U ||
+            activeSummary.package_state != OFFLINE_PACKAGE_VALID)
+            return 0U;
 
-    end = g_rawCapture.file_addr + g_rawCapture.write_offset;
-    cursor = g_rawCapture.file_addr + sizeof(offline_raw_package_header_t);
+        SPI_Flash_Read((uint8_t *)&activeHeader, activeSummary.flash_addr,
+                       sizeof(activeHeader));
+        if (!offlineRawBeginHeaderIsValid(&activeHeader, activeSummary.flash_addr) ||
+            activeSummary.packet_area_size >
+                (FLASH_CAPACITY - activeSummary.flash_addr - activeHeader.packet_area_offset))
+            return 0U;
+
+        cursor = activeSummary.flash_addr + activeHeader.packet_area_offset;
+        end = cursor + activeSummary.packet_area_size;
+    }
 
     while ((end - cursor) >= sizeof(ph))
     {

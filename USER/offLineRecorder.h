@@ -19,6 +19,7 @@
 #define STK500_WORK_MODE_ONLINE         1U      /* 在线模式: 直接按上位机命令烧录目标芯片 */
 #define STK500_WORK_MODE_RECORD         2U      /* record: host commands stored to board flash, no target I/O */
 #define STK500_WORK_MODE_REPLAY         3U      /* replay: handler-triggered, program target from board flash package */
+#define STK500_WORK_MODE_PACKAGE_READ   4U      /* read active package only: no target I/O and no flash writes */
 
 /* 一次编程会话的记录状态, 由 CMD_SET_PROG_STATE 控制。 */
 #define STK500_PROGRAM_IDLE             0U      /* 空闲: 当前没有打开离线包文件 */
@@ -153,6 +154,7 @@ uint8_t stkSetWorkMode(uint8_t mode);
 uint8_t stkGetWorkMode(void);
 uint8_t stkIsOnlineMode(void);
 uint8_t stkIsRecordMode(void);
+uint8_t stkIsPackageReadMode(void);
 
 uint8_t offlinePgmerRawBegin(const stkDeviceIdentity_t *identity);
 uint8_t offlinePgmerRawAppendRxPacket(const uint8_t *frame, uint16_t frameLen);
